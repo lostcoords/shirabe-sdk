@@ -1,0 +1,39 @@
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event.release.prerelease == false &&
+      (startsWith(github.event.release.tag_name, 'api-v') ||
+      startsWith(github.event.release.tag_name, 'card-v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify and publish
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: bin/npm-release "$RELEASE_TAG"
