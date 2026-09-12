@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shirabe word card: playground</title>
+    <style>
+      :root { color-scheme: light dark; --ink: light-dark(#111827, #e8e6e3); --muted: light-dark(#4b5563, #a1a1aa); --line: light-dark(#e5e7eb, #2a2a30); --bg: light-dark(#ffffff, #16161a); }
+      body { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 100vh; background: var(--bg); color: var(--ink); font: 15px/1.6 Inter, ui-sans-serif, system-ui, sans-serif; }
+      main { padding: 40px 44px; }
+      aside { border-left: 1px solid var(--line); padding: 24px; display: grid; align-content: start; gap: 18px; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .lede { color: var(--muted); margin: 0 0 28px; max-width: 60ch; }
+      #page p { font-size: 26px; line-height: 2.1; margin: 0 0 20px; }
+      /* The card colours its own words in the extension; here they only need to
+         look interactive, so the card is what is being judged. */
+      .sb-word { cursor: pointer; border-radius: 3px; }
+      .sb-word:hover { background: light-dark(rgb(3 105 161 / .12), rgb(125 211 252 / .18)); }
+      .sb-word[data-state="learning"] { text-decoration: underline 2px #f59e0b; text-underline-offset: .16em; }
+      .sb-word[data-state="retired"] { opacity: .55; }
+      h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0; }
+      #controls { display: grid; gap: 10px; }
+      #controls label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+      #controls select { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; }
+      #log { font: 11px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); max-height: 40vh; overflow: auto; border-top: 1px solid var(--line); padding-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Word card</h1>
+      <p class="lede">
+        The same card the browser extension shows, driven by a host with no extension,
+        no dictionary pack, no account and no network behind it. Hover a word.
+        Every call it makes to its host is logged on the right.
+      </p>
+      <div id="page"></div>
+    </main>
+    <aside>
+      <h2>Options</h2>
+      <div id="controls"></div>
+      <h2>Host calls</h2>
+      <div id="log"></div>
+    </aside>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

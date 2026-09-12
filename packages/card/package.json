@@ -1,0 +1,61 @@
+{
+  "name": "@shirabe-org/card",
+  "version": "0.1.0",
+  "description": "Shirabe's word card renderer for browsers, extensions, and Anki templates.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lostcoords/shirabe.git",
+    "directory": "packages/card"
+  },
+  "homepage": "https://shirabe.org",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./word-card": {
+      "types": "./dist/word-card/index.d.ts",
+      "import": "./dist/word-card/index.js"
+    },
+    "./word-card/*": {
+      "types": "./dist/word-card/*.d.ts",
+      "import": "./dist/word-card/*.js"
+    },
+    "./standalone": {
+      "types": "./dist/standalone.d.ts",
+      "import": "./dist/standalone.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit",
+    "test": "node test/run.mjs",
+    "test:integration": "node test/run.mjs --integration",
+    "dev": "node playground/serve.mjs",
+    "build:playground": "node -e \"import(\"esbuild\").then(e=>e.build({entryPoints:{main:\"playground/main.ts\"},bundle:true,format:\"esm\",outdir:\"playground\"}))\"",
+    "build:cdn": "esbuild src/standalone.ts --bundle --format=iife --minify --outfile=dist/shirabe-card.js",
+    "build:web": "esbuild src/standalone.ts --bundle --format=iife --minify --outfile=../../app/assets/javascripts/shirabe-card.js",
+    "watch:web": "npm run build:web -- --watch",
+    "build:anki": "esbuild src/standalone.ts --bundle --format=iife --minify --outfile=../../anki-addon/src/web/shirabe-card.js",
+    "watch:anki": "esbuild src/standalone.ts --bundle --format=iife --outfile=../../anki-addon/src/web/shirabe-card.js --watch",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@shirabe-org/api": "0.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "esbuild": "^0.28.1",
+    "happy-dom": "^20.10.6"
+  }
+}
