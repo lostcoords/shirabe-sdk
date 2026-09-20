@@ -28,7 +28,7 @@ try {
     entryPoints: tests,
     bundle: true, platform: "node", format: "cjs", outdir: dir, logLevel: "silent",
   });
-  execFileSync(process.execPath, ["--test", `${dir}/*.js`], { stdio: "inherit" });
+  execFileSync(process.execPath, ["--test", "--test-concurrency=1", `${dir}/*.js`], { stdio: "inherit" });
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
