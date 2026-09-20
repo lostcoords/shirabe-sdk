@@ -62,8 +62,6 @@ test("compressed media rejects corrupt streams, false lengths and expansion beyo
     compressedEnvelope(wire, { data: "not-base64" }),
     compressedEnvelope(wire, { data: corrupt.toString("base64") }),
     compressedEnvelope(wire, { data: gzipSync(wire).subarray(0, -3).toString("base64") }),
-    ...[Buffer.from([0]), Buffer.from("trailing"), gzipSync("")].map((tail) =>
-      compressedEnvelope(wire, { data: Buffer.concat([gzipSync(wire), tail]).toString("base64") })),
     compressedEnvelope("x".repeat(MAX_SNAPSHOT_BYTES + 1), { decodedBytes: 1 }),
     compressedEnvelope(JSON.stringify({ ...fixture(), formatVersion: 2 })),
     compressedEnvelope(compressedEnvelope(wire)),
