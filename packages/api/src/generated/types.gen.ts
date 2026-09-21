@@ -5,7 +5,9 @@ export type ClientOptions = {
 };
 
 /**
- * Search request body.
+ * Search request. `query` is the only required field. When `filters.sources`
+ * is omitted, the API key owner's saved dictionary stack applies.
+ *
  */
 export type SearchRequest = {
     /**
@@ -18,8 +20,8 @@ export type SearchRequest = {
     query: string;
     /**
      * Structured filters (merged with any inline `#key:value` in `query`).
-     * Full parity with the website's FilterRegistry. Values accept aliases or
-     * codes, lists (`v1,v5k`), ranges (`n5-n3`), and comparators (`<2000`).
+     * Values accept aliases or codes, lists (`v1,v5k`), ranges (`n5-n3`), and
+     * comparators (`<2000`).
      *
      */
     filters?: {
@@ -31,90 +33,98 @@ export type SearchRequest = {
         jlpt?: string;
         freq?: string;
         script?: string;
-        source?: string;
-        lang?: string;
-        grade?: string;
-        strokes?: string;
         common?: boolean;
-        type?: 'word' | 'kanji' | 'name' | 'sentence';
+        /**
+         * Ordered dictionary stack for this request. Array order sets dictionary
+         * priority; language order sets definition priority within a dictionary.
+         * This overrides saved preferences without changing them. Only sources
+         * available to the credential are used.
+         *
+         */
+        sources?: Array<SearchSource>;
     };
-    take?: number;
     /**
-     * Opaque pagination cursor from a previous response.
+     * Maximum number of ranked matches to return per resolved segment.
      */
-    cursor?: string | null;
+    limit?: number;
     /**
-     * Focus a resolved span using its UTF-16 start and exclusive end offsets in the original query.
-     */
-    span?: string;
-    /**
-     * Language for API labels. This does not choose definition languages.
-     */
-    locale?: 'en' | 'es';
-    /**
-     * Ordered ISO 639-1 languages for definitions. For an anonymous search,
-     * conversational clients infer these from the conversation and include `en`
-     * once as the final fallback. For a connected account, omit this field to use
-     * saved dictionary preferences unless the user explicitly requests other
-     * definition languages. An explicit list overrides only language selection.
+     * Opt-in extras for every match: `kanji` (character cards) and `sentences`
+     * (example preview).
      *
      */
-    definitionLanguages?: Array<'ja' | 'en' | 'es' | 'fr' | 'de' | 'nl' | 'ru' | 'sv' | 'hu' | 'sl'>;
-    dictionaries?: DictionarySelection;
-    /**
-     * Opt-in extras: `tokens` (top-level query analysis), `kanji` (per-result
-     * kanji cards), `sentences` (per-result example preview).
-     *
-     */
-    include?: Array<'tokens' | 'kanji' | 'sentences'>;
+    include?: Array<'kanji' | 'sentences'>;
 };
 
 /**
- * Search response. Merged results plus opt-in extras.
+ * Shirabe's preferred dictionary-aware interpretation of the query. Segments
+ * preserve their UTF-16 positions and contain best-first word-card matches.
+ * Fields requested through `include` appear only when requested.
+ *
  */
 export type SearchResults = {
     /**
      * Echoes the input query.
      */
     query: string;
-    results: Array<Result>;
     /**
-     * Related writing matches when no qualified match was found.
+     * The preferred query segmentation, in source-text order.
      */
-    suggestions?: Array<Result>;
-    mode?: 'whole' | 'groups' | 'focused' | 'empty';
-    spans?: Array<SearchSpan>;
-    alternatePaths?: Array<Array<SearchSpan>>;
-    groups?: Array<SearchSpan & {
-        results?: Array<Result>;
-        total?: number;
+    segments: Array<SearchSegment>;
+};
+
+/**
+ * Surrounding text and the UTF-16 target where popup lookup begins.
+ */
+export type IdentifyRequest = {
+    /**
+     * The surrounding sentence or bounded Japanese text run.
+     */
+    text: string;
+    /**
+     * The clicked position and optional token boundary supplied by the caller.
+     */
+    target: {
         /**
-         * Whether the total is a lower bound because the meaning-result limit was reached.
+         * Inclusive UTF-16 code-unit offset where Shirabe starts scanning for dictionary expressions.
          */
-        capped?: boolean;
-    }>;
-    focus?: SearchSpan | null;
-    syntaxSpans?: Array<{
-        kind?: string;
-        startOffset?: number;
+        startOffset: number;
+        /**
+         * Optional exclusive UTF-16 code-unit boundary hint. It ranks that span first but does not exclude overlapping spans.
+         */
         endOffset?: number;
-    }>;
-    analysis?: {
-        complete?: boolean;
-        candidate_count?: number;
-        channels?: Array<string>;
-        limits?: {
-            query_graphemes?: number;
-            latin_atoms?: number;
-            japanese_graphemes?: number;
-            meaning_results?: number;
-        };
     };
-    pagination: CursorPagination;
+};
+
+/**
+ * Dictionary-bearing spans beginning at the requested position, best first.
+ */
+export type IdentifyResults = {
     /**
-     * Only with include=tokens, the query's morphological analysis.
+     * Echoes the submitted text.
      */
-    tokens?: Array<Token>;
+    text: string;
+    /**
+     * Fingerprint of the dictionary configuration used for these results.
+     */
+    stackFingerprint: string;
+    /**
+     * Possible dictionary expression lengths beginning at `startOffset`, best first.
+     */
+    spans: Array<SearchSegment>;
+};
+
+/**
+ * One dictionary and its ordered definition languages.
+ */
+export type SearchSource = {
+    /**
+     * Dictionary slug from `GET /api/v1/dictionaries`.
+     */
+    dictionary: string;
+    /**
+     * Ordered ISO 639-1 definition languages for this dictionary.
+     */
+    languages: Array<'ja' | 'en' | 'es' | 'fr' | 'de' | 'nl' | 'ru' | 'sv' | 'hu' | 'sl'>;
 };
 
 /**
@@ -186,10 +196,6 @@ export type Result = {
  *
  */
 export type Entry = {
-    /**
-     * 1-based rank in the caller's dictionary preference (their source stack).
-     */
-    order: number;
     /**
      * Dictionary slug (resolve via GET /api/v1/dictionaries).
      */
@@ -351,7 +357,7 @@ export type Form = {
 
 /**
  * Compact kanji card for the kanji in a headword (search ?include=kanji).
- * `char` is the id, fetch the full record at GET /api/v1/kanji/{char}.
+ * `char` is the id; fetch the full record at GET /api/v1/kanji/{character}.
  *
  */
 export type KanjiCard = {
@@ -440,241 +446,166 @@ export type Token = {
 };
 
 /**
- * Text to parse. Either a single `text`, or a `texts` array to parse many in one call.
+ * Japanese texts to segment using the caller's active dictionary stack.
  */
 export type ParseRequest = {
-    dictionaries?: DictionarySelection;
     /**
-     * Japanese text. Its length is checked twice, against two different limits, and the answers mean different things: too long for ONE request is 413 `TEXT_TOO_LARGE`, a validation failure that waiting will not fix, while too much for this MINUTE is 429 `RATE_LIMIT_EXCEEDED` with a `Retry-After`. Both ceilings belong to the user that owns the API key, so they are not stated here: `GET /api/v1/me` reports them.
+     * One or more non-blank texts. Each item produces one index-aligned item in
+     * `results`. Their combined length counts against the caller's tokenization
+     * limits reported by `GET /api/v1/me`.
      *
      */
-    text?: string;
+    texts: Array<string>;
     /**
-     * Parse multiple texts (e.g. one per paragraph) in a single request. The response `tokens` becomes an array of token lists, index-aligned with `texts`, over one shared state query. Provide either `text` or `texts`. The combined length counts against the same per-request/per-minute character limits.
+     * Optional token details. `study` contains private card state and requires
+     * `user:study:read`; the other values require only `user:dictionary:read`.
      *
      */
-    texts?: Array<string>;
-    /**
-     * Grouping granularity. `word` keeps each token a single lookup-able dictionary word; `phrase` folds the whole predicate into one jisho-style unit.
-     *
-     */
-    mode?: 'word' | 'phrase';
-    /**
-     * Fold extra data onto the tokens that need it, so a client needs no follow-up calls. Off by default: the bare response colours a page and says where every word is, which is what most callers parse for.
-     *
-     * Per-word dictionary data: `pitch` adds pitch-accent patterns, `frequency` the corpus rank, `furigana` the reading aligned to the dictionary form.
-     *
-     * Morphology: `posFull` adds Sudachi's own six-field part of speech and `posLabel` the part of speech in words. Both describe what `pos` already names, in more detail than a client colouring a page can use, and together they were 27% of a response at the 10,000-character ceiling. Ask for them if you store morphology, line up with another Sudachi pipeline, or print the part of speech to a reader.
-     *
-     * There is no `wordIds` or `meanings` any more. This endpoint answers where the words are and what each one is, never which dictionary entry each one is. To read a definition, store the token and send it to `POST /api/v1/words/identify` when a reader taps it: that resolves fresh, is never stale, and costs the resolution only where somebody is reading.
-     *
-     */
-    include?: Array<'pitch' | 'frequency' | 'furigana' | 'posFull' | 'posLabel'>;
+    include?: Array<'furigana' | 'morphology' | 'study'>;
 };
 
 /**
- * Parse response: positioned tokens, each carrying the caller's own SRS state
- * for that word.
- *
+ * One preferred, dictionary-aware tokenization for every submitted text.
  */
 export type Parse = {
     /**
-     * Account dictionary fingerprint, matching /me and /words/identify. Clients preparing saved lookups can detect dictionary changes between requests. Null for anonymous requests; not a transactional snapshot or credential.
-     *
+     * Fingerprint of the active dictionary stack used to choose token boundaries.
      */
-    stackFingerprint: string | null;
+    stackFingerprint: string;
     /**
-     * Positioned tokens in reading order. For a single `text` request this is one token list; for a `texts` batch it is an array of token lists, index-aligned with the request `texts`.
-     *
+     * Tokenization results in the same order as the request's `texts`.
      */
-    tokens: Array<ParseToken> | Array<Array<ParseToken>>;
+    results: Array<{
+        /**
+         * The submitted text represented by this result.
+         */
+        text: string;
+        /**
+         * The preferred segmentation in reading order.
+         */
+        tokens: Array<ParseToken>;
+    }>;
 };
 
 /**
- * One token in reading order. A word a reader could study carries a `state`;
- * particles and punctuation do not, which is what tells a client to render them
- * as plain text rather than colour them.
- *
+ * One token from Shirabe's preferred, dictionary-aware segmentation.
  */
 export type ParseToken = {
     /**
-     * Selected dictionary entry under the caller's active source stack. Omitted when no entry matches.
+     * Inclusive start in UTF-16 code units.
      */
-    entry?: {
-        dictionary: string;
-        sourceId: string;
-    };
+    startOffset: number;
     /**
-     * Start offset into the input, in UTF-16 code units (DOM-native).
+     * Exclusive end in UTF-16 code units.
      */
-    position: number;
+    endOffset: number;
     /**
-     * Length of the surface in UTF-16 code units.
-     */
-    length: number;
-    /**
-     * Surface form as it appeared in the input.
+     * Text exactly as it appears in the input.
      */
     surface: string;
     /**
-     * Dictionary form. Omitted when the tokenizer has none.
+     * Preferred dictionary form when one is available.
      */
     lemma?: string;
     /**
-     * Katakana reading of the surface. Omitted when not applicable.
+     * Katakana reading of this occurrence when available.
      */
     reading?: string;
     /**
-     * Short part-of-speech tag (verb, noun, adj, …).
+     * Short machine-readable part-of-speech tag.
      */
-    pos?: string;
+    partOfSpeech?: string;
     /**
-     * True for the token used as the sentence's search lemma.
-     */
-    primary: boolean;
-    /**
-     * Why the surface is one lookup chip.
+     * Why this surface forms one lookup token.
      */
     kind: 'word' | 'compound' | 'inflected' | 'counter' | 'expression' | 'function' | 'symbol';
     /**
-     * Conservative independently meaningful B-mode parts.
+     * Meaningful parts retained inside a merged token.
      */
-    components?: Array<TokenComponent>;
+    components?: Array<{
+        surface: string;
+        startOffset: number;
+        endOffset: number;
+        lemma?: string;
+        reading?: string;
+        partOfSpeech?: Array<string>;
+    }>;
     /**
-     * Only with `include=posFull`. Sudachi's own six-field part of speech: 品詞1
-     * through 品詞4, then the conjugation type and the conjugation form. `pos`
-     * and `posLabel` are the short tag and the human wording of the same thing;
-     * this is the raw value, for a consumer storing morphology or lining up with
-     * another Sudachi pipeline. "*" means the slot does not apply.
-     *
-     * Behind `include=` because it is six raw strings on every token for a
-     * question most callers do not ask: it was 20% of a response at the
-     * 10,000-character ceiling, charged to every page-colouring parse.
-     *
+     * How this occurrence reaches its dictionary form.
      */
-    posFull?: Array<string>;
+    inflection?: {
+        base: string;
+        /**
+         * Ordered outermost-first.
+         */
+        forms: Array<{
+            code: string;
+            label: string;
+        }>;
+    };
     /**
-     * Only with `include=posLabel`. The part of speech in words, for a client
-     * that wants to print it: `pos` is a short machine tag (`verb`, `prt`) and
-     * the UniDic value behind it is Japanese (動詞, 助詞). Saves every consumer
-     * keeping its own table of the fourteen or so UniDic categories, and a
-     * merged expression is labelled as one rather than left as 連語.
-     *
-     * Not derivable from `pos`, which is why it exists: `noun` covers Noun,
-     * Proper noun, Numeric and Auxiliary. Behind `include=` because a client
-     * that never prints a part of speech was paying 7% for the wording of one.
-     *
-     */
-    posLabel?: string;
-    /**
-     * Ruby for THIS surface, aligned against the dictionary: 食べました comes back
-     * as 食(た) + べました, ruby over the kanji and nothing over the okurigana.
-     *
-     * Distinct from `lemmaFurigana` below, which aligns the dictionary form.
-     * Omitted when there is no ruby to show, which is the ordinary case for an
-     * all-kana word.
-     *
+     * Present only with `include: ["furigana"]` and when ruby is needed.
      */
     furigana?: Array<{
         text: string;
-        /**
-         * Absent for a run that needs no ruby.
-         */
         ruby?: string;
     }>;
     /**
-     * What this surface is doing to its dictionary form, as an ordered chain:
-     * 食べました is `["past", "polite"]` of 食べる, and 食べさせられた is
-     * `["past", "potential / passive", "causative"]`.
-     *
-     * A chain rather than one name because Japanese stacks: naming only the
-     * outermost step would call 食べさせられた a past tense and stop there. Where a
-     * step is genuinely ambiguous it says so (ichidan 〜られる is potential OR
-     * passive and nothing in the surface decides it), rather than picking one.
-     *
-     * Labels follow `?locale=`. Omitted entirely for anything not an inflected
-     * verb or adjective, which includes every noun and particle.
-     *
+     * Present only with `include: ["morphology"]`.
      */
-    inflection?: {
-        /**
-         * The chain, outermost step first.
-         */
-        labels: Array<string>;
-        /**
-         * The dictionary form the chain lands on.
-         */
-        base: string;
+    morphology?: {
+        label?: string;
+        partOfSpeech?: Array<string>;
+        conjugationType?: string;
+        conjugationForm?: string;
     };
     /**
-     * The caller's own study state for this word. Present only on tokens a
-     * reader could study, so its ABSENCE is the signal not to colour a particle
-     * or a piece of punctuation.
-     *
-     * `"none"` unless the key carries READ_SRS: a plain dictionary key gets
-     * segmentation without anyone's private study data.
-     *
+     * Present only with `include: ["study"]`; requires `user:study:read`.
      */
-    state?: string;
-    /**
-     * The decks holding this word, and the start of the same block
-     * `POST /api/v1/srs/states/lookup` answers with: `state`, `decks`, `cardId`,
-     * `cardCount`, `savedSenses`, `savedWholeWord` and `intervals` are
-     * one shape from one serializer, so a word reads the same however you asked.
-     *
-     * That is why a reader colouring a page needs no follow-up call. Empty for a
-     * word with no card, and the fields below are absent entirely, so an unsaved
-     * word costs one short string.
-     *
-     */
-    decks?: Array<{
-        id?: number;
-        name?: string;
-    }>;
-    /**
-     * One of possibly several. A word can hold a card per meaning.
-     */
-    cardId?: number;
-    /**
-     * How many cards this word holds; absent when it holds none.
-     */
-    cardCount?: number;
-    /**
-     * Which meanings already have a card, as `"<dictionary slug>#<its own sense number>"` refs, so a picker does not offer them again.
-     *
-     */
-    savedSenses?: Array<string>;
-    /**
-     * True when a card covers the whole word rather than particular meanings.
-     */
-    savedWholeWord?: boolean;
-    /**
-     * Interval previews for the card a grade would land on.
-     */
-    intervals?: {
-        [key: string]: unknown;
+    study?: {
+        state: string;
+        decks: Array<{
+            id?: number;
+            name?: string;
+        }>;
+        cardId?: number;
+        cardCount?: number;
+        savedSenses?: Array<string>;
+        savedWholeWord?: boolean;
+        intervals?: {
+            [key: string]: unknown;
+        };
     };
-    /**
-     * Only with `include=frequency`. Corpus rank of the dictionary form.
-     */
-    frequency?: number;
-    /**
-     * Only with `include=pitch`. Pitch-accent patterns for the dictionary form.
-     */
-    pitch?: Array<{
-        [key: string]: unknown;
-    }>;
-    /**
-     * Only with `include=furigana`. Ruby aligned to the DICTIONARY FORM (食べる).
-     *
-     * Not to be confused with `furigana` above, which aligns to the SURFACE
-     * (食べました is 食(た)べました). Two different answers, so they carry two keys.
-     *
-     */
-    lemmaFurigana?: Array<{
-        text: string;
-        ruby?: string;
-    }>;
+};
+
+export type ParseOperation = {
+    id: string;
+    status: 'queued' | 'running';
+    textCount: number;
+    submittedAt: string;
+    startedAt?: string;
+    expiresAt: string;
+} | {
+    id: string;
+    status: 'done';
+    textCount: number;
+    submittedAt: string;
+    startedAt?: string;
+    finishedAt: string;
+    expiresAt: string;
+    result: Parse;
+} | {
+    id: string;
+    status: 'failed';
+    textCount: number;
+    submittedAt: string;
+    startedAt?: string;
+    finishedAt: string;
+    expiresAt: string;
+    error: {
+        code: 'PARSE_FAILED';
+        detail: 'The parse operation could not be completed.';
+    };
 };
 
 /**
@@ -924,7 +855,7 @@ export type StateLookupRequest = {
      * Dictionary forms, as bare strings or { lemma } objects.
      */
     words: Array<string | {
-        lemma?: string;
+        lemma: string;
     }>;
 };
 
@@ -988,6 +919,7 @@ export type DeckResponse = {
  * `refresh`, `keepMine`, and `senses` change the note for every sibling card.
  * `lifecycle` changes only the addressed card. Imported source fields use the
  * note editor; these definition commands apply to dictionary-backed notes.
+ * Send exactly one command per request.
  *
  */
 export type CardUpdateRequest = {
@@ -1044,6 +976,7 @@ export type WordNote = {
  */
 export type WordNoteList = {
     wordNotes: Array<WordNote>;
+    pagination: CursorPagination;
 };
 
 /**
@@ -1075,7 +1008,7 @@ export type CardList = {
  */
 export type DueQueue = {
     /**
-     * Up to `take` cards. Linked Anki cards follow their captured display settings.
+     * Up to `limit` cards. Linked Anki cards follow their captured display settings.
      */
     cards: Array<Card>;
     /**
@@ -1125,52 +1058,42 @@ export type Stats = {
 };
 
 /**
- * A full KANJIDIC entry. `?include=` adds the heavy/niche blocks
- * (`references`, `foreignReadings`).
- *
+ * A full KANJIDIC character entry.
  */
 export type Kanji = {
-    char: string;
+    character: string;
     strokes?: number | null;
+    levels: {
+        grade: number | null;
+        jlpt: string | null;
+        kanken: string | null;
+    };
     /**
-     * Japanese school grade (1–10) or null.
+     * Newspaper-frequency rank; lower values are more frequent.
      */
-    grade?: number | null;
-    /**
-     * JLPT label (N5–N1) or null.
-     */
-    jlpt?: string | null;
-    /**
-     * Newspaper-frequency rank (lower = more common) or null.
-     */
-    frequency?: number | null;
-    /**
-     * Language-tagged meanings, primary-first.
-     */
-    meanings: Array<{
-        lang: string;
-        text: string;
-    }>;
+    frequencyRank?: number | null;
+    meanings: Array<Definition>;
     readings: {
         on: Array<string>;
         kun: Array<string>;
         nanori: Array<string>;
-    };
-    /**
-     * Radical, components, IDS structure, and kanken level.
-     */
-    classification?: {
-        radical?: {
-            number?: number;
-            glyph?: string;
-            jpName?: string | null;
+        /**
+         * Present when `include=foreignReadings`.
+         */
+        foreign?: {
+            pinyin?: Array<string>;
+            koreanH?: Array<string>;
+            koreanR?: Array<string>;
+            vietnam?: Array<string>;
         };
-        components?: Array<string>;
+    };
+    classification: {
+        radical: Radical | null;
+        components: Array<string>;
         /**
          * Ideographic Description Sequence.
          */
-        ids?: string;
-        kanken?: string;
+        structure: string | null;
     };
     etymology?: {
         text?: string;
@@ -1178,46 +1101,38 @@ export type Kanji = {
         via?: string | null;
         source?: string;
     } | null;
+    lookalikes: Array<string>;
     /**
-     * Sample JMdict compounds containing this kanji.
-     */
-    compounds?: Array<KanjiCompound>;
-    /**
-     * Visually-similar ("look-alike") kanji, most-similar first.
-     */
-    lookalikes?: Array<string>;
-    /**
-     * Present with ?include=references. Raw KANJIDIC reference data:
-     * dictionary indices, query codes (SKIP/Four-Corner), codepoints
-     * (Unicode/JIS), and variant forms. Shapes are source-defined.
-     *
+     * Present when `include=references`.
      */
     references?: {
-        /**
-         * Dictionary index references (Nelson, Heisig, …).
-         */
         dictRefs?: unknown;
-        /**
-         * Query codes (SKIP, Four-Corner, …).
-         */
         queryCodes?: unknown;
-        /**
-         * Unicode/JIS codepoints.
-         */
         codepoints?: unknown;
-        /**
-         * Variant character forms.
-         */
         variants?: unknown;
     };
-    /**
-     * Present with ?include=foreignReadings.
-     */
-    foreignReadings?: {
-        pinyin?: Array<string>;
-        koreanH?: Array<string>;
-        koreanR?: Array<string>;
-        vietnam?: Array<string>;
+};
+
+export type KanjiResponse = {
+    kanji: Kanji;
+    relationships: {
+        compounds?: Array<KanjiCompound>;
+        readingExamples?: Array<{
+            reading: string;
+            words: Array<{
+                headword: string;
+                reading: string;
+            }>;
+        }>;
+        lookalikes?: Array<KanjiSummary>;
+        relatedKanji?: KanjiRelationshipPreview;
+        radicalMembers?: KanjiRelationshipPreview;
+        strokeOrder?: {
+            svg: string | null;
+            composition: {
+                [key: string]: unknown;
+            } | null;
+        };
     };
 };
 
@@ -1225,39 +1140,58 @@ export type Kanji = {
  * Lightweight JMdict reference for the kanji compounds list.
  */
 export type KanjiCompound = {
-    writing: string;
+    /**
+     * Stable word-card identifier accepted by `GET /api/v1/words/{id}`.
+     */
+    id: string;
+    headword: string;
     reading?: string | null;
-    gloss?: string | null;
+    definitions: Array<Definition>;
+};
+
+/**
+ * A bounded relationship preview and the route for retrieving the complete collection.
+ */
+export type KanjiRelationshipPreview = {
+    count: number;
+    items: Array<KanjiSummary>;
+    /**
+     * Relative API route for the complete collection, or null when the preview is complete.
+     */
+    next: string | null;
 };
 
 /**
  * Compact KANJIDIC entry for index pages. Carries the at-a-glance
- * fields the kanji-index grid renders. Call `/api/v1/kanji/{char}` for
+ * fields the kanji-index grid renders. Call `/api/v1/kanji/{character}` for
  * the full record (readings, meanings, compounds).
  *
  */
 export type KanjiSummary = {
-    char: string;
+    character: string;
     strokes?: number | null;
-    jlpt?: string | null;
-    grade?: number | null;
-    frequency?: number | null;
+    levels: {
+        grade: number | null;
+        jlpt: string | null;
+        kanken: string | null;
+    };
+    frequencyRank?: number | null;
 };
 
 /**
- * Browseable joyo-kanji index, grouped by the chosen sort field.
+ * Browseable KANJIDIC index, grouped by the chosen field.
  * `count` is the total number of kanji surfaced after any filter is
  * applied (sums across groups).
  *
  */
 export type KanjiIndex = {
-    order: 'jlpt' | 'kanken' | 'grade' | 'strokes' | 'radical' | 'frequency';
+    groupBy: 'jlpt' | 'kanken' | 'strokes' | 'radical' | 'frequency';
     count: number;
     groups: Array<KanjiIndexGroup>;
 };
 
 /**
- * One section of the kanji index. `key` is the raw grouping value
+ * One section of the kanji index. `value` is the raw grouping value
  * (integer for strokes/radical, "Nx" string for jlpt, level string for
  * kanken, frequency bucket symbol for frequency, null for unsorted).
  * When ordered by `radical`, a `radical` object is included so clients
@@ -1266,18 +1200,26 @@ export type KanjiIndex = {
  */
 export type KanjiIndexGroup = {
     /**
-     * Grouping key, type depends on `order`.
+     * Grouping value; its type depends on `groupBy`.
      */
-    key: number | string | null;
+    value: number | string | null;
     /**
-     * Present when `order=radical`. The radical for this group.
+     * Present when `groupBy=radical`. The radical for this group.
      */
     radical?: Radical;
+    /**
+     * Total characters in this group before pagination or previewing.
+     */
+    count: number;
     kanji: Array<KanjiSummary>;
+    /**
+     * Present when `filter[group]` selects this group.
+     */
+    pagination?: CursorPagination;
 };
 
 /**
- * One Kangxi radical (部首). The `number` field (1-214) is the canonical
+ * One radical (部首). The `number` field (1-214) is the stable
  * identifier, a few radicals have multiple Unicode glyph forms, but the
  * number is stable. `variants` lists alternate forms (e.g. 氵 and ⺡ for
  * radical 85, water).
@@ -1286,7 +1228,7 @@ export type KanjiIndexGroup = {
 export type Radical = {
     number: number;
     /**
-     * Canonical glyph from the Unicode Kangxi block (U+2F00-U+2FD5).
+     * Canonical display glyph.
      */
     glyph: string;
     strokes: number;
@@ -1320,63 +1262,81 @@ export type RadicalVariant = {
 };
 
 /**
- * Radicals grouped by stroke count. By default the 214 Kangxi radicals
- * (each with a `number`); with `?set=search`, the 253 radkfile component
- * radicals (codepoint-keyed, no `number`).
- *
+ * Radical forms grouped like the website chart.
  */
 export type RadicalIndex = {
+    groupBy: 'strokes' | 'number' | 'position';
+    /**
+     * Total displayed radical forms, including variants.
+     */
     count: number;
     groups: Array<{
-        strokes: number;
-        /**
-         * A Kangxi radical (with `number`) or a radkfile radical.
-         */
-        radicals: Array<{
-            number?: number;
-            glyph: string;
-            strokes: number;
-            meaning?: string | null;
-            jpName?: string | null;
-            romaji?: string | null;
-            positionJp?: string | null;
-            positionRomaji?: string | null;
-            variants?: Array<RadicalVariant>;
-        }>;
+        value: number | string | null;
+        radicals: Array<RadicalCell>;
     }>;
 };
 
-export type RadicalWithKanji = Radical & {
+/**
+ * One displayed radical form, linked to its radical number.
+ */
+export type RadicalCell = {
+    radicalNumber: number;
+    glyph: string | null;
+    strokes: number;
+    meaning: string | null;
+    jpName: string | null;
+    variant: boolean;
+    position: string | null;
+    shape: {
+        path: string;
+        viewBox: string;
+    } | null;
+};
+
+export type RadicalResponse = {
+    radical: Radical;
     /**
-     * Joyo kanji whose classical radical matches this number,
-     * sorted by stroke count. Default-scoped to joyo so busy
-     * radicals (e.g. #85 water has 525 total kanji) stay useful
-     * for learners.
-     *
+     * KANJIDIC characters using this radical.
      */
     kanji: Array<KanjiSummary>;
+    count: number;
+    pagination: CursorPagination;
 };
 
 /**
- * Multi-radical (radkfile) component search results: the kanji built from
- * ALL the requested components, plus the components still combinable with
- * the current selection (to drive a progressive picker).
- *
+ * A glyph used for component-based kanji discovery.
  */
-export type RadicalComponentSearch = {
-    /**
-     * The requested component glyphs (echoed back).
-     */
+export type KanjiComponent = {
+    glyph: string;
+    strokes: number;
+    meaning?: string | null;
+    jpName?: string | null;
+    romaji?: string | null;
+};
+
+export type KanjiComponentIndex = {
+    count: number;
+    groups: Array<{
+        strokes: number;
+        components: Array<KanjiComponent>;
+    }>;
+};
+
+export type KanjiComponentMatches = {
     components: Array<string>;
     /**
-     * Total matching kanji (the `kanji` array may be capped).
+     * Total matches before the response limit is applied.
      */
     count: number;
-    kanji: Array<KanjiSummary>;
+    groups: Array<{
+        strokes: number | null;
+        matches: Array<KanjiSummary>;
+    }>;
     /**
-     * Component glyphs that still narrow the current selection.
+     * Components that can still narrow the current selection.
      */
-    available: Array<string>;
+    availableComponents: Array<string>;
+    pagination: CursorPagination;
 };
 
 /**
@@ -1386,7 +1346,6 @@ export type Me = {
     user: {
         name: string;
         displayName: string;
-        kind: string;
         memberDays: number;
         admin: boolean;
     };
@@ -1437,82 +1396,6 @@ export type Me = {
         subscribed: boolean;
         plan: string;
     };
-    /**
-     * The owner's dictionary/language stack, covered by READ_ACCOUNT.
-     */
-    preferences?: {
-        uiLocale?: string;
-        /**
-         * The user's dictionary stack: ordered `slug:lang` refs naming which dictionaries resolve, in which languages, in what order.
-         *
-         */
-        dictionaries?: Array<string>;
-        /**
-         * Derived from `dictionaries`, the distinct languages of the stack, in order.
-         */
-        languages?: Array<string>;
-        /**
-         * Names the answers this stack produces, for a client that caches word lookups. Two owners carrying the same fingerprint may share one cached response; it also changes whenever a dictionary is re-imported, so a stale copy cannot outlive the content it came from. Order, reveal mode, personal-dictionary access and personal content are part of the value. Opaque: compare it, do not parse it.
-         * Worth knowing before building on it: sharing between readers only pays where two of them are configured identically, and a dictionary stack is the thing readers configure differently. Caching per reader, or not at all, is often the better answer.
-         *
-         */
-        stackFingerprint?: string;
-        /**
-         * True when the stack names one of the owner's own uploads, which makes its answers theirs alone. A client that caches lookups must not share them between readers when this is set. False for a stack of official dictionaries, even when the owner has uploads they have switched off.
-         *
-         */
-        stackIsPrivate?: boolean;
-        /**
-         * Ordered example-sentence translation languages, a separate axis from `languages`. `ja` is an immersion marker, its position is the point past which a sentence with no translation is shown Japanese-only.
-         *
-         */
-        sentenceLanguages?: Array<string>;
-        /**
-         * How an example sentence's translation is revealed.
-         */
-        sentenceTranslation?: 'show' | 'hover' | 'hide';
-        /**
-         * How each dictionary in `dictionaries` is SHOWN, keyed by slug, as opposed to whether it resolves at all.
-         *
-         * `hover` means the reader keeps that dictionary's definitions covered until they ask for them: the case it exists for is a Japanese dictionary stacked over a bilingual one, so a word reads Japanese-first with the translation a deliberate glance away. A client drawing our answers should draw this the same way, since the reader asked for it everywhere their stack reaches.
-         *
-         * Keyed by slug, not by `slug:lang` ref: one dictionary is one answer however many languages it is stacked in. Resolved for every dictionary in the stack, so a slug always has an answer.
-         *
-         */
-        dictionaryReveal?: {
-            [key: string]: 'show' | 'hover';
-        };
-        /**
-         * The user's own (Yomitan) uploads.
-         */
-        personalDictionaries?: Array<{
-            slug: string;
-            name: string;
-        }>;
-        /**
-         * What each dictionary in `dictionaries` is CALLED, keyed by slug.
-         *
-         * A stack entry is a slug, and a slug is not a name: a reader's own
-         * uploads are filed under content hashes (`yomitan-c89af12122021a8a`), so
-         * a client printing the stack back to them prints a list of hashes
-         * without this.
-         *
-         * Only the dictionaries in this stack, and only ones this key may already
-         * resolve.
-         *
-         */
-        dictionaryNames?: {
-            [key: string]: string;
-        };
-        /**
-         * Every definition dictionary this key may enable, including the owner's uploads.
-         */
-        availableDictionaries?: Array<{
-            slug: string;
-            name: string;
-            languages: Array<string>;
-        }>;
-    };
 };
 
 /**
@@ -1524,7 +1407,7 @@ export type Me = {
  */
 export type OauthTokenRequest = {
     /**
-     * `authorization_code`, `refresh_token` or `urn:ietf:params:oauth:grant-type:device_code`. Anything else answers `unsupported_grant_type`.
+     * `authorization_code`, `refresh_token`, `client_credentials` or `urn:ietf:params:oauth:grant-type:device_code`. Anything else answers `unsupported_grant_type`.
      */
     grant_type: string;
     /**
@@ -1548,7 +1431,7 @@ export type OauthTokenRequest = {
      */
     redirect_uri?: string;
     /**
-     * The protected resource requested when the flow began. It must match on every exchange and refresh.
+     * The protected resource requested. It must match the authorization grant, or is bound to a client-credentials token.
      */
     resource?: string;
     /**
@@ -1562,7 +1445,7 @@ export type OauthTokenRequest = {
 };
 
 /**
- * A fresh token pair (RFC 6749 §5.1). Store both; the refresh token is single-use.
+ * A fresh access token. User-delegated grants also include a single-use refresh token.
  */
 export type OauthTokenResponse = {
     /**
@@ -1575,9 +1458,9 @@ export type OauthTokenResponse = {
      */
     expires_in: number;
     /**
-     * Trade for the next pair at this endpoint. Single-use, rotates, ninety days from last use.
+     * User-delegated grants only. Trade for the next pair at this endpoint; single-use and rotating.
      */
-    refresh_token: string;
+    refresh_token?: string;
     /**
      * The granted scopes, space-separated.
      */
@@ -1660,7 +1543,7 @@ export type ErrorOauth = {
     code: 'INVALID_CLIENT' | 'INVALID_GRANT' | 'INVALID_SCOPE' | 'INVALID_TARGET' | 'UNSUPPORTED_GRANT_TYPE' | 'AUTHORIZATION_PENDING' | 'SLOW_DOWN' | 'ACCESS_DENIED' | 'EXPIRED_TOKEN';
     error: 'invalid_client' | 'invalid_grant' | 'invalid_scope' | 'invalid_target' | 'unsupported_grant_type' | 'authorization_pending' | 'slow_down' | 'access_denied' | 'expired_token';
     error_description?: string;
-    instance?: string;
+    instance: string;
 };
 
 /**
@@ -1680,27 +1563,78 @@ export type TagList = {
 };
 
 /**
- * The dictionaries available to search, resolving the slugs used across the API.
+ * Dictionaries available to this credential.
  */
 export type DictionaryList = {
-    dictionaries: Array<{
+    dictionaries: Array<Dictionary>;
+};
+
+export type Dictionary = {
+    slug: string;
+    name: string;
+    /**
+     * The content this dictionary contributes.
+     */
+    kind: 'definition' | 'name' | 'encyclopedia' | 'kanji' | 'sentence' | 'pitch' | 'frequency' | 'jlpt' | 'metadata';
+    visibility: 'official' | 'personal';
+    languages: Array<string>;
+    entryCount: number | null;
+    capabilities: Array<'search' | 'definitions' | 'names' | 'encyclopedia' | 'kanji' | 'sentences' | 'pitch' | 'frequency' | 'jlpt' | 'metadata' | 'offline'>;
+    attribution: DictionaryAttribution | null;
+};
+
+export type DictionaryAttribution = {
+    text?: string;
+    source: {
+        name: string;
+        url: string;
+    } | null;
+    license: {
+        name: string;
+        url?: string;
+    } | null;
+};
+
+export type DictionaryStack = {
+    dictionaryStack: {
+        fingerprint: string;
+        sources: Array<DictionaryStackSource>;
+    };
+};
+
+export type DictionaryStackSource = {
+    /**
+     * A slug returned by `GET /api/v1/dictionaries`.
+     */
+    dictionary: string;
+    languages: Array<string>;
+    reveal: 'show' | 'hover';
+};
+
+export type DictionaryImport = {
+    id: string;
+    status: 'queued' | 'processing' | 'completed' | 'failed';
+    phase: string | null;
+    filename: string | null;
+    progress: {
+        processed: number;
+        total: number;
+        percent: number;
+    } | null;
+    dictionary: {
         slug: string;
         name: string;
-        /**
-         * Dictionary kind.
-         */
-        type: string;
-        /**
-         * Gloss languages the dictionary ships (ISO 639-1).
-         */
-        languages: Array<string>;
-        visibility: 'official' | 'personal';
-        entryCount?: number | null;
-        attribution?: string;
-    }>;
+    } | null;
+    error: {
+        code: string;
+        message: string;
+    } | null;
+    createdAt: string;
+    updatedAt: string;
 };
 
 export type DictionaryPackManifest = {
+    kind?: 'base' | 'overlay';
     schemaVersion: number;
     buildRecipeVersion: number;
     minimumExtensionVersion: string;
@@ -1752,27 +1686,18 @@ export type DictionaryPackManifest = {
 };
 
 export type DictionaryStackManifest = {
-    stackFingerprint: string;
-    dictionaries: Array<string>;
-    dictionaryReveal: {
-        [key: string]: 'show' | 'hover';
-    };
-    dictionaryNames: {
-        [key: string]: string;
-    };
-    publicPack: DictionaryPackManifest;
-    /**
-     * Immutable offline overlays for every personal dictionary the account can access. The dictionaries array decides which overlays are active.
-     */
-    personalPacks: Array<DictionaryPackManifest>;
+    dictionaryStack: DictionaryStack2;
+    packs: Array<DictionaryPackManifest & {
+        kind: 'base' | 'overlay';
+    }>;
 };
 
 /**
- * One example sentence with its translations.
+ * One official-corpus example sentence.
  */
 export type Sentence = {
     /**
-     * `<dictionary>:<sourceId>` identifier.
+     * Stable sentence handle accepted by `GET /api/v1/sentences/{id}`.
      */
     id: string;
     japanese: string;
@@ -1780,96 +1705,129 @@ export type Sentence = {
         lang: string;
         text: string;
     }>;
+    source: SentenceSource;
     /**
-     * Human label for a non-default sentence dictionary. Omitted for Tatoeba (the ambient corpus): the `id` already prefixes `tatoeba:`.
-     *
+     * Japanese spans responsible for this result. Empty for translation searches and direct retrieval.
      */
-    source?: string;
+    matches: Array<SentenceMatch>;
     /**
-     * Clickable tokens of the Japanese sentence, present in the search preview (?include=sentences) and on ?include=examples. `matched` marks the searched word; punctuation comes back with `content: false` and renders as plain text.
-     *
-     * Follow `id` to open a token, not `lemma`. A lemma is what a form reduces to, which is not always the word on screen: なら reduces to the copula だ and is its own headword meaning "if". `id` is absent where the dictionary carries no such word, which means "show it, do not link it".
-     *
+     * Present only with `include=tokens`. Offsets use inclusive/exclusive UTF-16 code units.
      */
-    tokens?: Array<{
-        surface: string;
-        lemma: string;
-        /**
-         * The word id this token reads about at GET /api/v1/words/{id}.
-         */
-        id?: string;
-        content: boolean;
-        matched: boolean;
-    }>;
+    tokens?: Array<SentenceToken>;
+};
+
+export type SentenceSource = {
+    dictionary: string;
+    name: string;
+    sourceId: string;
+    url?: string;
+};
+
+export type SentenceMatch = {
+    surface: string;
+    startOffset: number;
+    endOffset: number;
+    /**
+     * Word handle accepted by `GET /api/v1/words/{id}`.
+     */
+    wordId?: string;
+};
+
+export type SentenceToken = {
+    surface: string;
+    lemma: string;
+    /**
+     * Word handle accepted by `GET /api/v1/words/{id}`.
+     */
+    wordId?: string;
+    startOffset: number;
+    endOffset: number;
+    content: boolean;
+    matched: boolean;
 };
 
 /**
  * Paginated example-sentence search results.
  */
 export type SentenceList = {
+    /**
+     * The submitted text query, or null when searching only by word ID.
+     */
+    query: string | null;
     sentences: Array<Sentence>;
     pagination: CursorPagination;
 };
 
+export type SentenceResponse = {
+    sentence: Sentence;
+};
+
 /**
- * Full single-word detail, same `entries`/`senses` shape as search, with the
- * detail-only sense fields populated (notes, cross-references, restrictions,
- * loanword source) and every available language. `?include=examples,wikipedia`
- * adds optional blocks.
- *
+ * Full detail for one selected word.
  */
 export type WordDetail = {
+    word: WordCard;
     /**
-     * Dictionary owning the resolved entry, independent of the display order of merged sources.
+     * Other words written with the same headword, ordered by their dictionary ranking. Each id appears once.
      */
-    dictionary: string;
+    homographs: Array<{
+        /**
+         * Word handle accepted by `GET /api/v1/words/{id}`.
+         */
+        id: string;
+        headword: string;
+        reading?: string | null;
+    }>;
     /**
-     * Source identifier within that dictionary.
+     * Up to 20 preview sentences, present only with `include=sentences`. Use `/sentences` for filtering and pagination.
      */
-    sourceId: string;
+    sentences?: Array<Sentence>;
+};
+
+/**
+ * A word card merged from the API key owner's active dictionary stack.
+ */
+export type WordCard = {
+    /**
+     * Word handle accepted by `GET /api/v1/words/{id}`.
+     */
     id: string;
     headword: string;
     reading?: string | null;
+    /**
+     * Reading aligned to the headword. Kana-only runs omit `ruby`.
+     */
     furigana: Array<{
         text: string;
         ruby?: string;
     }>;
     common: boolean;
     jlpt?: string | null;
+    /**
+     * Corpus rank, where a lower number is more common.
+     */
     frequency?: number | null;
     pitch: Array<{
         downstep: number;
         pattern: 'heiban' | 'atamadaka' | 'nakadaka' | 'odaka';
         /**
-         * Pre-generated clip of the reading spoken at this accent; null when unavailable.
+         * Pre-generated recording of this reading and accent, or null when unavailable.
          */
         audioUrl?: string | null;
         /**
-         * Verified published MP3 copy of this recording for offline use; absent when unavailable.
+         * Verified published MP3 for offline use. Absent when unavailable.
          */
         audioDownloadUrl?: string;
         /**
-         * True when no dictionary lists this pitch and it's an automatic model estimate.
+         * True when the accent is an automatic estimate rather than a dictionary record.
          */
         autogenerated?: boolean;
     }>;
     forms: Array<Form>;
     /**
-     * Homographs with a different reading (disambiguated ids).
+     * Dictionary contributions in the owner's source-stack order.
      */
-    siblings?: Array<{
-        id?: string;
-        reading?: string | null;
-    }>;
     entries: Array<Entry>;
-    /**
-     * Present with ?include=examples.
-     */
-    examples?: Array<Sentence>;
-    /**
-     * Present with ?include=wikipedia, a Wikipedia Entry, or null.
-     */
-    wikipedia?: null | Entry;
 };
 
 /**
@@ -1885,15 +1843,20 @@ export type CrossReference = {
 };
 
 /**
- * Opaque keyset-style pagination. Echo `cursor` back for the next page.
- * Paging is bounded at 10000 results: past that the next request is a
- * `400 BAD_REQUEST`, so narrow the query instead of walking to the end.
+ * Signed opaque pagination. Echo `cursor` back for the next page without inspecting
+ * or changing it, using the same operation and filters. Ranked collections tie
+ * cursors to the data version that produced them. If that data changes, the
+ * endpoint returns `409 CURSOR_EXPIRED` and the client must restart from the first page.
+ * Offset-backed collections stop after 10000 results with `400 CURSOR_TOO_DEEP`.
  *
  */
 export type CursorPagination = {
     hasMore: boolean;
     /**
-     * Opaque token; pass as `?cursor=`. Null when there are no more pages.
+     * Opaque token. Send it in the next request's `cursor` field or query
+     * parameter, as documented by that operation. Null when there are no more
+     * pages. Do not reuse it with another operation or another set of filters.
+     *
      */
     cursor: string | null;
 };
@@ -1915,7 +1878,7 @@ export type ErrorBase = {
     /**
      * Request ID, useful for support correlation.
      */
-    instance?: string;
+    instance: string;
 };
 
 /**
@@ -1933,7 +1896,7 @@ export type Error = {
     /**
      * Request ID, useful for support correlation.
      */
-    instance?: string;
+    instance: string;
     /**
      * Optional field→message map for validation failures.
      */
@@ -1950,11 +1913,21 @@ export type Error400 = {
     title: string;
     status: 400;
     detail?: string;
-    code: 'BAD_REQUEST' | 'VALIDATION_FAILED' | 'DECK_IMPORTING';
-    instance?: string;
+    code: 'BAD_REQUEST' | 'VALIDATION_FAILED' | 'DECK_IMPORTING' | 'INVALID_CURSOR' | 'CURSOR_TOO_DEEP';
+    instance: string;
+    /**
+     * Field errors keyed by attribute, or schema-validation errors with JSON pointers.
+     */
     errors?: {
         [key: string]: string;
-    };
+    } | Array<{
+        message: string;
+        code: string;
+        pointer?: string;
+        parameter?: string;
+        header?: string;
+        cookie?: string;
+    }>;
 };
 
 /**
@@ -1966,7 +1939,7 @@ export type Error401 = {
     status: 401;
     detail?: string;
     code: 'TOKEN_REQUIRED' | 'INVALID_TOKEN';
-    instance?: string;
+    instance: string;
 };
 
 /**
@@ -1978,7 +1951,7 @@ export type Error402 = {
     status: 402;
     detail?: string;
     code: 'PRO_REQUIRED';
-    instance?: string;
+    instance: string;
 };
 
 /**
@@ -1990,7 +1963,7 @@ export type Error403 = {
     status: 403;
     detail?: string;
     code: 'INSUFFICIENT_SCOPE' | 'FEATURE_DISABLED' | 'ORIGIN_NOT_ALLOWED';
-    instance?: string;
+    instance: string;
 };
 
 /**
@@ -2002,7 +1975,31 @@ export type Error404 = {
     status: 404;
     detail?: string;
     code: 'NOT_FOUND';
-    instance?: string;
+    instance: string;
+};
+
+/**
+ * The path exists, but not for this request method.
+ */
+export type Error405 = {
+    type: string;
+    title: string;
+    status: 405;
+    detail?: string;
+    code: 'METHOD_NOT_ALLOWED';
+    instance: string;
+};
+
+/**
+ * The request body uses a media type this operation does not accept.
+ */
+export type Error415 = {
+    type: string;
+    title: string;
+    status: 415;
+    detail?: string;
+    code: 'UNSUPPORTED_MEDIA_TYPE';
+    instance: string;
 };
 
 /**
@@ -2023,7 +2020,7 @@ export type Error413 = {
     status: 413;
     detail?: string;
     code: 'TEXT_TOO_LARGE';
-    instance?: string;
+    instance: string;
 };
 
 /**
@@ -2036,7 +2033,7 @@ export type Error429 = {
     status: 429;
     detail?: string;
     code: 'RATE_LIMIT_EXCEEDED';
-    instance?: string;
+    instance: string;
 };
 
 /**
@@ -2063,8 +2060,8 @@ export type Error409 = {
     title: string;
     status: 409;
     detail?: string;
-    code: 'SYNC_CONFLICT' | 'STALE_REVIEW' | 'UNDO_UNAVAILABLE' | 'SESSION_EXPIRED';
-    instance?: string;
+    code: 'SYNC_CONFLICT' | 'STALE_REVIEW' | 'UNDO_UNAVAILABLE' | 'SESSION_EXPIRED' | 'IMPORT_IN_PROGRESS' | 'CURSOR_EXPIRED' | 'IDEMPOTENCY_CONFLICT' | 'STALE_RESOURCE';
+    instance: string;
 };
 
 export type ErrorMediaQuota = {
@@ -2073,6 +2070,7 @@ export type ErrorMediaQuota = {
     status: 413;
     code: 'MEDIA_QUOTA_EXCEEDED';
     detail?: string;
+    instance: string;
 };
 
 /**
@@ -2304,6 +2302,7 @@ export type ErrorMediaNotReady = {
     status: 503;
     code: 'MEDIA_NOT_READY';
     detail?: string;
+    instance: string;
 };
 
 export type McpRequest = {
@@ -2326,11 +2325,6 @@ export type McpResponse = unknown & {
         message: string;
     };
 };
-
-/**
- * Ordered dictionary slugs for this request. Overrides saved dictionary preferences without changing them. Only dictionaries available to this credential are used; an unavailable selection never falls back to other dictionaries.
- */
-export type DictionarySelection = Array<string>;
 
 /**
  * A publisher-defined tag, separate from Shirabe's grammatical and usage codes.
@@ -2375,93 +2369,28 @@ export type SourceHeadword = {
     score: number;
 };
 
-export type SearchSpan = {
-    surface: string;
-    startOffset: number;
-    endOffset: number;
-    channel: string;
-    query?: string;
-    matchKind?: string;
-    role?: string;
-    lookupAvailable: boolean;
-    surfaceReading?: string | null;
-    dictionaryReading?: string | null;
-    entries: Array<{
-        dictionary: string;
-        sourceId: string;
-    }>;
-    parts?: Array<SearchSpan>;
-};
-
 /**
- * A conservative Sudachi B-mode lexical word inside a lookup chip.
- */
-export type TokenComponent = {
-    /**
-     * Component surface form as it appeared inside the chip.
-     */
-    surface: string;
-    /**
-     * Independently searchable dictionary form.
-     */
-    lemma?: string | null;
-    /**
-     * Katakana reading of the component surface.
-     */
-    reading?: string | null;
-    /**
-     * Full Sudachi POS chain.
-     */
-    pos: Array<string>;
-    role: 'word' | 'numeric' | 'counter';
-    /**
-     * UTF-16 offset relative to the start of the outer chip.
-     */
-    offset: number;
-    /**
-     * Component length in UTF-16 code units.
-     */
-    length: number;
-};
-
-/**
- * A bulk parse: its state, and its tokens once it has them.
+ * Positioned source text with ranked word-card matches. Search segments form
+ * one preferred interpretation; identify spans may overlap at one start offset.
  *
  */
-export type ParseBatch = {
+export type SearchSegment = {
     /**
-     * The handle to poll. Not a database id, and not guessable.
+     * Exact text covered by this segment.
      */
-    id: string;
+    surface: string;
     /**
-     * `queued` and `running` both mean keep polling. `done` carries `tokens`, `failed` carries `error` and will not be retried.
-     *
+     * Inclusive UTF-16 offset into `query`.
      */
-    status: 'queued' | 'running' | 'done' | 'failed';
+    startOffset: number;
     /**
-     * How many texts were submitted, which is how many token lists `tokens` will hold.
+     * Exclusive UTF-16 offset into `query`.
      */
-    textCount: number;
-    submittedAt?: string;
+    endOffset: number;
     /**
-     * When the batch reached the front of the queue. Absent while it is still waiting.
+     * Distinct word cards in preferred-first order.
      */
-    startedAt?: string;
-    finishedAt?: string;
-    /**
-     * When the batch stops being fetchable. For a finished batch the window starts when the result exists, not when the batch was submitted, so a long queue cannot expire an answer nobody has had the chance to read.
-     *
-     */
-    expiresAt: string;
-    /**
-     * One token list per submitted text, index-aligned. Present only when `status` is `done`.
-     *
-     */
-    tokens?: Array<Array<ParseToken>>;
-    /**
-     * Why the batch failed. Present only when `status` is `failed`.
-     */
-    error?: string;
+    matches: Array<Result>;
 };
 
 /**
@@ -2669,51 +2598,67 @@ export type SrsSettings = {
     /**
      * Target recall probability (0.70–0.97).
      */
-    desiredRetention?: number;
+    desiredRetention: number;
     /**
      * Ceiling on any scheduled interval, in days (30–36500).
      */
-    maxIntervalDays?: number;
+    maxIntervalDays: number;
     /**
      * Default new cards introduced per day (a deck can override).
      */
-    newPerDay?: number;
+    newPerDay: number;
     /**
      * How new cards interleave with due reviews.
      */
-    queueOrder?: 'due_first' | 'new_first' | 'mixed';
+    queueOrder: 'due_first' | 'new_first' | 'mixed';
     /**
      * Per-weekday load-balancing preference, Sunday first.
      */
-    easyDays?: Array<'normal' | 'reduced' | 'minimum'>;
+    easyDays: Array<'normal' | 'reduced' | 'minimum'>;
     /**
      * IANA timezone for the day boundary. Null until captured.
      */
-    timezone?: string | null;
+    timezone: string | null;
     /**
      * Hour (0–23) a study day rolls over.
      */
+    dayCutoffHour: number;
+};
+
+/**
+ * Partial update to the owner's FSRS settings.
+ */
+export type SrsSettingsUpdate = {
+    desiredRetention?: number;
+    maxIntervalDays?: number;
+    newPerDay?: number;
+    queueOrder?: 'due_first' | 'new_first' | 'mixed';
+    easyDays?: [
+        'normal' | 'reduced' | 'minimum',
+        'normal' | 'reduced' | 'minimum',
+        'normal' | 'reduced' | 'minimum',
+        'normal' | 'reduced' | 'minimum',
+        'normal' | 'reduced' | 'minimum',
+        'normal' | 'reduced' | 'minimum',
+        'normal' | 'reduced' | 'minimum'
+    ];
+    timezone?: string | null;
     dayCutoffHour?: number;
 };
 
 /**
- * A curated word set (docs/srs.md §13b).
+ * Ordered dictionary slugs for this request. Overrides saved dictionary preferences without changing them. Only dictionaries available to this credential are used; an unavailable selection never falls back to other dictionaries.
  */
-export type WordSet = {
-    slug: string;
-    name: string;
-    description?: string;
-    kind: 'jlpt_level' | 'freq_band' | 'explicit';
-    /**
-     * Number of words in the set.
-     */
-    size: number;
-};
+export type DictionarySelection = Array<string>;
 
 /**
  * Parsed tokens to identify.
  */
 export type WordIdentifyRequest = {
+    /**
+     * Required with `include=contextualRanking`; the sentence containing the requested token occurrences.
+     */
+    sentence?: string;
     dictionaries?: DictionarySelection;
     /**
      * Fold word-level data onto every candidate, so a client rendering the one
@@ -2721,8 +2666,7 @@ export type WordIdentifyRequest = {
      * only wants to know which words a token could be needs none of it.
      *
      * `pitch` adds the accent patterns and their audio, `frequency` the corpus
-     * rank, `furigana` the reading aligned to the headword, `jlpt` the level.
-     * The first three mean exactly what they mean on `POST /api/v1/parse`.
+     * rank, `furigana` the reading aligned to the headword, and `jlpt` the level.
      *
      * `forms` adds every spelling the word is written with, which is the
      * question a reader asks the moment the headword is not the spelling they
@@ -2749,15 +2693,15 @@ export type WordIdentifyRequest = {
      * client has to follow every identify with `GET /api/v1/words/{id}` purely
      * to draw a pitch diagram and a badge, and the card visibly rebuilds itself
      * when the second answer lands. `GET /api/v1/words/{id}` remains the way to
-     * get the full detail, including siblings, restrictions, loanword sources,
-     * and examples, for a word somebody already picked.
+     * get the full detail, including homographs, restrictions, loanword sources,
+     * and optional sentences, for a word somebody already picked.
      *
      */
-    include?: Array<'pitch' | 'frequency' | 'furigana' | 'jlpt' | 'forms' | 'notes' | 'relations' | 'parts'>;
+    include?: Array<'pitch' | 'frequency' | 'furigana' | 'jlpt' | 'forms' | 'notes' | 'relations' | 'parts' | 'contextualRanking'>;
     /**
      * The tokens to identify, in the order you want them answered. These are the
-     * fields `POST /api/v1/parse` already puts on every token, which is the whole
-     * point of resolving from one: store the token, ask with the token.
+     * lookup fields derived from a parse token. Send its `lemma`, `surface`, and
+     * `reading`, and map the parse token's `partOfSpeech` to `pos`.
      *
      * A caller with its own tokenizer can skip `/api/v1/parse` entirely and send
      * these four fields directly. `pos` has to use our short vocabulary and
@@ -2791,6 +2735,14 @@ export type WordIdentifyRequest = {
          *
          */
         pos?: string;
+        /**
+         * Start offset in `sentence`, in UTF-16 code units. Required for contextual ranking and must select `surface` with `length`.
+         */
+        position?: number;
+        /**
+         * Surface length in UTF-16 code units. Required for contextual ranking and must select `surface` from `sentence`.
+         */
+        length?: number;
     }>;
 };
 
@@ -2800,12 +2752,12 @@ export type WordIdentifyRequest = {
 export type WordIdentify = {
     /**
      * Which dictionary stack these answers came out of, digested. The same value
-     * `GET /api/v1/me` reports under `preferences.stackFingerprint`.
+     * `GET /api/v1/dictionary-stack` reports under `dictionaryStack.fingerprint`.
      *
      * For a client that CACHES lookups. The events that make a cached answer
      * untrue all happen here -- the key owner switches off a dictionary,
      * reorders their stack, or one is re-imported -- and this is how you find
-     * out without polling `/api/v1/me` to be told "nothing changed". Compare it
+     * out without polling `/api/v1/dictionary-stack` to be told "nothing changed". Compare it
      * to the last one you saw; when it moves, your cached answers for this key
      * are stale.
      *
@@ -2969,6 +2921,19 @@ export type WordIdentify = {
                 id?: string;
             }>;
             /**
+             * Only with `include=contextualRanking`. Ordered sense refs for
+             * this occurrence. `contextual=false` means the refs retain
+             * canonical order because the provider was unavailable,
+             * uncertain, invalid, or failed.
+             *
+             */
+            contextualRanking?: {
+                refs: Array<string>;
+                confidence?: number;
+                contextual: boolean;
+                reason?: 'unavailable' | 'invalid' | 'uncertain' | 'limit' | 'failed';
+            };
+            /**
              * This candidate's definitions, in the same shape a search result
              * carries them, so one component renders both.
              *
@@ -2978,7 +2943,7 @@ export type WordIdentify = {
              * several round trips.
              *
              * One per dictionary that defines this word in the key owner's
-             * stack, ordered by `order`, which follows their stack order: a
+             * stack, in stack order: a
              * reader who put a monolingual dictionary above JMdict gets it
              * first. Each entry names the `dictionary` it came from.
              *
@@ -2995,15 +2960,20 @@ export type WordIdentify = {
 };
 
 /**
- * A generated dictionary artifact is temporarily unavailable.
+ * A dictionary operation is temporarily unavailable.
  */
 export type Error503 = {
     type: string;
     title: string;
     status: 503;
     detail?: string;
-    code: 'DICTIONARY_PACK_UNAVAILABLE';
-    instance?: string;
+    code: 'DICTIONARY_PACK_UNAVAILABLE' | 'IMPORT_CAPACITY_UNAVAILABLE';
+    instance: string;
+};
+
+export type DictionaryStack2 = {
+    fingerprint: string;
+    sources: Array<DictionaryStackSource>;
 };
 
 export type ReaderHostRules = {
@@ -3020,28 +2990,67 @@ export type ReaderHostRules = {
 };
 
 /**
- * Page size.
+ * A conservative Sudachi B-mode lexical word inside a lookup chip.
  */
-export type Take = number;
+export type TokenComponent = {
+    /**
+     * Component surface form as it appeared inside the chip.
+     */
+    surface: string;
+    /**
+     * Independently searchable dictionary form.
+     */
+    lemma?: string | null;
+    /**
+     * Katakana reading of the component surface.
+     */
+    reading?: string | null;
+    /**
+     * Full Sudachi POS chain.
+     */
+    pos: Array<string>;
+    role: 'word' | 'numeric' | 'counter';
+    /**
+     * UTF-16 offset relative to the start of the outer chip.
+     */
+    offset: number;
+    /**
+     * Component length in UTF-16 code units.
+     */
+    length: number;
+};
 
 /**
- * Pagination cursor returned by a previous response. Treat it as opaque: pass
- * back exactly what `pagination.cursor` gave you.
- *
- * Paging is bounded at 10000 results. A cursor reaching past that is answered
- * with `400 BAD_REQUEST` rather than served, because the query behind it scans
- * every skipped row and the whole API shares one database. A result that deep
- * belongs to a narrower query: add filters, or a more specific term.
+ * Maximum number of results to return.
+ */
+export type Limit = number;
+
+/**
+ * Signed pagination cursor returned by a previous response. Treat it as opaque: pass
+ * back exactly what `pagination.cursor` gave you with the same operation and
+ * filters. Some ranked collections expire cursors when their data changes;
+ * `409 CURSOR_EXPIRED` means to restart from the first page. A malformed or
+ * cross-operation cursor returns `400 INVALID_CURSOR`. Offset-backed collections
+ * stop after 10000 results and return `400 CURSOR_TOO_DEEP`.
  *
  */
 export type Cursor = string;
 
 /**
- * Preferred gloss/meaning language as an ISO 639-1 code. Servers may
- * fall back to any available language if the requested one is missing.
+ * Preferred language for Shirabe-owned labels. Regional tags and weighted
+ * language lists are accepted; unsupported languages fall back to English.
+ * Dictionary definition languages are selected separately by each operation.
  *
  */
-export type Locale = 'en' | 'es' | 'ja';
+export type AcceptLanguage = string;
+
+/**
+ * Unique retry key, scoped to this credential and operation for 24 hours.
+ * Repeating the same request returns the original response without applying it
+ * again. Reusing the key with another body returns `409`.
+ *
+ */
+export type IdempotencyKey = string;
 
 export type PairAnkiProfileData = {
     body: {
@@ -3106,6 +3115,10 @@ export type PairAnkiProfileErrors = {
      * Initial media exceeds the remaining account storage.
      */
     413: ErrorMediaQuota;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -3237,6 +3250,10 @@ export type FinishAnkiSnapshotErrors = {
      */
     409: Error409;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -3304,6 +3321,10 @@ export type StartAnkiSnapshotErrors = {
      * The sync epoch, collection identity or idempotency key conflicts with stored state.
      */
     409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -3391,6 +3412,10 @@ export type RefreshAnkiCollectionSettingsErrors = {
      */
     409: Error409;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -3467,6 +3492,10 @@ export type PrepareAnkiPublicationsErrors = {
      */
     413: ErrorMediaQuota;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -3539,6 +3568,10 @@ export type SelectAnkiDeckErrors = {
      */
     409: Error409;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -3606,6 +3639,10 @@ export type ApplyAnkiBatchErrors = {
      * The sync epoch, collection identity or idempotency key conflicts with stored state.
      */
     409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -3820,6 +3857,10 @@ export type UploadAnkiMediaFileErrors = {
      */
     413: ErrorMediaQuota;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -3888,6 +3929,10 @@ export type DeleteAnkiMediaFileErrors = {
      * The sync epoch, collection identity or idempotency key conflicts with stored state.
      */
     409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -3991,6 +4036,10 @@ export type GetAnkiNoteConflictData = {
 
 export type GetAnkiNoteConflictErrors = {
     /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
      * `error="invalid_token"` should renew with its refresh token and retry once.
@@ -4056,6 +4105,10 @@ export type GetAnkiCardConflictData = {
 };
 
 export type GetAnkiCardConflictErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -4215,6 +4268,10 @@ export type RequestAnkiNoteDeletionErrors = {
      */
     409: Error409;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -4253,6 +4310,10 @@ export type CancelAnkiNoteDeletionData = {
 };
 
 export type CancelAnkiNoteDeletionErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -4315,6 +4376,10 @@ export type GetAnkiNoteDeletionData = {
 };
 
 export type GetAnkiNoteDeletionErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -4398,6 +4463,10 @@ export type RequestAnkiReviewUndoErrors = {
      */
     409: Error409;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -4435,6 +4504,10 @@ export type CancelAnkiReviewUndoData = {
 };
 
 export type CancelAnkiReviewUndoErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -4496,6 +4569,10 @@ export type GetAnkiReviewUndoData = {
 };
 
 export type GetAnkiReviewUndoErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -4583,6 +4660,10 @@ export type DeliverAnkiChangesErrors = {
      * Media or account storage limit exceeded.
      */
     413: ErrorMediaQuota;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -4745,6 +4826,10 @@ export type AcknowledgeAnkiChangesErrors = {
      */
     409: Error409;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -4794,6 +4879,10 @@ export type CallMcpData = {
 
 export type CallMcpErrors = {
     /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
      * `error="invalid_token"` should renew with its refresh token and retry once.
@@ -4808,6 +4897,10 @@ export type CallMcpErrors = {
      * The client must accept both application/json and text/event-stream.
      */
     406: unknown;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -4856,6 +4949,10 @@ export type OauthTokenErrors = {
      */
     401: ErrorOauth;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -4875,7 +4972,7 @@ export type OauthTokenError = OauthTokenErrors[keyof OauthTokenErrors];
 
 export type OauthTokenResponses = {
     /**
-     * A fresh access token and refresh token (RFC 6749 §5.1).
+     * A fresh access token, and a refresh token for user-delegated grants.
      */
     200: OauthTokenResponse;
 };
@@ -4891,9 +4988,17 @@ export type OauthRevokeData = {
 
 export type OauthRevokeErrors = {
     /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
      * Unknown client, or a confidential client that did not prove itself.
      */
     401: ErrorOauth;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -4936,6 +5041,10 @@ export type OauthDeviceAuthorizationErrors = {
      */
     401: ErrorOauth;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -4964,6 +5073,15 @@ export type OauthDeviceAuthorizationResponse = OauthDeviceAuthorizationResponses
 
 export type SearchData = {
     body: SearchRequest;
+    headers?: {
+        /**
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
+         *
+         */
+        'Accept-Language'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/search';
@@ -4986,6 +5104,10 @@ export type SearchErrors = {
      */
     403: Error403;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -5005,28 +5127,101 @@ export type SearchError = SearchErrors[keyof SearchErrors];
 
 export type SearchResponses = {
     /**
-     * Grouped search results.
+     * Search results.
      */
     200: SearchResults;
 };
 
 export type SearchResponse = SearchResponses[keyof SearchResponses];
 
-export type ParseTextData = {
-    body: ParseRequest;
-    path?: never;
-    query?: {
+export type IdentifyWordData = {
+    body: IdentifyRequest;
+    headers?: {
         /**
-         * Preferred gloss/meaning language as an ISO 639-1 code. Servers may
-         * fall back to any available language if the requested one is missing.
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
          *
          */
-        locale?: 'en' | 'es' | 'ja';
+        'Accept-Language'?: string;
     };
+    path?: never;
+    query?: never;
+    url: '/api/v1/identify';
+};
+
+export type IdentifyWordErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Text exceeds this user's per-request limit.
+     */
+    413: Error413;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type IdentifyWordError = IdentifyWordErrors[keyof IdentifyWordErrors];
+
+export type IdentifyWordResponses = {
+    /**
+     * Ranked dictionary spans beginning at the requested position.
+     */
+    200: IdentifyResults;
+};
+
+export type IdentifyWordResponse = IdentifyWordResponses[keyof IdentifyWordResponses];
+
+export type ParseData = {
+    body: ParseRequest;
+    headers?: {
+        /**
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
+         *
+         */
+        'Accept-Language'?: string;
+        /**
+         * Queue the parse when set to `respond-async`.
+         */
+        Prefer?: 'respond-async';
+    };
+    path?: never;
+    query?: never;
     url: '/api/v1/parse';
 };
 
-export type ParseTextErrors = {
+export type ParseErrors = {
     /**
      * Malformed request or failed validation.
      */
@@ -5047,6 +5242,10 @@ export type ParseTextErrors = {
      */
     413: Error413;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -5062,84 +5261,44 @@ export type ParseTextErrors = {
     429: Error429;
 };
 
-export type ParseTextError = ParseTextErrors[keyof ParseTextErrors];
+export type ParseError = ParseErrors[keyof ParseErrors];
 
-export type ParseTextResponses = {
+export type ParseResponses = {
     /**
-     * Positioned tokens in reading order.
+     * One preferred parse for each submitted text.
      */
     200: Parse;
+    /**
+     * The parse was queued. Poll the `Location` URL.
+     */
+    202: ParseOperation;
 };
 
-export type ParseTextResponse = ParseTextResponses[keyof ParseTextResponses];
+export type ParseResponse = ParseResponses[keyof ParseResponses];
 
-export type CreateParseBatchData = {
-    body: ParseRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/parse/batches';
-};
-
-export type CreateParseBatchErrors = {
-    /**
-     * Malformed request or failed validation.
-     */
-    400: Error400;
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * Text exceeds this user's per-request limit.
-     */
-    413: Error413;
-    /**
-     * Too many requests; back off and retry after `Retry-After` seconds.
-     *
-     * There is one kind of 429 now. It comes from in front of the application, which
-     * is why the answer is a wait and nothing else: the budget it names refills on a
-     * fixed 60-second window, so retrying after the header says is enough. There is
-     * no monthly quota and no `RateLimit-*` fields to read.
-     *
-     * A request that is too LARGE is not this: that answers 413 with no
-     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
-     * both ceilings, under `rateLimit` and `payloadLimit`.
-     *
-     */
-    429: Error429;
-};
-
-export type CreateParseBatchError = CreateParseBatchErrors[keyof CreateParseBatchErrors];
-
-export type CreateParseBatchResponses = {
-    /**
-     * The batch was queued. Poll `GET /api/v1/parse/batches/{id}`.
-     */
-    202: ParseBatch;
-};
-
-export type CreateParseBatchResponse = CreateParseBatchResponses[keyof CreateParseBatchResponses];
-
-export type GetParseBatchData = {
+export type GetParseOperationData = {
     body?: never;
-    path: {
+    headers?: {
         /**
-         * The `id` returned when the batch was submitted.
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
+         *
          */
+        'Accept-Language'?: string;
+    };
+    path: {
         id: string;
     };
     query?: never;
-    url: '/api/v1/parse/batches/{id}';
+    url: '/api/v1/parse/{id}';
 };
 
-export type GetParseBatchErrors = {
+export type GetParseOperationErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -5147,26 +5306,36 @@ export type GetParseBatchErrors = {
      *
      */
     401: Error401;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
     /**
      * Resource not found.
      */
     404: Error404;
-};
-
-export type GetParseBatchError = GetParseBatchErrors[keyof GetParseBatchErrors];
-
-export type GetParseBatchResponses = {
     /**
-     * The batch, with its tokens when it is done.
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
      */
-    200: ParseBatch;
+    429: Error429;
 };
 
-export type GetParseBatchResponse = GetParseBatchResponses[keyof GetParseBatchResponses];
+export type GetParseOperationError = GetParseOperationErrors[keyof GetParseOperationErrors];
+
+export type GetParseOperationResponses = {
+    /**
+     * Current operation state, including the parse when complete.
+     */
+    200: ParseOperation;
+};
+
+export type GetParseOperationResponse = GetParseOperationResponses[keyof GetParseOperationResponses];
 
 export type UnsaveWordData = {
     body: {
@@ -5204,6 +5373,10 @@ export type UnsaveWordErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -5265,6 +5438,10 @@ export type SaveCardErrors = {
      * The sync epoch, collection identity or idempotency key conflicts with stored state.
      */
     409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -5332,6 +5509,10 @@ export type GradeCardErrors = {
      */
     409: Error409;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -5361,6 +5542,15 @@ export type GradeCardResponse = GradeCardResponses[keyof GradeCardResponses];
 export type StartStudySessionData = {
     body: {
         deckId?: number;
+    };
+    headers?: {
+        /**
+         * Unique retry key, scoped to this credential and operation for 24 hours.
+         * Repeating the same request returns the original response without applying it
+         * again. Reusing the key with another body returns `409`.
+         *
+         */
+        'Idempotency-Key'?: string;
     };
     path?: never;
     query?: never;
@@ -5395,6 +5585,10 @@ export type StartStudySessionErrors = {
      * The study session has ended or expired. Start a new session.
      */
     409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -5493,6 +5687,10 @@ export type GetStudySessionData = {
 
 export type GetStudySessionErrors = {
     /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
      * `error="invalid_token"` should renew with its refresh token and retry once.
@@ -5574,6 +5772,10 @@ export type UndoLatestReviewErrors = {
      */
     409: Error409;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -5628,6 +5830,10 @@ export type SetWordStateErrors = {
      */
     403: Error403;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -5679,6 +5885,10 @@ export type LookupWordStatesErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -5754,6 +5964,15 @@ export type ListDecksResponse = ListDecksResponses[keyof ListDecksResponses];
 
 export type CreateDeckData = {
     body: DeckRequest;
+    headers?: {
+        /**
+         * Unique retry key, scoped to this credential and operation for 24 hours.
+         * Repeating the same request returns the original response without applying it
+         * again. Reusing the key with another body returns `409`.
+         *
+         */
+        'Idempotency-Key'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/srs/decks';
@@ -5779,6 +5998,14 @@ export type CreateDeckErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -5816,6 +6043,10 @@ export type DeleteDeckData = {
 };
 
 export type DeleteDeckErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -5896,6 +6127,10 @@ export type UpdateDeckErrors = {
      */
     404: Error404;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -5951,17 +6186,16 @@ export type ListCardsData = {
          */
         q?: string;
         /**
-         * Page size.
+         * Maximum number of results to return.
          */
-        take?: number;
+        limit?: number;
         /**
-         * Pagination cursor returned by a previous response. Treat it as opaque: pass
-         * back exactly what `pagination.cursor` gave you.
-         *
-         * Paging is bounded at 10000 results. A cursor reaching past that is answered
-         * with `400 BAD_REQUEST` rather than served, because the query behind it scans
-         * every skipped row and the whole API shares one database. A result that deep
-         * belongs to a narrower query: add filters, or a more specific term.
+         * Signed pagination cursor returned by a previous response. Treat it as opaque: pass
+         * back exactly what `pagination.cursor` gave you with the same operation and
+         * filters. Some ranked collections expire cursors when their data changes;
+         * `409 CURSOR_EXPIRED` means to restart from the first page. A malformed or
+         * cross-operation cursor returns `400 INVALID_CURSOR`. Offset-backed collections
+         * stop after 10000 results and return `400 CURSOR_TOO_DEEP`.
          *
          */
         cursor?: string;
@@ -5985,6 +6219,10 @@ export type ListCardsErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -6054,6 +6292,10 @@ export type BulkUpdateCardsErrors = {
      */
     403: Error403;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -6096,6 +6338,10 @@ export type DeleteCardData = {
 
 export type DeleteCardErrors = {
     /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
      * `error="invalid_token"` should renew with its refresh token and retry once.
@@ -6134,7 +6380,7 @@ export type DeleteCardError = DeleteCardErrors[keyof DeleteCardErrors];
 
 export type DeleteCardResponses = {
     /**
-     * The card was deleted.
+     * The card was moved to trash.
      */
     204: void;
 };
@@ -6151,6 +6397,10 @@ export type GetCardData = {
 };
 
 export type GetCardErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -6227,6 +6477,10 @@ export type UpdateCardErrors = {
      */
     404: Error404;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -6258,14 +6512,18 @@ export type DueQueueData = {
     path?: never;
     query?: {
         /**
-         * Page size.
+         * Maximum number of results to return.
          */
-        take?: number;
+        limit?: number;
     };
     url: '/api/v1/srs/due';
 };
 
 export type DueQueueErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -6399,7 +6657,7 @@ export type GetSettingsResponses = {
 export type GetSettingsResponse = GetSettingsResponses[keyof GetSettingsResponses];
 
 export type UpdateSettingsData = {
-    body: SrsSettings;
+    body: SrsSettingsUpdate;
     path?: never;
     query?: never;
     url: '/api/v1/srs/settings';
@@ -6425,6 +6683,10 @@ export type UpdateSettingsErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -6467,6 +6729,10 @@ export type GetForecastData = {
 };
 
 export type GetForecastErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -6523,11 +6789,29 @@ export type ListWordNotesData = {
          * Narrow to this reading (with `text`).
          */
         reading?: string;
+        /**
+         * Maximum number of results to return.
+         */
+        limit?: number;
+        /**
+         * Signed pagination cursor returned by a previous response. Treat it as opaque: pass
+         * back exactly what `pagination.cursor` gave you with the same operation and
+         * filters. Some ranked collections expire cursors when their data changes;
+         * `409 CURSOR_EXPIRED` means to restart from the first page. A malformed or
+         * cross-operation cursor returns `400 INVALID_CURSOR`. Offset-backed collections
+         * stop after 10000 results and return `400 CURSOR_TOO_DEEP`.
+         *
+         */
+        cursor?: string;
     };
     url: '/api/v1/srs/word_notes';
 };
 
 export type ListWordNotesErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -6539,6 +6823,10 @@ export type ListWordNotesErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -6594,6 +6882,10 @@ export type UpsertWordNoteErrors = {
      */
     403: Error403;
     /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -6634,6 +6926,10 @@ export type DeleteWordNoteData = {
 };
 
 export type DeleteWordNoteErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -6680,184 +6976,6 @@ export type DeleteWordNoteResponses = {
 
 export type DeleteWordNoteResponse = DeleteWordNoteResponses[keyof DeleteWordNoteResponses];
 
-export type ListWordSetsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/srs/word-sets';
-};
-
-export type ListWordSetsErrors = {
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * Too many requests; back off and retry after `Retry-After` seconds.
-     *
-     * There is one kind of 429 now. It comes from in front of the application, which
-     * is why the answer is a wait and nothing else: the budget it names refills on a
-     * fixed 60-second window, so retrying after the header says is enough. There is
-     * no monthly quota and no `RateLimit-*` fields to read.
-     *
-     * A request that is too LARGE is not this: that answers 413 with no
-     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
-     * both ceilings, under `rateLimit` and `payloadLimit`.
-     *
-     */
-    429: Error429;
-};
-
-export type ListWordSetsError = ListWordSetsErrors[keyof ListWordSetsErrors];
-
-export type ListWordSetsResponses = {
-    /**
-     * The word-set catalog.
-     */
-    200: {
-        wordSets: Array<WordSet>;
-    };
-};
-
-export type ListWordSetsResponse = ListWordSetsResponses[keyof ListWordSetsResponses];
-
-export type GetWordSetData = {
-    body?: never;
-    path: {
-        slug: string;
-    };
-    query?: {
-        /**
-         * 1-based page number.
-         */
-        page?: number;
-        /**
-         * Page size.
-         */
-        take?: number;
-    };
-    url: '/api/v1/srs/word-sets/{slug}';
-};
-
-export type GetWordSetErrors = {
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * Resource not found.
-     */
-    404: Error404;
-    /**
-     * Too many requests; back off and retry after `Retry-After` seconds.
-     *
-     * There is one kind of 429 now. It comes from in front of the application, which
-     * is why the answer is a wait and nothing else: the budget it names refills on a
-     * fixed 60-second window, so retrying after the header says is enough. There is
-     * no monthly quota and no `RateLimit-*` fields to read.
-     *
-     * A request that is too LARGE is not this: that answers 413 with no
-     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
-     * both ceilings, under `rateLimit` and `payloadLimit`.
-     *
-     */
-    429: Error429;
-};
-
-export type GetWordSetError = GetWordSetErrors[keyof GetWordSetErrors];
-
-export type GetWordSetResponses = {
-    /**
-     * The set plus a page of its words.
-     */
-    200: {
-        wordSet: WordSet;
-        words: Array<{
-            front: string;
-            reading?: string | null;
-            definition?: string | null;
-        }>;
-        pagination: CursorPagination;
-    };
-};
-
-export type GetWordSetResponse = GetWordSetResponses[keyof GetWordSetResponses];
-
-export type CloneWordSetData = {
-    body?: never;
-    path: {
-        slug: string;
-    };
-    query?: never;
-    url: '/api/v1/srs/word-sets/{slug}/clone';
-};
-
-export type CloneWordSetErrors = {
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
-     */
-    402: Error402;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * Resource not found.
-     */
-    404: Error404;
-    /**
-     * Too many requests; back off and retry after `Retry-After` seconds.
-     *
-     * There is one kind of 429 now. It comes from in front of the application, which
-     * is why the answer is a wait and nothing else: the budget it names refills on a
-     * fixed 60-second window, so retrying after the header says is enough. There is
-     * no monthly quota and no `RateLimit-*` fields to read.
-     *
-     * A request that is too LARGE is not this: that answers 413 with no
-     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
-     * both ceilings, under `rateLimit` and `payloadLimit`.
-     *
-     */
-    429: Error429;
-};
-
-export type CloneWordSetError = CloneWordSetErrors[keyof CloneWordSetErrors];
-
-export type CloneWordSetResponses = {
-    /**
-     * The new deck and the seed counts.
-     */
-    200: {
-        deck: Deck;
-        added: number;
-        skipped: number;
-        capped: boolean;
-    };
-};
-
-export type CloneWordSetResponse = CloneWordSetResponses[keyof CloneWordSetResponses];
-
 export type IgnoreWordData = {
     body: {
         text: string;
@@ -6888,6 +7006,10 @@ export type IgnoreWordErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -6936,6 +7058,15 @@ export type BulkAddSearchData = {
          */
         known?: boolean;
     };
+    headers?: {
+        /**
+         * Unique retry key, scoped to this credential and operation for 24 hours.
+         * Repeating the same request returns the original response without applying it
+         * again. Reusing the key with another body returns `409`.
+         *
+         */
+        'Idempotency-Key'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/srs/search-additions';
@@ -6961,6 +7092,14 @@ export type BulkAddSearchErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -6995,15 +7134,17 @@ export type BulkAddSearchResponse = BulkAddSearchResponses[keyof BulkAddSearchRe
 
 export type IdentifyWordsData = {
     body: WordIdentifyRequest;
-    path?: never;
-    query?: {
+    headers?: {
         /**
-         * Preferred gloss/meaning language as an ISO 639-1 code. Servers may
-         * fall back to any available language if the requested one is missing.
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
          *
          */
-        locale?: 'en' | 'es' | 'ja';
+        'Accept-Language'?: string;
     };
+    path?: never;
+    query?: never;
     url: '/api/v1/words/identify';
 };
 
@@ -7023,6 +7164,10 @@ export type IdentifyWordsErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -7052,6 +7197,15 @@ export type IdentifyWordsResponse = IdentifyWordsResponses[keyof IdentifyWordsRe
 
 export type GetWordData = {
     body?: never;
+    headers?: {
+        /**
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
+         *
+         */
+        'Accept-Language'?: string;
+    };
     path: {
         /**
          * **This is a slug, not a number.** It is the word's own spelling, so
@@ -7074,35 +7228,19 @@ export type GetWordData = {
          * output looks a word up without converting first. An exact kana spelling
          * wins where a homograph writes the same reading both ways.
          *
-         * **`id` is a handle; `(dictionary, sourceId)` is an identity.** The slug
-         * is DERIVED from dictionary content, so it moves when a headword, a
-         * commonness flag, or one of our resolution rules moves. Link with it,
-         * put it in a URL, hand it to a browser. Do not write it into a database
-         * you intend to keep: store `sourceId` and `dictionary` instead, because a
-         * JMdict sequence number survives a re-import and owes nothing to how we
-         * resolve. A slug carrying a source id (`開く-ひらく-1202650`) is resolved
-         * BY that id, so an id issued long ago keeps opening the word it meant
-         * even after the spelling in front of it has moved on.
+         * The id is a word handle returned by Search or Identify. Ordinary handles
+         * may change when dictionary data or disambiguation changes. A handle
+         * carrying a source id (`開く-ひらく-1202650`) continues to resolve that
+         * exact dictionary record.
          *
          */
         id: string;
     };
     query?: {
         /**
-         * Exact dictionary identity (`jmdict:1202650`). Overrides the slug's spelling and reading; an unavailable entry returns 404 without falling back to another dictionary.
+         * Comma-separated optional blocks. Currently only `sentences` is supported.
          */
-        entry?: string;
-        dictionaries?: DictionarySelection;
-        /**
-         * Comma-separated optional blocks (`examples`, `wikipedia`).
-         */
-        include?: string;
-        /**
-         * Preferred gloss/meaning language as an ISO 639-1 code. Servers may
-         * fall back to any available language if the requested one is missing.
-         *
-         */
-        locale?: 'en' | 'es' | 'ja';
+        include?: 'sentences';
     };
     url: '/api/v1/words/{id}';
 };
@@ -7156,42 +7294,120 @@ export type GetWordResponse = GetWordResponses[keyof GetWordResponses];
 
 export type ListSentencesData = {
     body?: never;
-    path?: never;
-    query: {
+    headers?: {
         /**
-         * Surface form to match when no entry is pinned. Required but not used for matching when entry is supplied.
-         */
-        query: string;
-        /**
-         * Exact dictionary identity, such as `jmdict:1202650`. The source ID after the first colon is opaque. Overrides surface matching; inaccessible or missing entries return 404.
-         */
-        entry?: string;
-        /**
-         * Page size.
-         */
-        take?: number;
-        /**
-         * Pagination cursor returned by a previous response. Treat it as opaque: pass
-         * back exactly what `pagination.cursor` gave you.
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
          *
-         * Paging is bounded at 10000 results. A cursor reaching past that is answered
-         * with `400 BAD_REQUEST` rather than served, because the query behind it scans
-         * every skipped row and the whole API shares one database. A result that deep
-         * belongs to a narrower query: add filters, or a more specific term.
+         */
+        'Accept-Language'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Japanese text or translated text. Required unless `filter[wordId]` is present.
+         */
+        query?: string;
+        filter?: {
+            wordId?: string;
+            translationLanguages?: Array<string>;
+            sources?: Array<string>;
+        };
+        include?: Array<'tokens'>;
+        /**
+         * Maximum number of results to return.
+         */
+        limit?: number;
+        /**
+         * Signed pagination cursor returned by a previous response. Treat it as opaque: pass
+         * back exactly what `pagination.cursor` gave you with the same operation and
+         * filters. Some ranked collections expire cursors when their data changes;
+         * `409 CURSOR_EXPIRED` means to restart from the first page. A malformed or
+         * cross-operation cursor returns `400 INVALID_CURSOR`. Offset-backed collections
+         * stop after 10000 results and return `400 CURSOR_TOO_DEEP`.
          *
          */
         cursor?: string;
-        /**
-         * Preferred gloss/meaning language as an ISO 639-1 code. Servers may
-         * fall back to any available language if the requested one is missing.
-         *
-         */
-        locale?: 'en' | 'es' | 'ja';
     };
     url: '/api/v1/sentences';
 };
 
 export type ListSentencesErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type ListSentencesError = ListSentencesErrors[keyof ListSentencesErrors];
+
+export type ListSentencesResponses = {
+    /**
+     * Matching sentences.
+     */
+    200: SentenceList;
+};
+
+export type ListSentencesResponse = ListSentencesResponses[keyof ListSentencesResponses];
+
+export type GetSentenceData = {
+    body?: never;
+    headers?: {
+        /**
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
+         *
+         */
+        'Accept-Language'?: string;
+    };
+    path: {
+        /**
+         * URL-encoded sentence handle such as `tatoeba:123456`.
+         */
+        id: string;
+    };
+    query?: {
+        include?: Array<'tokens'>;
+    };
+    url: '/api/v1/sentences/{id}';
+};
+
+export type GetSentenceErrors = {
     /**
      * Malformed request or failed validation.
      */
@@ -7227,36 +7443,43 @@ export type ListSentencesErrors = {
     429: Error429;
 };
 
-export type ListSentencesError = ListSentencesErrors[keyof ListSentencesErrors];
+export type GetSentenceError = GetSentenceErrors[keyof GetSentenceErrors];
 
-export type ListSentencesResponses = {
+export type GetSentenceResponses = {
     /**
-     * Matching sentences.
+     * Sentence detail.
      */
-    200: SentenceList;
+    200: SentenceResponse;
 };
 
-export type ListSentencesResponse = ListSentencesResponses[keyof ListSentencesResponses];
+export type GetSentenceResponse = GetSentenceResponses[keyof GetSentenceResponses];
 
 export type ListTagsData = {
     body?: never;
+    headers?: {
+        /**
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
+         *
+         */
+        'Accept-Language'?: string;
+    };
     path?: never;
     query?: {
         /**
          * Filter to one category (case-insensitive), e.g. `part_of_speech`.
          */
         category?: string;
-        /**
-         * Preferred gloss/meaning language as an ISO 639-1 code. Servers may
-         * fall back to any available language if the requested one is missing.
-         *
-         */
-        locale?: 'en' | 'es' | 'ja';
     };
     url: '/api/v1/tags';
 };
 
 export type ListTagsErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -7334,12 +7557,480 @@ export type ListDictionariesError = ListDictionariesErrors[keyof ListDictionarie
 
 export type ListDictionariesResponses = {
     /**
-     * Available dictionaries.
+     * Available dictionaries. Returns an ETag for conditional requests.
      */
     200: DictionaryList;
 };
 
 export type ListDictionariesResponse = ListDictionariesResponses[keyof ListDictionariesResponses];
+
+export type DeleteDictionaryData = {
+    body?: never;
+    path: {
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/dictionaries/{slug}';
+};
+
+export type DeleteDictionaryErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type DeleteDictionaryError = DeleteDictionaryErrors[keyof DeleteDictionaryErrors];
+
+export type DeleteDictionaryResponses = {
+    /**
+     * Dictionary access removed.
+     */
+    204: void;
+};
+
+export type DeleteDictionaryResponse = DeleteDictionaryResponses[keyof DeleteDictionaryResponses];
+
+export type GetDictionaryStackData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/dictionary-stack';
+};
+
+export type GetDictionaryStackErrors = {
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type GetDictionaryStackError = GetDictionaryStackErrors[keyof GetDictionaryStackErrors];
+
+export type GetDictionaryStackResponses = {
+    /**
+     * Current dictionary stack. Returns an ETag for conditional requests.
+     */
+    200: DictionaryStack;
+};
+
+export type GetDictionaryStackResponse = GetDictionaryStackResponses[keyof GetDictionaryStackResponses];
+
+export type ReplaceDictionaryStackData = {
+    body: {
+        /**
+         * Fingerprint returned by the latest GET. A stale value returns `409`.
+         */
+        fingerprint: string;
+        sources: Array<DictionaryStackSource>;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/dictionary-stack';
+};
+
+export type ReplaceDictionaryStackErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type ReplaceDictionaryStackError = ReplaceDictionaryStackErrors[keyof ReplaceDictionaryStackErrors];
+
+export type ReplaceDictionaryStackResponses = {
+    /**
+     * Updated dictionary stack.
+     */
+    200: DictionaryStack;
+};
+
+export type ReplaceDictionaryStackResponse = ReplaceDictionaryStackResponses[keyof ReplaceDictionaryStackResponses];
+
+export type ListDictionaryImportsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Maximum number of results to return.
+         */
+        limit?: number;
+        /**
+         * Signed pagination cursor returned by a previous response. Treat it as opaque: pass
+         * back exactly what `pagination.cursor` gave you with the same operation and
+         * filters. Some ranked collections expire cursors when their data changes;
+         * `409 CURSOR_EXPIRED` means to restart from the first page. A malformed or
+         * cross-operation cursor returns `400 INVALID_CURSOR`. Offset-backed collections
+         * stop after 10000 results and return `400 CURSOR_TOO_DEEP`.
+         *
+         */
+        cursor?: string;
+    };
+    url: '/api/v1/dictionary-imports';
+};
+
+export type ListDictionaryImportsErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type ListDictionaryImportsError = ListDictionaryImportsErrors[keyof ListDictionaryImportsErrors];
+
+export type ListDictionaryImportsResponses = {
+    /**
+     * Imports, newest first.
+     */
+    200: {
+        imports: Array<DictionaryImport>;
+        pagination: CursorPagination;
+    };
+};
+
+export type ListDictionaryImportsResponse = ListDictionaryImportsResponses[keyof ListDictionaryImportsResponses];
+
+export type CreateDictionaryImportData = {
+    body: {
+        archive: Blob | File;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/dictionary-imports';
+};
+
+export type CreateDictionaryImportErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
+     */
+    402: Error402;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * The requested generated artifact is not currently available.
+     */
+    503: Error503;
+};
+
+export type CreateDictionaryImportError = CreateDictionaryImportErrors[keyof CreateDictionaryImportErrors];
+
+export type CreateDictionaryImportResponses = {
+    /**
+     * Import queued.
+     */
+    202: {
+        import: DictionaryImport;
+    };
+};
+
+export type CreateDictionaryImportResponse = CreateDictionaryImportResponses[keyof CreateDictionaryImportResponses];
+
+export type DeleteDictionaryImportData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/dictionary-imports/{id}';
+};
+
+export type DeleteDictionaryImportErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * The import is already running and cannot be cancelled safely.
+     */
+    409: Error409;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type DeleteDictionaryImportError = DeleteDictionaryImportErrors[keyof DeleteDictionaryImportErrors];
+
+export type DeleteDictionaryImportResponses = {
+    /**
+     * Import deleted.
+     */
+    204: void;
+};
+
+export type DeleteDictionaryImportResponse = DeleteDictionaryImportResponses[keyof DeleteDictionaryImportResponses];
+
+export type GetDictionaryImportData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/dictionary-imports/{id}';
+};
+
+export type GetDictionaryImportErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type GetDictionaryImportError = GetDictionaryImportErrors[keyof GetDictionaryImportErrors];
+
+export type GetDictionaryImportResponses = {
+    /**
+     * Import state.
+     */
+    200: {
+        import: DictionaryImport;
+    };
+};
+
+export type GetDictionaryImportResponse = GetDictionaryImportResponses[keyof GetDictionaryImportResponses];
+
+export type ListDictionaryPacksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/dictionary-packs';
+};
+
+export type ListDictionaryPacksErrors = {
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * The requested generated artifact is not currently available.
+     */
+    503: Error503;
+};
+
+export type ListDictionaryPacksError = ListDictionaryPacksErrors[keyof ListDictionaryPacksErrors];
+
+export type ListDictionaryPacksResponses = {
+    /**
+     * Current account stack and its downloadable artifacts. Returns an ETag for conditional requests.
+     */
+    200: DictionaryStackManifest;
+};
+
+export type ListDictionaryPacksResponse = ListDictionaryPacksResponses[keyof ListDictionaryPacksResponses];
 
 export type GetCurrentDictionaryPackData = {
     body?: never;
@@ -7363,89 +8054,73 @@ export type GetCurrentDictionaryPackError = GetCurrentDictionaryPackErrors[keyof
 
 export type GetCurrentDictionaryPackResponses = {
     /**
-     * Current pack manifest.
+     * Current pack manifest. Returns an ETag for conditional requests.
      */
     200: DictionaryPackManifest;
 };
 
 export type GetCurrentDictionaryPackResponse = GetCurrentDictionaryPackResponses[keyof GetCurrentDictionaryPackResponses];
 
-export type DownloadCurrentDictionaryPackData = {
+export type DownloadShirabeDictionaryPackData = {
     body?: never;
-    path?: never;
+    path: {
+        revision: string;
+    };
     query?: never;
-    url: '/api/v1/dictionary-packs/current/download';
+    url: '/api/v1/dictionary-packs/shirabe/{revision}';
 };
 
-export type DownloadCurrentDictionaryPackErrors = {
+export type DownloadShirabeDictionaryPackErrors = {
     /**
-     * Resource not found.
+     * Malformed request or failed validation.
      */
-    404: Error404;
+    400: Error400;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
     /**
      * The requested generated artifact is not currently available.
      */
     503: Error503;
 };
 
-export type DownloadCurrentDictionaryPackError = DownloadCurrentDictionaryPackErrors[keyof DownloadCurrentDictionaryPackErrors];
+export type DownloadShirabeDictionaryPackError = DownloadShirabeDictionaryPackErrors[keyof DownloadShirabeDictionaryPackErrors];
 
-export type DownloadCurrentDictionaryPackResponses = {
+export type DownloadShirabeDictionaryPackResponses = {
     /**
      * Gzip-compressed newline-delimited JSON records.
      */
     200: Blob | File;
 };
 
-export type DownloadCurrentDictionaryPackResponse = DownloadCurrentDictionaryPackResponses[keyof DownloadCurrentDictionaryPackResponses];
+export type DownloadShirabeDictionaryPackResponse = DownloadShirabeDictionaryPackResponses[keyof DownloadShirabeDictionaryPackResponses];
 
-export type GetDictionaryStackData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/dictionary-packs/stack';
-};
-
-export type GetDictionaryStackErrors = {
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * The requested generated artifact is not currently available.
-     */
-    503: Error503;
-};
-
-export type GetDictionaryStackError = GetDictionaryStackErrors[keyof GetDictionaryStackErrors];
-
-export type GetDictionaryStackResponses = {
-    /**
-     * Current account stack and its downloadable artifacts.
-     */
-    200: DictionaryStackManifest;
-};
-
-export type GetDictionaryStackResponse = GetDictionaryStackResponses[keyof GetDictionaryStackResponses];
-
-export type DownloadPersonalDictionaryPackData = {
+export type GetDictionaryPackData = {
     body?: never;
     path: {
         slug: string;
         revision: string;
     };
     query?: never;
-    url: '/api/v1/dictionary-packs/stack/{slug}/{revision}/download';
+    url: '/api/v1/dictionary-packs/{slug}/{revision}';
 };
 
-export type DownloadPersonalDictionaryPackErrors = {
+export type GetDictionaryPackErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -7462,21 +8137,35 @@ export type DownloadPersonalDictionaryPackErrors = {
      */
     404: Error404;
     /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
      * The requested generated artifact is not currently available.
      */
     503: Error503;
 };
 
-export type DownloadPersonalDictionaryPackError = DownloadPersonalDictionaryPackErrors[keyof DownloadPersonalDictionaryPackErrors];
+export type GetDictionaryPackError = GetDictionaryPackErrors[keyof GetDictionaryPackErrors];
 
-export type DownloadPersonalDictionaryPackResponses = {
+export type GetDictionaryPackResponses = {
     /**
      * Gzip-compressed newline-delimited JSON records.
      */
     200: Blob | File;
 };
 
-export type DownloadPersonalDictionaryPackResponse = DownloadPersonalDictionaryPackResponses[keyof DownloadPersonalDictionaryPackResponses];
+export type GetDictionaryPackResponse = GetDictionaryPackResponses[keyof GetDictionaryPackResponses];
 
 export type GetReaderHostRulesData = {
     body?: never;
@@ -7591,39 +8280,14 @@ export type RevokeOwnKeyResponses = {
 
 export type RevokeOwnKeyResponse = RevokeOwnKeyResponses[keyof RevokeOwnKeyResponses];
 
-export type UpdatePreferencesData = {
-    body: {
-        /**
-         * Ordered `slug:lang` refs, e.g. `["jmdict:es", "jmdict:en", "jmnedict:en"]`.
-         */
-        dictionaries?: Array<string>;
-        languages?: Array<'ja' | 'en' | 'es' | 'fr' | 'de' | 'nl' | 'ru' | 'sv' | 'hu' | 'sl'>;
-        /**
-         * Ordered example-sentence languages; `ja` is the immersion marker.
-         */
-        sentenceLanguages?: Array<'ja' | 'en' | 'es' | 'fr' | 'de' | 'nl' | 'ru' | 'sv' | 'hu' | 'sl'>;
-        /**
-         * How an example sentence's translation is revealed.
-         */
-        sentenceTranslation?: 'show' | 'hover' | 'hide';
-        /**
-         * How each dictionary's definitions are shown, keyed by slug: `show`, or `hover` to keep them covered until the reader asks for them. The whole axis, like `dictionaries`: what you send is the new state, and a dictionary you leave out is shown. Slugs the key owner cannot resolve are dropped.
-         *
-         */
-        dictionaryReveal?: {
-            [key: string]: 'show' | 'hover';
-        };
-    };
+export type GetPreferencesData = {
+    body?: never;
     path?: never;
     query?: never;
     url: '/api/v1/preferences';
 };
 
-export type UpdatePreferencesErrors = {
-    /**
-     * Malformed request or failed validation.
-     */
-    400: Error400;
+export type GetPreferencesErrors = {
     /**
      * Missing, invalid, expired, or revoked bearer token. Carries a
      * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
@@ -7651,6 +8315,75 @@ export type UpdatePreferencesErrors = {
     429: Error429;
 };
 
+export type GetPreferencesError = GetPreferencesErrors[keyof GetPreferencesErrors];
+
+export type GetPreferencesResponses = {
+    /**
+     * Reader preferences.
+     */
+    200: {
+        preferences: {
+            uiLocale: string;
+            sentenceLanguages: Array<string>;
+            sentenceTranslation: 'show' | 'hover' | 'hide';
+        };
+    };
+};
+
+export type GetPreferencesResponse = GetPreferencesResponses[keyof GetPreferencesResponses];
+
+export type UpdatePreferencesData = {
+    body: {
+        /**
+         * Ordered example-sentence languages; `ja` is the immersion marker.
+         */
+        sentenceLanguages?: Array<'ja' | 'en' | 'es' | 'fr' | 'de' | 'nl' | 'ru' | 'sv' | 'hu' | 'sl'>;
+        /**
+         * How an example sentence's translation is revealed.
+         */
+        sentenceTranslation?: 'show' | 'hover' | 'hide';
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/preferences';
+};
+
+export type UpdatePreferencesErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
 export type UpdatePreferencesError = UpdatePreferencesErrors[keyof UpdatePreferencesErrors];
 
 export type UpdatePreferencesResponses = {
@@ -7659,16 +8392,8 @@ export type UpdatePreferencesResponses = {
      */
     200: {
         preferences: {
-            dictionaries: Array<string>;
-            /**
-             * Derived from `dictionaries`, the distinct languages of the stack, in order.
-             */
-            languages: Array<string>;
-            sentenceLanguages?: Array<string>;
-            sentenceTranslation?: 'show' | 'hover' | 'hide';
-            dictionaryReveal?: {
-                [key: string]: 'show' | 'hover';
-            };
+            sentenceLanguages: Array<string>;
+            sentenceTranslation: 'show' | 'hover' | 'hide';
         };
     };
 };
@@ -7682,31 +8407,27 @@ export type ListKanjiData = {
         /**
          * Which field to group + sort by.
          */
-        order?: 'jlpt' | 'kanken' | 'strokes' | 'radical' | 'frequency';
+        groupBy?: 'jlpt' | 'kanken' | 'strokes' | 'radical' | 'frequency';
         /**
-         * Filter to a single Kanji Kentei (漢字検定) 配当 level. Joyo kanji
-         * span `10` (easiest) down to `2`, with `準2` in between.
+         * Index filters. `group` uses the value format selected by `groupBy`.
+         */
+        filter?: {
+            group?: string;
+        };
+        /**
+         * Maximum number of results to return.
+         */
+        limit?: number;
+        /**
+         * Signed pagination cursor returned by a previous response. Treat it as opaque: pass
+         * back exactly what `pagination.cursor` gave you with the same operation and
+         * filters. Some ranked collections expire cursors when their data changes;
+         * `409 CURSOR_EXPIRED` means to restart from the first page. A malformed or
+         * cross-operation cursor returns `400 INVALID_CURSOR`. Offset-backed collections
+         * stop after 10000 results and return `400 CURSOR_TOO_DEEP`.
          *
          */
-        kanken?: '10' | '9' | '8' | '7' | '6' | '5' | '4' | '3' | '準2' | '2' | '準1' | '1';
-        /**
-         * Filter to a single JLPT level. KANJIDIC ships pre-2010 levels;
-         * accept either `N1`-`N4` or the bare integer `1`-`4`.
-         *
-         */
-        jlpt?: string;
-        /**
-         * Filter to kanji with a specific stroke count.
-         */
-        strokes?: number;
-        /**
-         * Filter to kanji whose classical radical has this Kangxi number.
-         */
-        radical?: number;
-        /**
-         * Filter to one frequency tier.
-         */
-        frequency?: 'top_500' | 'top_1000' | 'top_1500' | 'top_2000' | 'other';
+        cursor?: string;
     };
     url: '/api/v1/kanji';
 };
@@ -7727,6 +8448,10 @@ export type ListKanjiErrors = {
      * The API key lacks a scope required for this operation.
      */
     403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
     /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
@@ -7754,27 +8479,279 @@ export type ListKanjiResponses = {
 
 export type ListKanjiResponse = ListKanjiResponses[keyof ListKanjiResponses];
 
-export type GetKanjiData = {
+export type ListKanjiRadicalsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        groupBy?: 'strokes' | 'number' | 'position';
+    };
+    url: '/api/v1/kanji/radicals';
+};
+
+export type ListKanjiRadicalsErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type ListKanjiRadicalsError = ListKanjiRadicalsErrors[keyof ListKanjiRadicalsErrors];
+
+export type ListKanjiRadicalsResponses = {
+    /**
+     * Grouped radical forms.
+     */
+    200: RadicalIndex;
+};
+
+export type ListKanjiRadicalsResponse = ListKanjiRadicalsResponses[keyof ListKanjiRadicalsResponses];
+
+export type GetKanjiRadicalData = {
     body?: never;
     path: {
         /**
-         * Single kanji character. URL-encode if needed.
+         * Radical number, 1-214.
          */
-        char: string;
+        number: number;
     };
     query?: {
         /**
-         * Comma-separated optional blocks (`references`, `foreignReadings`).
+         * Maximum number of results to return.
          */
-        include?: string;
+        limit?: number;
         /**
-         * Preferred gloss/meaning language as an ISO 639-1 code. Servers may
-         * fall back to any available language if the requested one is missing.
+         * Signed pagination cursor returned by a previous response. Treat it as opaque: pass
+         * back exactly what `pagination.cursor` gave you with the same operation and
+         * filters. Some ranked collections expire cursors when their data changes;
+         * `409 CURSOR_EXPIRED` means to restart from the first page. A malformed or
+         * cross-operation cursor returns `400 INVALID_CURSOR`. Offset-backed collections
+         * stop after 10000 results and return `400 CURSOR_TOO_DEEP`.
          *
          */
-        locale?: 'en' | 'es' | 'ja';
+        cursor?: string;
     };
-    url: '/api/v1/kanji/{char}';
+    url: '/api/v1/kanji/radicals/{number}';
+};
+
+export type GetKanjiRadicalErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type GetKanjiRadicalError = GetKanjiRadicalErrors[keyof GetKanjiRadicalErrors];
+
+export type GetKanjiRadicalResponses = {
+    /**
+     * Radical and member kanji.
+     */
+    200: RadicalResponse;
+};
+
+export type GetKanjiRadicalResponse = GetKanjiRadicalResponses[keyof GetKanjiRadicalResponses];
+
+export type ListKanjiComponentsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/kanji/components';
+};
+
+export type ListKanjiComponentsErrors = {
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type ListKanjiComponentsError = ListKanjiComponentsErrors[keyof ListKanjiComponentsErrors];
+
+export type ListKanjiComponentsResponses = {
+    /**
+     * Components grouped by stroke count.
+     */
+    200: KanjiComponentIndex;
+};
+
+export type ListKanjiComponentsResponse = ListKanjiComponentsResponses[keyof ListKanjiComponentsResponses];
+
+export type ListKanjiComponentMatchesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Component glyphs that every returned character must contain.
+         */
+        components?: Array<string>;
+        /**
+         * Maximum number of results to return.
+         */
+        limit?: number;
+        /**
+         * Signed pagination cursor returned by a previous response. Treat it as opaque: pass
+         * back exactly what `pagination.cursor` gave you with the same operation and
+         * filters. Some ranked collections expire cursors when their data changes;
+         * `409 CURSOR_EXPIRED` means to restart from the first page. A malformed or
+         * cross-operation cursor returns `400 INVALID_CURSOR`. Offset-backed collections
+         * stop after 10000 results and return `400 CURSOR_TOO_DEEP`.
+         *
+         */
+        cursor?: string;
+    };
+    url: '/api/v1/kanji/component-matches';
+};
+
+export type ListKanjiComponentMatchesErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+};
+
+export type ListKanjiComponentMatchesError = ListKanjiComponentMatchesErrors[keyof ListKanjiComponentMatchesErrors];
+
+export type ListKanjiComponentMatchesResponses = {
+    /**
+     * Matching kanji and available components.
+     */
+    200: KanjiComponentMatches;
+};
+
+export type ListKanjiComponentMatchesResponse = ListKanjiComponentMatchesResponses[keyof ListKanjiComponentMatchesResponses];
+
+export type GetKanjiData = {
+    body?: never;
+    headers?: {
+        /**
+         * Preferred language for Shirabe-owned labels. Regional tags and weighted
+         * language lists are accepted; unsupported languages fall back to English.
+         * Dictionary definition languages are selected separately by each operation.
+         *
+         */
+        'Accept-Language'?: string;
+    };
+    path: {
+        /**
+         * Exactly one Unicode grapheme. URL-encode the kanji when needed.
+         */
+        character: string;
+    };
+    query?: {
+        /**
+         * Optional character detail blocks.
+         */
+        include?: Array<'compounds' | 'readingExamples' | 'lookalikes' | 'relatedKanji' | 'radicalMembers' | 'strokeOrder' | 'references' | 'foreignReadings'>;
+    };
+    url: '/api/v1/kanji/{character}';
 };
 
 export type GetKanjiErrors = {
@@ -7819,173 +8796,7 @@ export type GetKanjiResponses = {
     /**
      * Kanji entry.
      */
-    200: Kanji;
+    200: KanjiResponse;
 };
 
 export type GetKanjiResponse = GetKanjiResponses[keyof GetKanjiResponses];
-
-export type ListRadicalsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * `search` for the 253 radkfile component radicals; default is the 214 Kangxi radicals.
-         */
-        set?: 'kangxi' | 'search';
-    };
-    url: '/api/v1/radicals';
-};
-
-export type ListRadicalsErrors = {
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * Too many requests; back off and retry after `Retry-After` seconds.
-     *
-     * There is one kind of 429 now. It comes from in front of the application, which
-     * is why the answer is a wait and nothing else: the budget it names refills on a
-     * fixed 60-second window, so retrying after the header says is enough. There is
-     * no monthly quota and no `RateLimit-*` fields to read.
-     *
-     * A request that is too LARGE is not this: that answers 413 with no
-     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
-     * both ceilings, under `rateLimit` and `payloadLimit`.
-     *
-     */
-    429: Error429;
-};
-
-export type ListRadicalsError = ListRadicalsErrors[keyof ListRadicalsErrors];
-
-export type ListRadicalsResponses = {
-    /**
-     * Radicals grouped by stroke count.
-     */
-    200: RadicalIndex;
-};
-
-export type ListRadicalsResponse = ListRadicalsResponses[keyof ListRadicalsResponses];
-
-export type SearchRadicalsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Comma-separated component glyphs, e.g. `氵,木`.
-         */
-        components?: string;
-        /**
-         * Page size.
-         */
-        take?: number;
-    };
-    url: '/api/v1/radicals/search';
-};
-
-export type SearchRadicalsErrors = {
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * Too many requests; back off and retry after `Retry-After` seconds.
-     *
-     * There is one kind of 429 now. It comes from in front of the application, which
-     * is why the answer is a wait and nothing else: the budget it names refills on a
-     * fixed 60-second window, so retrying after the header says is enough. There is
-     * no monthly quota and no `RateLimit-*` fields to read.
-     *
-     * A request that is too LARGE is not this: that answers 413 with no
-     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
-     * both ceilings, under `rateLimit` and `payloadLimit`.
-     *
-     */
-    429: Error429;
-};
-
-export type SearchRadicalsError = SearchRadicalsErrors[keyof SearchRadicalsErrors];
-
-export type SearchRadicalsResponses = {
-    /**
-     * Matching kanji and still-combinable components.
-     */
-    200: RadicalComponentSearch;
-};
-
-export type SearchRadicalsResponse = SearchRadicalsResponses[keyof SearchRadicalsResponses];
-
-export type GetRadicalData = {
-    body?: never;
-    path: {
-        /**
-         * Kangxi radical number, 1-214.
-         */
-        number: number;
-    };
-    query?: {
-        /**
-         * `allKanji` lifts the joyo-only cap on member kanji.
-         */
-        include?: string;
-    };
-    url: '/api/v1/radicals/{number}';
-};
-
-export type GetRadicalErrors = {
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * Resource not found.
-     */
-    404: Error404;
-    /**
-     * Too many requests; back off and retry after `Retry-After` seconds.
-     *
-     * There is one kind of 429 now. It comes from in front of the application, which
-     * is why the answer is a wait and nothing else: the budget it names refills on a
-     * fixed 60-second window, so retrying after the header says is enough. There is
-     * no monthly quota and no `RateLimit-*` fields to read.
-     *
-     * A request that is too LARGE is not this: that answers 413 with no
-     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
-     * both ceilings, under `rateLimit` and `payloadLimit`.
-     *
-     */
-    429: Error429;
-};
-
-export type GetRadicalError = GetRadicalErrors[keyof GetRadicalErrors];
-
-export type GetRadicalResponses = {
-    /**
-     * Radical entry + member kanji.
-     */
-    200: RadicalWithKanji;
-};
-
-export type GetRadicalResponse = GetRadicalResponses[keyof GetRadicalResponses];

@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AcknowledgeAnkiChangesData, AcknowledgeAnkiChangesErrors, AcknowledgeAnkiChangesResponses, ApplyAnkiBatchData, ApplyAnkiBatchErrors, ApplyAnkiBatchResponses, BulkAddSearchData, BulkAddSearchErrors, BulkAddSearchResponses, BulkUpdateCardsData, BulkUpdateCardsErrors, BulkUpdateCardsResponses, CallMcpData, CallMcpErrors, CallMcpResponses, CancelAnkiNoteDeletionData, CancelAnkiNoteDeletionErrors, CancelAnkiNoteDeletionResponses, CancelAnkiReviewUndoData, CancelAnkiReviewUndoErrors, CancelAnkiReviewUndoResponses, CloneWordSetData, CloneWordSetErrors, CloneWordSetResponses, CreateDeckData, CreateDeckErrors, CreateDeckResponses, CreateParseBatchData, CreateParseBatchErrors, CreateParseBatchResponses, DeleteAnkiMediaFileData, DeleteAnkiMediaFileErrors, DeleteAnkiMediaFileResponses, DeleteCardData, DeleteCardErrors, DeleteCardResponses, DeleteDeckData, DeleteDeckErrors, DeleteDeckResponses, DeleteWordNoteData, DeleteWordNoteErrors, DeleteWordNoteResponses, DeliverAnkiChangesData, DeliverAnkiChangesErrors, DeliverAnkiChangesResponses, DownloadAnkiMediaFileData, DownloadAnkiMediaFileErrors, DownloadAnkiMediaFileResponses, DownloadCurrentDictionaryPackData, DownloadCurrentDictionaryPackErrors, DownloadCurrentDictionaryPackResponses, DownloadPersonalDictionaryPackData, DownloadPersonalDictionaryPackErrors, DownloadPersonalDictionaryPackResponses, DueQueueData, DueQueueErrors, DueQueueResponses, EndStudySessionData, EndStudySessionErrors, EndStudySessionResponses, FinishAnkiSnapshotData, FinishAnkiSnapshotErrors, FinishAnkiSnapshotResponses, GetAnkiBatchReceiptData, GetAnkiBatchReceiptErrors, GetAnkiBatchReceiptResponses, GetAnkiCardConflictComparisonData, GetAnkiCardConflictComparisonErrors, GetAnkiCardConflictComparisonResponses, GetAnkiCardConflictData, GetAnkiCardConflictErrors, GetAnkiCardConflictResponses, GetAnkiDeliveryReceiptData, GetAnkiDeliveryReceiptErrors, GetAnkiDeliveryReceiptResponses, GetAnkiNoteConflictData, GetAnkiNoteConflictErrors, GetAnkiNoteConflictResponses, GetAnkiNoteDeletionData, GetAnkiNoteDeletionErrors, GetAnkiNoteDeletionResponses, GetAnkiReviewUndoData, GetAnkiReviewUndoErrors, GetAnkiReviewUndoResponses, GetCardData, GetCardErrors, GetCardResponses, GetCurrentDictionaryPackData, GetCurrentDictionaryPackErrors, GetCurrentDictionaryPackResponses, GetDictionaryStackData, GetDictionaryStackErrors, GetDictionaryStackResponses, GetForecastData, GetForecastErrors, GetForecastResponses, GetKanjiData, GetKanjiErrors, GetKanjiResponses, GetMeData, GetMeErrors, GetMeResponses, GetParseBatchData, GetParseBatchErrors, GetParseBatchResponses, GetRadicalData, GetRadicalErrors, GetRadicalResponses, GetReaderHostRulesData, GetReaderHostRulesErrors, GetReaderHostRulesResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetStudySessionData, GetStudySessionErrors, GetStudySessionResponses, GetWordData, GetWordErrors, GetWordResponses, GetWordSetData, GetWordSetErrors, GetWordSetResponses, GradeCardData, GradeCardErrors, GradeCardResponses, IdentifyWordsData, IdentifyWordsErrors, IdentifyWordsResponses, IgnoreWordData, IgnoreWordErrors, IgnoreWordResponses, InspectMcpTransportData, InspectMcpTransportErrors, ListAnkiMediaFilesData, ListAnkiMediaFilesErrors, ListAnkiMediaFilesResponses, ListCardsData, ListCardsErrors, ListCardsResponses, ListDecksData, ListDecksErrors, ListDecksResponses, ListDictionariesData, ListDictionariesErrors, ListDictionariesResponses, ListKanjiData, ListKanjiErrors, ListKanjiResponses, ListRadicalsData, ListRadicalsErrors, ListRadicalsResponses, ListSentencesData, ListSentencesErrors, ListSentencesResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListWordNotesData, ListWordNotesErrors, ListWordNotesResponses, ListWordSetsData, ListWordSetsErrors, ListWordSetsResponses, LookupWordStatesData, LookupWordStatesErrors, LookupWordStatesResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, PairAnkiProfileData, PairAnkiProfileErrors, PairAnkiProfileResponses, ParseTextData, ParseTextErrors, ParseTextResponses, PrepareAnkiPublicationsData, PrepareAnkiPublicationsErrors, PrepareAnkiPublicationsResponses, RefreshAnkiCollectionSettingsData, RefreshAnkiCollectionSettingsErrors, RefreshAnkiCollectionSettingsResponses, RequestAnkiNoteDeletionData, RequestAnkiNoteDeletionErrors, RequestAnkiNoteDeletionResponses, RequestAnkiReviewUndoData, RequestAnkiReviewUndoErrors, RequestAnkiReviewUndoResponses, RevokeOwnKeyData, RevokeOwnKeyErrors, RevokeOwnKeyResponses, SaveCardData, SaveCardErrors, SaveCardResponses, SearchData, SearchErrors, SearchRadicalsData, SearchRadicalsErrors, SearchRadicalsResponses, SearchResponses, SelectAnkiDeckData, SelectAnkiDeckErrors, SelectAnkiDeckResponses, SetWordStateData, SetWordStateErrors, SetWordStateResponses, StartAnkiSnapshotData, StartAnkiSnapshotErrors, StartAnkiSnapshotResponses, StartStudySessionData, StartStudySessionErrors, StartStudySessionResponses, StudyStatsData, StudyStatsErrors, StudyStatsResponses, UndoLatestReviewData, UndoLatestReviewErrors, UndoLatestReviewResponses, UnlinkAnkiProfileData, UnlinkAnkiProfileErrors, UnlinkAnkiProfileResponses, UnsaveWordData, UnsaveWordErrors, UnsaveWordResponses, UpdateCardData, UpdateCardErrors, UpdateCardResponses, UpdateDeckData, UpdateDeckErrors, UpdateDeckResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UploadAnkiMediaFileData, UploadAnkiMediaFileErrors, UploadAnkiMediaFileResponses, UpsertWordNoteData, UpsertWordNoteErrors, UpsertWordNoteResponses } from './types.gen.js';
+import type { AcknowledgeAnkiChangesData, AcknowledgeAnkiChangesErrors, AcknowledgeAnkiChangesResponses, ApplyAnkiBatchData, ApplyAnkiBatchErrors, ApplyAnkiBatchResponses, BulkAddSearchData, BulkAddSearchErrors, BulkAddSearchResponses, BulkUpdateCardsData, BulkUpdateCardsErrors, BulkUpdateCardsResponses, CallMcpData, CallMcpErrors, CallMcpResponses, CancelAnkiNoteDeletionData, CancelAnkiNoteDeletionErrors, CancelAnkiNoteDeletionResponses, CancelAnkiReviewUndoData, CancelAnkiReviewUndoErrors, CancelAnkiReviewUndoResponses, CreateDeckData, CreateDeckErrors, CreateDeckResponses, CreateDictionaryImportData, CreateDictionaryImportErrors, CreateDictionaryImportResponses, DeleteAnkiMediaFileData, DeleteAnkiMediaFileErrors, DeleteAnkiMediaFileResponses, DeleteCardData, DeleteCardErrors, DeleteCardResponses, DeleteDeckData, DeleteDeckErrors, DeleteDeckResponses, DeleteDictionaryData, DeleteDictionaryErrors, DeleteDictionaryImportData, DeleteDictionaryImportErrors, DeleteDictionaryImportResponses, DeleteDictionaryResponses, DeleteWordNoteData, DeleteWordNoteErrors, DeleteWordNoteResponses, DeliverAnkiChangesData, DeliverAnkiChangesErrors, DeliverAnkiChangesResponses, DownloadAnkiMediaFileData, DownloadAnkiMediaFileErrors, DownloadAnkiMediaFileResponses, DownloadShirabeDictionaryPackData, DownloadShirabeDictionaryPackErrors, DownloadShirabeDictionaryPackResponses, DueQueueData, DueQueueErrors, DueQueueResponses, EndStudySessionData, EndStudySessionErrors, EndStudySessionResponses, FinishAnkiSnapshotData, FinishAnkiSnapshotErrors, FinishAnkiSnapshotResponses, GetAnkiBatchReceiptData, GetAnkiBatchReceiptErrors, GetAnkiBatchReceiptResponses, GetAnkiCardConflictComparisonData, GetAnkiCardConflictComparisonErrors, GetAnkiCardConflictComparisonResponses, GetAnkiCardConflictData, GetAnkiCardConflictErrors, GetAnkiCardConflictResponses, GetAnkiDeliveryReceiptData, GetAnkiDeliveryReceiptErrors, GetAnkiDeliveryReceiptResponses, GetAnkiNoteConflictData, GetAnkiNoteConflictErrors, GetAnkiNoteConflictResponses, GetAnkiNoteDeletionData, GetAnkiNoteDeletionErrors, GetAnkiNoteDeletionResponses, GetAnkiReviewUndoData, GetAnkiReviewUndoErrors, GetAnkiReviewUndoResponses, GetCardData, GetCardErrors, GetCardResponses, GetCurrentDictionaryPackData, GetCurrentDictionaryPackErrors, GetCurrentDictionaryPackResponses, GetDictionaryImportData, GetDictionaryImportErrors, GetDictionaryImportResponses, GetDictionaryPackData, GetDictionaryPackErrors, GetDictionaryPackResponses, GetDictionaryStackData, GetDictionaryStackErrors, GetDictionaryStackResponses, GetForecastData, GetForecastErrors, GetForecastResponses, GetKanjiData, GetKanjiErrors, GetKanjiRadicalData, GetKanjiRadicalErrors, GetKanjiRadicalResponses, GetKanjiResponses, GetMeData, GetMeErrors, GetMeResponses, GetParseOperationData, GetParseOperationErrors, GetParseOperationResponses, GetPreferencesData, GetPreferencesErrors, GetPreferencesResponses, GetReaderHostRulesData, GetReaderHostRulesErrors, GetReaderHostRulesResponses, GetSentenceData, GetSentenceErrors, GetSentenceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetStudySessionData, GetStudySessionErrors, GetStudySessionResponses, GetWordData, GetWordErrors, GetWordResponses, GradeCardData, GradeCardErrors, GradeCardResponses, IdentifyWordData, IdentifyWordErrors, IdentifyWordResponses, IdentifyWordsData, IdentifyWordsErrors, IdentifyWordsResponses, IgnoreWordData, IgnoreWordErrors, IgnoreWordResponses, InspectMcpTransportData, InspectMcpTransportErrors, ListAnkiMediaFilesData, ListAnkiMediaFilesErrors, ListAnkiMediaFilesResponses, ListCardsData, ListCardsErrors, ListCardsResponses, ListDecksData, ListDecksErrors, ListDecksResponses, ListDictionariesData, ListDictionariesErrors, ListDictionariesResponses, ListDictionaryImportsData, ListDictionaryImportsErrors, ListDictionaryImportsResponses, ListDictionaryPacksData, ListDictionaryPacksErrors, ListDictionaryPacksResponses, ListKanjiComponentMatchesData, ListKanjiComponentMatchesErrors, ListKanjiComponentMatchesResponses, ListKanjiComponentsData, ListKanjiComponentsErrors, ListKanjiComponentsResponses, ListKanjiData, ListKanjiErrors, ListKanjiRadicalsData, ListKanjiRadicalsErrors, ListKanjiRadicalsResponses, ListKanjiResponses, ListSentencesData, ListSentencesErrors, ListSentencesResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListWordNotesData, ListWordNotesErrors, ListWordNotesResponses, LookupWordStatesData, LookupWordStatesErrors, LookupWordStatesResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, PairAnkiProfileData, PairAnkiProfileErrors, PairAnkiProfileResponses, ParseData, ParseErrors, ParseResponses, PrepareAnkiPublicationsData, PrepareAnkiPublicationsErrors, PrepareAnkiPublicationsResponses, RefreshAnkiCollectionSettingsData, RefreshAnkiCollectionSettingsErrors, RefreshAnkiCollectionSettingsResponses, ReplaceDictionaryStackData, ReplaceDictionaryStackErrors, ReplaceDictionaryStackResponses, RequestAnkiNoteDeletionData, RequestAnkiNoteDeletionErrors, RequestAnkiNoteDeletionResponses, RequestAnkiReviewUndoData, RequestAnkiReviewUndoErrors, RequestAnkiReviewUndoResponses, RevokeOwnKeyData, RevokeOwnKeyErrors, RevokeOwnKeyResponses, SaveCardData, SaveCardErrors, SaveCardResponses, SearchData, SearchErrors, SearchResponses, SelectAnkiDeckData, SelectAnkiDeckErrors, SelectAnkiDeckResponses, SetWordStateData, SetWordStateErrors, SetWordStateResponses, StartAnkiSnapshotData, StartAnkiSnapshotErrors, StartAnkiSnapshotResponses, StartStudySessionData, StartStudySessionErrors, StartStudySessionResponses, StudyStatsData, StudyStatsErrors, StudyStatsResponses, UndoLatestReviewData, UndoLatestReviewErrors, UndoLatestReviewResponses, UnlinkAnkiProfileData, UnlinkAnkiProfileErrors, UnlinkAnkiProfileResponses, UnsaveWordData, UnsaveWordErrors, UnsaveWordResponses, UpdateCardData, UpdateCardErrors, UpdateCardResponses, UpdateDeckData, UpdateDeckErrors, UpdateDeckResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UploadAnkiMediaFileData, UploadAnkiMediaFileErrors, UploadAnkiMediaFileResponses, UpsertWordNoteData, UpsertWordNoteErrors, UpsertWordNoteResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -21,7 +21,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 /**
  * Pair a native Anki installation
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const pairAnkiProfile = <ThrowOnError extends boolean = false>(options: Options<PairAnkiProfileData, ThrowOnError>): RequestResult<PairAnkiProfileResponses, PairAnkiProfileErrors, ThrowOnError> => (options.client ?? client).post<PairAnkiProfileResponses, PairAnkiProfileErrors, ThrowOnError>({
     security: [{
@@ -40,7 +40,7 @@ export const pairAnkiProfile = <ThrowOnError extends boolean = false>(options: O
 /**
  * Unlink an Anki profile
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const unlinkAnkiProfile = <ThrowOnError extends boolean = false>(options: Options<UnlinkAnkiProfileData, ThrowOnError>): RequestResult<UnlinkAnkiProfileResponses, UnlinkAnkiProfileErrors, ThrowOnError> => (options.client ?? client).delete<UnlinkAnkiProfileResponses, UnlinkAnkiProfileErrors, ThrowOnError>({
     security: [{
@@ -55,7 +55,7 @@ export const unlinkAnkiProfile = <ThrowOnError extends boolean = false>(options:
 /**
  * Finish an Anki snapshot epoch
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const finishAnkiSnapshot = <ThrowOnError extends boolean = false>(options: Options<FinishAnkiSnapshotData, ThrowOnError>): RequestResult<FinishAnkiSnapshotResponses, FinishAnkiSnapshotErrors, ThrowOnError> => (options.client ?? client).patch<FinishAnkiSnapshotResponses, FinishAnkiSnapshotErrors, ThrowOnError>({
     security: [{
@@ -74,7 +74,7 @@ export const finishAnkiSnapshot = <ThrowOnError extends boolean = false>(options
 /**
  * Start a new Anki snapshot epoch
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const startAnkiSnapshot = <ThrowOnError extends boolean = false>(options: Options<StartAnkiSnapshotData, ThrowOnError>): RequestResult<StartAnkiSnapshotResponses, StartAnkiSnapshotErrors, ThrowOnError> => (options.client ?? client).post<StartAnkiSnapshotResponses, StartAnkiSnapshotErrors, ThrowOnError>({
     security: [{
@@ -129,7 +129,7 @@ export const prepareAnkiPublications = <ThrowOnError extends boolean = false>(op
 /**
  * Select a source Anki deck
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const selectAnkiDeck = <ThrowOnError extends boolean = false>(options: Options<SelectAnkiDeckData, ThrowOnError>): RequestResult<SelectAnkiDeckResponses, SelectAnkiDeckErrors, ThrowOnError> => (options.client ?? client).post<SelectAnkiDeckResponses, SelectAnkiDeckErrors, ThrowOnError>({
     security: [{
@@ -148,7 +148,7 @@ export const selectAnkiDeck = <ThrowOnError extends boolean = false>(options: Op
 /**
  * Apply a retryable Anki batch
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const applyAnkiBatch = <ThrowOnError extends boolean = false>(options: Options<ApplyAnkiBatchData, ThrowOnError>): RequestResult<ApplyAnkiBatchResponses, ApplyAnkiBatchErrors, ThrowOnError> => (options.client ?? client).post<ApplyAnkiBatchResponses, ApplyAnkiBatchErrors, ThrowOnError>({
     security: [{
@@ -382,7 +382,7 @@ export const getAnkiReviewUndo = <ThrowOnError extends boolean = false>(options:
 /**
  * Deliver changes to native Anki
  *
- * Delivery freezes undo for included reviews before returning. It requires WRITE_SRS even when replaying an earlier cursor. Retry the same cursor after a lost response.
+ * Delivery freezes undo for included reviews before returning. It requires user:study:write even when replaying an earlier cursor. Retry the same cursor after a lost response.
  */
 export const deliverAnkiChanges = <ThrowOnError extends boolean = false>(options: Options<DeliverAnkiChangesData, ThrowOnError>): RequestResult<DeliverAnkiChangesResponses, DeliverAnkiChangesErrors, ThrowOnError> => (options.client ?? client).post<DeliverAnkiChangesResponses, DeliverAnkiChangesErrors, ThrowOnError>({
     security: [{
@@ -414,7 +414,7 @@ export const getAnkiDeliveryReceipt = <ThrowOnError extends boolean = false>(opt
 /**
  * Acknowledge durable Anki changes
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const acknowledgeAnkiChanges = <ThrowOnError extends boolean = false>(options: Options<AcknowledgeAnkiChangesData, ThrowOnError>): RequestResult<AcknowledgeAnkiChangesResponses, AcknowledgeAnkiChangesErrors, ThrowOnError> => (options.client ?? client).post<AcknowledgeAnkiChangesResponses, AcknowledgeAnkiChangesErrors, ThrowOnError>({
     security: [{
@@ -433,7 +433,10 @@ export const acknowledgeAnkiChanges = <ThrowOnError extends boolean = false>(opt
 /**
  * Refuse unsupported MCP SSE sessions
  *
- * Shirabe is stateless and does not expose a standalone SSE stream.
+ * Shirabe is stateless and does not expose a standalone SSE stream. MCP
+ * Streamable HTTP requires a server without that stream to answer GET with
+ * `405 Method Not Allowed`.
+ *
  */
 export const inspectMcpTransport = <ThrowOnError extends boolean = false>(options?: Options<InspectMcpTransportData, ThrowOnError>): RequestResult<unknown, InspectMcpTransportErrors, ThrowOnError> => (options?.client ?? client).get<unknown, InspectMcpTransportErrors, ThrowOnError>({
     security: [{
@@ -472,7 +475,7 @@ export const callMcp = <ThrowOnError extends boolean = false>(options: Options<C
  * Obtain or renew tokens (the OAuth 2.0 token endpoint)
  *
  * The token endpoint (RFC 6749 §3.2), for every way a connected app gets its
- * credentials. Three grants:
+ * credentials. Four grants:
  *
  * - `authorization_code`: the redirect flow. Redeem the one-time `code`
  * from the `/oauth/authorize` redirect with the PKCE `code_verifier`.
@@ -482,6 +485,10 @@ export const callMcp = <ThrowOnError extends boolean = false>(options: Options<C
  * `invalid_grant` as "the link is over, reconnect". Presenting a refresh
  * token that was already traded (outside a short retry grace) revokes the
  * whole grant.
+ * - `client_credentials`: backend-to-backend access with no user. A
+ * confidential client authenticates with HTTP Basic and receives a
+ * short-lived token carrying only its registered machine scopes. It never
+ * receives a refresh token.
  * - `urn:ietf:params:oauth:grant-type:device_code`: the device flow (RFC
  * 8628). Poll with the `device_code` from `/oauth/device_authorization`
  * every `interval` seconds until the user approves; `authorization_pending`
@@ -554,16 +561,25 @@ export const oauthDeviceAuthorization = <ThrowOnError extends boolean = false>(o
 });
 
 /**
- * Mixed-result search
+ * Search
  *
- * Tokenizes `query` with Sudachi (so 食べている finds 食べる via the lemma),
- * then returns word, name, and kanji hits in a single response. Filter via
- * the `#key:value` grammar inside `query` or the structured `filters` object
- * (both are merged). Word cards are paginated with an opaque cursor; each
- * carries an `id` slug you can pass to `GET /api/v1/words/{id}`.
+ * Searches the caller's dictionary stack using the same tokenizer, ranking,
+ * filters, and dictionary preferences as the website's
+ * dictionary search. For example, Sudachi tokenization lets 食べている find
+ * 食べる by its lemma.
  *
- * A read modeled as POST: the request carries a structured body, and results
- * are key-scoped to the caller's preferences (not edge-cacheable).
+ * The response contains Shirabe's preferred segmentation of the query. Every
+ * segment contains its ranked word-card matches; every match merges word,
+ * name, and encyclopedia entries by canonical form. Use `include` to add kanji
+ * details or example sentences to each match. The website's sentence, grammar,
+ * and people search pages are not part of this operation.
+ *
+ * Put `#key:value` filters in `query`, send them in `filters`, or use both.
+ * The two sets are merged. `limit` caps the ranked matches in each segment.
+ * Each match's `id` can be passed to `GET /api/v1/words/{id}`.
+ *
+ * This read uses POST because it accepts a structured JSON body and depends on
+ * the API key owner's preferences, so it is not edge-cacheable.
  *
  */
 export const search = <ThrowOnError extends boolean = false>(options: Options<SearchData, ThrowOnError>): RequestResult<SearchResponses, SearchErrors, ThrowOnError> => (options.client ?? client).post<SearchResponses, SearchErrors, ThrowOnError>({
@@ -581,24 +597,50 @@ export const search = <ThrowOnError extends boolean = false>(options: Options<Se
 });
 
 /**
- * Parse Japanese text
+ * Identify a word
  *
- * Segments `text` with Shirabe's Sudachi tokenizer and returns tokens in
- * reading order, each stamped with a UTF-16 `[position, length]` so they map
- * straight onto a DOM. Every token a reader could study carries the API key
- * owner's per-word SRS `state`, so a reader can colour a page in a single
- * round-trip. Large text is split safely before parsing; the maximum size
- * depends on the owning user.
+ * Finds dictionary expressions beginning at one UTF-16 position in surrounding
+ * text. This is the popup counterpart to search: it uses the caller's active
+ * dictionary stack and returns overlapping spans rather than one segmentation
+ * of the complete text.
  *
- * `state` is private study data: it is only populated for keys that carry the
- * `READ_SRS` scope. A plain `READ_DICTIONARY` key still gets segmentation,
- * positions, and (with `include`) dictionary data, but every `state` is
- * `none`.
- *
- * Supersedes the former `POST /api/v1/tokenize`.
+ * `target.endOffset` is an optional boundary hint from the caller. A matching span is
+ * ranked first, but Shirabe still returns other dictionary-bearing spans that
+ * begin at `target.startOffset`. No caller tokenization or dictionary override is
+ * accepted. This operation does not apply contextual JEV sense ranking.
  *
  */
-export const parseText = <ThrowOnError extends boolean = false>(options: Options<ParseTextData, ThrowOnError>): RequestResult<ParseTextResponses, ParseTextErrors, ThrowOnError> => (options.client ?? client).post<ParseTextResponses, ParseTextErrors, ThrowOnError>({
+export const identifyWord = <ThrowOnError extends boolean = false>(options: Options<IdentifyWordData, ThrowOnError>): RequestResult<IdentifyWordResponses, IdentifyWordErrors, ThrowOnError> => (options.client ?? client).post<IdentifyWordResponses, IdentifyWordErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/identify',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Parse Japanese text
+ *
+ * Returns one preferred segmentation for every item in `texts`. Shirabe uses
+ * the caller's active dictionary stack, including private dictionaries, when
+ * choosing useful word boundaries. It does not return alternative parses or
+ * definitions; send a token to `POST /api/v1/words/identify` when the user
+ * asks for its dictionary card.
+ *
+ * Offsets are UTF-16 and map directly to browser text nodes. Add
+ * `Prefer: respond-async` to queue the same operation and poll the URL in the
+ * `Location` header. The request and completed result shapes are identical in
+ * synchronous and asynchronous use. `results` follows the same order as
+ * `texts`, and each result repeats its submitted text.
+ *
+ */
+export const parse = <ThrowOnError extends boolean = false>(options: Options<ParseData, ThrowOnError>): RequestResult<ParseResponses, ParseErrors, ThrowOnError> => (options.client ?? client).post<ParseResponses, ParseErrors, ThrowOnError>({
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
@@ -613,65 +655,17 @@ export const parseText = <ThrowOnError extends boolean = false>(options: Options
 });
 
 /**
- * Submit a bulk parse
+ * Get a queued parse
  *
- * Queues a parse and returns immediately with a handle to poll. The same
- * analysis as `POST /api/v1/parse`, answered off the request path.
- *
- * Use this whenever you are parsing a corpus rather than a page. The
- * synchronous endpoint spends the same CPU that serves readers, so a client
- * working through a large body of text there degrades the site for everyone
- * and can only be slowed down by choosing to be slower. Batches are worked one
- * at a time, so the pace is set by the queue and a bulk caller cannot crowd
- * anybody out however fast it submits.
- *
- * Poll `GET /api/v1/parse/batches/{id}` for the tokens. A finished batch stays
- * fetchable for a limited window and may be fetched more than once inside it;
- * `expiresAt` says when it goes. Two limits apply per credential: how many
- * batches may be waiting or running at once, and how many unexpired batches
- * may be held; exceeding either is `429` with a `Retry-After`.
- *
- * Character limits are the same as the synchronous endpoint and are charged on
- * submission, over the whole batch.
- *
+ * Poll the parse operation URL returned by `POST /api/v1/parse`.
  */
-export const createParseBatch = <ThrowOnError extends boolean = false>(options: Options<CreateParseBatchData, ThrowOnError>): RequestResult<CreateParseBatchResponses, CreateParseBatchErrors, ThrowOnError> => (options.client ?? client).post<CreateParseBatchResponses, CreateParseBatchErrors, ThrowOnError>({
+export const getParseOperation = <ThrowOnError extends boolean = false>(options: Options<GetParseOperationData, ThrowOnError>): RequestResult<GetParseOperationResponses, GetParseOperationErrors, ThrowOnError> => (options.client ?? client).get<GetParseOperationResponses, GetParseOperationErrors, ThrowOnError>({
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/api/v1/parse/batches',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Fetch a bulk parse
- *
- * The batch's status, and its tokens once `status` is `done`. `tokens` is an
- * array of token lists, index-aligned with the `texts` submitted, exactly as
- * `POST /api/v1/parse` answers a `texts` array.
- *
- * Poll until `status` is `done` or `failed`. A `failed` batch carries `error`
- * and will not be retried: the texts will not become more parseable.
- *
- * A finished batch may be fetched repeatedly until `expiresAt`, so a client
- * that dies mid-download can simply ask again. After that it is `404`, as is a
- * batch belonging to another credential: whether an id exists is not a
- * stranger's business.
- *
- */
-export const getParseBatch = <ThrowOnError extends boolean = false>(options: Options<GetParseBatchData, ThrowOnError>): RequestResult<GetParseBatchResponses, GetParseBatchErrors, ThrowOnError> => (options.client ?? client).get<GetParseBatchResponses, GetParseBatchErrors, ThrowOnError>({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/parse/batches/{id}',
+    url: '/api/v1/parse/{id}',
     ...options
 });
 
@@ -1000,7 +994,8 @@ export const bulkUpdateCards = <ThrowOnError extends boolean = false>(options: O
 /**
  * Delete (un-save) a card
  *
- * Permanently removes one of the API key owner's cards. Requires SRS
+ * Moves one of the API key owner's cards to recoverable trash. Use the bulk
+ * card operation with `cardAction=purge` for permanent removal. Requires SRS
  * entitlement, like every card mutation (docs/srs.md §10).
  *
  */
@@ -1195,54 +1190,6 @@ export const deleteWordNote = <ThrowOnError extends boolean = false>(options: Op
 });
 
 /**
- * List curated word sets
- *
- * The curated JLPT / frequency word-set catalog (docs/srs.md §13b).
- */
-export const listWordSets = <ThrowOnError extends boolean = false>(options?: Options<ListWordSetsData, ThrowOnError>): RequestResult<ListWordSetsResponses, ListWordSetsErrors, ThrowOnError> => (options?.client ?? client).get<ListWordSetsResponses, ListWordSetsErrors, ThrowOnError>({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/srs/word-sets',
-    ...options
-});
-
-/**
- * Get a word set's words
- *
- * One page of a set's words, in set order (docs/srs.md §13b).
- */
-export const getWordSet = <ThrowOnError extends boolean = false>(options: Options<GetWordSetData, ThrowOnError>): RequestResult<GetWordSetResponses, GetWordSetErrors, ThrowOnError> => (options.client ?? client).get<GetWordSetResponses, GetWordSetErrors, ThrowOnError>({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/srs/word-sets/{slug}',
-    ...options
-});
-
-/**
- * Clone a word set into a new deck
- *
- * Creates a new deck seeded with the set's words (in set order), skipping words
- * you already have as a card, have marked known, or have ignored (docs/srs.md
- * §13b). Requires SRS entitlement.
- *
- */
-export const cloneWordSet = <ThrowOnError extends boolean = false>(options: Options<CloneWordSetData, ThrowOnError>): RequestResult<CloneWordSetResponses, CloneWordSetErrors, ThrowOnError> => (options.client ?? client).post<CloneWordSetResponses, CloneWordSetErrors, ThrowOnError>({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/srs/word-sets/{slug}/clone',
-    ...options
-});
-
-/**
  * Ignore a word (blacklist)
  *
  * Marks a word "don't study," so bulk seeds / clones skip it (docs/srs.md
@@ -1308,10 +1255,10 @@ export const bulkAddSearch = <ThrowOnError extends boolean = false>(options: Opt
  *
  * **Nothing has to be stored for this to keep working.** An id is our decision
  * about which word a token is, so it moves when we get better at deciding; the
- * token does not move. Store the tokens `POST /api/v1/parse` gave you (or your
- * own tokenizer's, if it speaks our `pos` vocabulary) and ask again whenever a
- * reader taps. You will get whatever we know today, and a dictionary re-import
- * or a resolution fix never costs you a re-parse.
+ * token does not move. Keep the parse token and ask again whenever a reader
+ * taps. You will get whatever we know today. Reparse when `stackFingerprint`
+ * changes if your application needs boundaries from the current dictionary
+ * stack.
  *
  * Batched because a page has many words and a round trip is expensive. Not
  * paginated, deliberately: a candidate list is short by nature, and you asked
@@ -1333,28 +1280,22 @@ export const identifyWords = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Look up a word
+ * Get a word
  *
  * Returns full detail for one word, addressed by its headword slug
- * (`猫`, `私-わたくし`, `開く-ひらく-1202650`). Merges every source for the
- * canonical form with complete senses. Use `?include=examples,wikipedia`
- * for the optional blocks.
+ * (`猫`, `私-わたくし`, `開く-ひらく-1202650`). The `word` card merges every
+ * source in the API key owner's active dictionary stack with complete senses.
+ * Use `?include=sentences` to add up to 20 preview sentences. Use
+ * `/api/v1/sentences` when you need filtering or pagination.
  *
  * The reading disambiguator may be written in either kana script, so a
  * caller holding a morphological analyser's katakana reading looks a word
  * up without converting first: `私-ワタクシ` resolves to the same entry as
  * `私-わたくし`.
  *
- * This answers "show me THIS word". For **"which word is this token"**, use
- * `POST /api/v1/search` with the token's `reading` and `pos`: it returns the
- * same ranked list the website's own search shows, resolved through the same
- * rules a parsed token goes through.
- *
- * Prefer that over storing an id. An id is our decision about which word a
- * token is, so it moves when we improve the rules; the token itself does not
- * move, so asking with the token gets the current answer every time. Store
- * `sourceId` and `dictionary` if you must store something: that pair is an
- * identity and survives a re-import, where the slug is a handle and does not.
+ * This answers "show me this selected word". Use `POST /api/v1/identify` to
+ * determine which word begins at a position in text, or `POST /api/v1/search`
+ * to search without a known position.
  *
  */
 export const getWord = <ThrowOnError extends boolean = false>(options: Options<GetWordData, ThrowOnError>): RequestResult<GetWordResponses, GetWordErrors, ThrowOnError> => (options.client ?? client).get<GetWordResponses, GetWordErrors, ThrowOnError>({
@@ -1370,16 +1311,17 @@ export const getWord = <ThrowOnError extends boolean = false>(options: Options<G
 /**
  * Search example sentences
  *
- * Returns examples from ready official sentence corpora, paginated with an
- * opaque cursor. Without `entry`, the indexed surface form must exactly
- * match `query`. With `entry`, returns occurrences linked to that dictionary
- * word, including inflected forms, regardless of the query spelling.
- * A personal word dictionary requires READ_ACCOUNT and access to that upload.
- * An unavailable word identity returns 404 without a surface-search fallback.
- * Personal sentence corpora are not included.
+ * Searches ready official sentence corpora using the website's behavior.
+ * Japanese words include linked inflections and dictionary forms, Japanese
+ * phrases match the complete phrase, and non-Japanese text searches selected
+ * translations. Provide either `query` or `filter[wordId]`.
+ *
+ * Personal sentence banks, mining, and i+1 recommendations belong to Study
+ * and are not included here.
  *
  */
-export const listSentences = <ThrowOnError extends boolean = false>(options: Options<ListSentencesData, ThrowOnError>): RequestResult<ListSentencesResponses, ListSentencesErrors, ThrowOnError> => (options.client ?? client).get<ListSentencesResponses, ListSentencesErrors, ThrowOnError>({
+export const listSentences = <ThrowOnError extends boolean = false>(options?: Options<ListSentencesData, ThrowOnError>): RequestResult<ListSentencesResponses, ListSentencesErrors, ThrowOnError> => (options?.client ?? client).get<ListSentencesResponses, ListSentencesErrors, ThrowOnError>({
+    querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
@@ -1390,11 +1332,28 @@ export const listSentences = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
+ * Get a sentence
+ *
+ * Returns one official-corpus sentence by the stable ID returned from sentence search.
+ */
+export const getSentence = <ThrowOnError extends boolean = false>(options: Options<GetSentenceData, ThrowOnError>): RequestResult<GetSentenceResponses, GetSentenceErrors, ThrowOnError> => (options.client ?? client).get<GetSentenceResponses, GetSentenceErrors, ThrowOnError>({
+    querySerializer: { parameters: { include: { array: { explode: false } } } },
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/sentences/{id}',
+    ...options
+});
+
+/**
  * List the dictionary code definitions
  *
  * Resolves every coded field the API emits (parts of speech, misc, field,
  * dialect, name-type) to a human label and description in the requested
- * locale. Cache it once and resolve `{ code }` values client-side.
+ * language selected by `Accept-Language`. Cache it once and resolve
+ * `{ code }` values client-side.
  *
  */
 export const listTags = <ThrowOnError extends boolean = false>(options?: Options<ListTagsData, ThrowOnError>): RequestResult<ListTagsResponses, ListTagsErrors, ThrowOnError> => (options?.client ?? client).get<ListTagsResponses, ListTagsErrors, ThrowOnError>({
@@ -1410,10 +1369,9 @@ export const listTags = <ThrowOnError extends boolean = false>(options?: Options
 /**
  * List available dictionaries
  *
- * Resolves the dictionary slugs used across the API (search
- * `entries[].dictionary`, the `dictionaries` filter, `type`) to names,
- * languages, and metadata. Personal uploads are included when the key
- * carries the READ_ACCOUNT scope.
+ * Resolves dictionary slugs used across lookup results and source filters to
+ * names, content kinds, languages, capabilities, and attribution. Personal
+ * uploads are included when the key carries the user:dictionary:read scope.
  *
  */
 export const listDictionaries = <ThrowOnError extends boolean = false>(options?: Options<ListDictionariesData, ThrowOnError>): RequestResult<ListDictionariesResponses, ListDictionariesErrors, ThrowOnError> => (options?.client ?? client).get<ListDictionariesResponses, ListDictionariesErrors, ThrowOnError>({
@@ -1423,6 +1381,131 @@ export const listDictionaries = <ThrowOnError extends boolean = false>(options?:
             type: 'http'
         }],
     url: '/api/v1/dictionaries',
+    ...options
+});
+
+/**
+ * Remove access to a personal dictionary
+ *
+ * Removes the dictionary from the account and its dictionary stack. Shared content may be retained for another entitled account.
+ */
+export const deleteDictionary = <ThrowOnError extends boolean = false>(options: Options<DeleteDictionaryData, ThrowOnError>): RequestResult<DeleteDictionaryResponses, DeleteDictionaryErrors, ThrowOnError> => (options.client ?? client).delete<DeleteDictionaryResponses, DeleteDictionaryErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionaries/{slug}',
+    ...options
+});
+
+/**
+ * Get the account's dictionary stack
+ *
+ * Returns enabled dictionaries in lookup order. Language order within each source controls definition order.
+ */
+export const getDictionaryStack = <ThrowOnError extends boolean = false>(options?: Options<GetDictionaryStackData, ThrowOnError>): RequestResult<GetDictionaryStackResponses, GetDictionaryStackErrors, ThrowOnError> => (options?.client ?? client).get<GetDictionaryStackResponses, GetDictionaryStackErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-stack',
+    ...options
+});
+
+/**
+ * Replace the account's dictionary stack
+ *
+ * Replaces dictionary order, definition-language order, and reveal behavior together.
+ */
+export const replaceDictionaryStack = <ThrowOnError extends boolean = false>(options: Options<ReplaceDictionaryStackData, ThrowOnError>): RequestResult<ReplaceDictionaryStackResponses, ReplaceDictionaryStackErrors, ThrowOnError> => (options.client ?? client).put<ReplaceDictionaryStackResponses, ReplaceDictionaryStackErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-stack',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List personal dictionary imports
+ */
+export const listDictionaryImports = <ThrowOnError extends boolean = false>(options?: Options<ListDictionaryImportsData, ThrowOnError>): RequestResult<ListDictionaryImportsResponses, ListDictionaryImportsErrors, ThrowOnError> => (options?.client ?? client).get<ListDictionaryImportsResponses, ListDictionaryImportsErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-imports',
+    ...options
+});
+
+/**
+ * Import a personal Yomitan dictionary
+ *
+ * Uploads one ZIP archive and returns an asynchronous import resource.
+ */
+export const createDictionaryImport = <ThrowOnError extends boolean = false>(options: Options<CreateDictionaryImportData, ThrowOnError>): RequestResult<CreateDictionaryImportResponses, CreateDictionaryImportErrors, ThrowOnError> => (options.client ?? client).post<CreateDictionaryImportResponses, CreateDictionaryImportErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-imports',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a queued or failed personal dictionary import
+ */
+export const deleteDictionaryImport = <ThrowOnError extends boolean = false>(options: Options<DeleteDictionaryImportData, ThrowOnError>): RequestResult<DeleteDictionaryImportResponses, DeleteDictionaryImportErrors, ThrowOnError> => (options.client ?? client).delete<DeleteDictionaryImportResponses, DeleteDictionaryImportErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-imports/{id}',
+    ...options
+});
+
+/**
+ * Get a personal dictionary import
+ */
+export const getDictionaryImport = <ThrowOnError extends boolean = false>(options: Options<GetDictionaryImportData, ThrowOnError>): RequestResult<GetDictionaryImportResponses, GetDictionaryImportErrors, ThrowOnError> => (options.client ?? client).get<GetDictionaryImportResponses, GetDictionaryImportErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-imports/{id}',
+    ...options
+});
+
+/**
+ * List offline dictionary packs available to the account
+ *
+ * Returns the structured account dictionary stack and the shared base pack
+ * plus every membership-gated personal overlay available offline.
+ *
+ */
+export const listDictionaryPacks = <ThrowOnError extends boolean = false>(options?: Options<ListDictionaryPacksData, ThrowOnError>): RequestResult<ListDictionaryPacksResponses, ListDictionaryPacksErrors, ThrowOnError> => (options?.client ?? client).get<ListDictionaryPacksResponses, ListDictionaryPacksErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-packs',
     ...options
 });
 
@@ -1437,42 +1520,28 @@ export const listDictionaries = <ThrowOnError extends boolean = false>(options?:
 export const getCurrentDictionaryPack = <ThrowOnError extends boolean = false>(options?: Options<GetCurrentDictionaryPackData, ThrowOnError>): RequestResult<GetCurrentDictionaryPackResponses, GetCurrentDictionaryPackErrors, ThrowOnError> => (options?.client ?? client).get<GetCurrentDictionaryPackResponses, GetCurrentDictionaryPackErrors, ThrowOnError>({ url: '/api/v1/dictionary-packs/current', ...options });
 
 /**
- * Download the current compressed offline dictionary pack
+ * Download an immutable Shirabe dictionary pack
  *
- * Development and self-hosting fallback. Production manifests may direct clients to public R2 instead.
+ * Public development fallback for the base pack named by the current
+ * manifest. Production manifests may point directly to public object storage.
+ *
  */
-export const downloadCurrentDictionaryPack = <ThrowOnError extends boolean = false>(options?: Options<DownloadCurrentDictionaryPackData, ThrowOnError>): RequestResult<DownloadCurrentDictionaryPackResponses, DownloadCurrentDictionaryPackErrors, ThrowOnError> => (options?.client ?? client).get<DownloadCurrentDictionaryPackResponses, DownloadCurrentDictionaryPackErrors, ThrowOnError>({ url: '/api/v1/dictionary-packs/current/download', ...options });
+export const downloadShirabeDictionaryPack = <ThrowOnError extends boolean = false>(options: Options<DownloadShirabeDictionaryPackData, ThrowOnError>): RequestResult<DownloadShirabeDictionaryPackResponses, DownloadShirabeDictionaryPackErrors, ThrowOnError> => (options.client ?? client).get<DownloadShirabeDictionaryPackResponses, DownloadShirabeDictionaryPackErrors, ThrowOnError>({ url: '/api/v1/dictionary-packs/shirabe/{revision}', ...options });
 
 /**
- * Get the account's offline dictionary stack
+ * Get an immutable dictionary pack
  *
- * Returns the ordered dictionary sources and reveal modes used by the account,
- * plus the shared public pack and membership-gated personal overlays needed to
- * reproduce that stack locally.
+ * Downloads an immutable personal-dictionary overlay available to the
+ * authenticated account. The public Shirabe base pack has its own route.
  *
  */
-export const getDictionaryStack = <ThrowOnError extends boolean = false>(options?: Options<GetDictionaryStackData, ThrowOnError>): RequestResult<GetDictionaryStackResponses, GetDictionaryStackErrors, ThrowOnError> => (options?.client ?? client).get<GetDictionaryStackResponses, GetDictionaryStackErrors, ThrowOnError>({
+export const getDictionaryPack = <ThrowOnError extends boolean = false>(options: Options<GetDictionaryPackData, ThrowOnError>): RequestResult<GetDictionaryPackResponses, GetDictionaryPackErrors, ThrowOnError> => (options.client ?? client).get<GetDictionaryPackResponses, GetDictionaryPackErrors, ThrowOnError>({
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/api/v1/dictionary-packs/stack',
-    ...options
-});
-
-/**
- * Download a personal dictionary overlay
- *
- * The bearer must still have access to the personal dictionary named by the immutable artifact URL.
- */
-export const downloadPersonalDictionaryPack = <ThrowOnError extends boolean = false>(options: Options<DownloadPersonalDictionaryPackData, ThrowOnError>): RequestResult<DownloadPersonalDictionaryPackResponses, DownloadPersonalDictionaryPackErrors, ThrowOnError> => (options.client ?? client).get<DownloadPersonalDictionaryPackResponses, DownloadPersonalDictionaryPackErrors, ThrowOnError>({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/dictionary-packs/stack/{slug}/{revision}/download',
+    url: '/api/v1/dictionary-packs/{slug}/{revision}',
     ...options
 });
 
@@ -1488,7 +1557,7 @@ export const getReaderHostRules = <ThrowOnError extends boolean = false>(options
  *
  * Returns the profile, the limits this key is held to, and
  * dictionary preferences for the user that owns the API key. All of it is
- * covered by READ_ACCOUNT.
+ * covered by user:profile:read.
  *
  */
 export const getMe = <ThrowOnError extends boolean = false>(options?: Options<GetMeData, ThrowOnError>): RequestResult<GetMeResponses, GetMeErrors, ThrowOnError> => (options?.client ?? client).get<GetMeResponses, GetMeErrors, ThrowOnError>({
@@ -1531,15 +1600,24 @@ export const revokeOwnKey = <ThrowOnError extends boolean = false>(options?: Opt
 });
 
 /**
+ * Get the API key owner's reader preferences
+ */
+export const getPreferences = <ThrowOnError extends boolean = false>(options?: Options<GetPreferencesData, ThrowOnError>): RequestResult<GetPreferencesResponses, GetPreferencesErrors, ThrowOnError> => (options?.client ?? client).get<GetPreferencesResponses, GetPreferencesErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/preferences',
+    ...options
+});
+
+/**
  * Update the API key owner's reader preferences
  *
  * A partial update, send only the fields you want to change.
  *
- * The dictionary stack (the ordered `slug:lang` list that decides which dictionaries resolve, in which languages, in what order) has two ways in: send `dictionaries` to set it outright, or send `languages` if your client only models languages (the browser extension's offline pack is a single dictionary), the stack's dictionary order is preserved untouched and each dictionary is re-filtered and re-ordered to the languages given.
- *
  * `sentenceLanguages` (ordered, `ja` = immersion) and `sentenceTranslation` (show|hover|hide) are separate axes governing example sentences.
- *
- * `dictionaryReveal` is another: how each dictionary's definitions are shown (`show`|`hover`), rather than whether they resolve at all.
  *
  */
 export const updatePreferences = <ThrowOnError extends boolean = false>(options: Options<UpdatePreferencesData, ThrowOnError>): RequestResult<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError> => (options.client ?? client).patch<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError>({
@@ -1557,15 +1635,16 @@ export const updatePreferences = <ThrowOnError extends boolean = false>(options:
 });
 
 /**
- * Browse the joyo-kanji index
+ * Browse the kanji index
  *
- * Returns the joyo-kanji index that backs the website's `/kanji`
- * page, grouped by the chosen `order`. Pass the matching filter
- * parameter to narrow to a single group, for example
- * `?order=kanken&kanken=2` returns just the level-2 kanken kanji,
- * `?order=radical&radical=85` returns kanji under the water radical.
+ * Returns the KANJIDIC index that backs the website's `/kanji`
+ * page, grouped by `groupBy`. Without a group filter, each group contains a
+ * small preview. Pass `filter[group]` to paginate one complete group. For
+ * example, `?groupBy=kanken&filter[group]=2` returns level-2 kanji.
  *
- * The joyo set is static, so this endpoint is safe to cache.
+ * JLPT and Kanken grouping include characters ranked by those systems. Stroke,
+ * radical, and frequency grouping include every available KANJIDIC character.
+ * The dictionary data is versioned, so this endpoint is safe to cache.
  *
  */
 export const listKanji = <ThrowOnError extends boolean = false>(options?: Options<ListKanjiData, ThrowOnError>): RequestResult<ListKanjiResponses, ListKanjiErrors, ThrowOnError> => (options?.client ?? client).get<ListKanjiResponses, ListKanjiErrors, ThrowOnError>({
@@ -1579,74 +1658,82 @@ export const listKanji = <ThrowOnError extends boolean = false>(options?: Option
 });
 
 /**
+ * List radicals
+ *
+ * Returns radicals (部首) and their displayed forms using the website's grouping.
+ */
+export const listKanjiRadicals = <ThrowOnError extends boolean = false>(options?: Options<ListKanjiRadicalsData, ThrowOnError>): RequestResult<ListKanjiRadicalsResponses, ListKanjiRadicalsErrors, ThrowOnError> => (options?.client ?? client).get<ListKanjiRadicalsResponses, ListKanjiRadicalsErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/kanji/radicals',
+    ...options
+});
+
+/**
+ * Get a radical
+ *
+ * Returns one radical and a cursor-paginated list of all KANJIDIC characters that use it.
+ */
+export const getKanjiRadical = <ThrowOnError extends boolean = false>(options: Options<GetKanjiRadicalData, ThrowOnError>): RequestResult<GetKanjiRadicalResponses, GetKanjiRadicalErrors, ThrowOnError> => (options.client ?? client).get<GetKanjiRadicalResponses, GetKanjiRadicalErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/kanji/radicals/{number}',
+    ...options
+});
+
+/**
+ * List kanji components
+ *
+ * Returns the component glyphs available for component-based kanji discovery.
+ */
+export const listKanjiComponents = <ThrowOnError extends boolean = false>(options?: Options<ListKanjiComponentsData, ThrowOnError>): RequestResult<ListKanjiComponentsResponses, ListKanjiComponentsErrors, ThrowOnError> => (options?.client ?? client).get<ListKanjiComponentsResponses, ListKanjiComponentsErrors, ThrowOnError>({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/kanji/components',
+    ...options
+});
+
+/**
+ * Find kanji by components
+ *
+ * Returns kanji containing every requested component, plus components that
+ * can still narrow the current selection.
+ *
+ */
+export const listKanjiComponentMatches = <ThrowOnError extends boolean = false>(options?: Options<ListKanjiComponentMatchesData, ThrowOnError>): RequestResult<ListKanjiComponentMatchesResponses, ListKanjiComponentMatchesErrors, ThrowOnError> => (options?.client ?? client).get<ListKanjiComponentMatchesResponses, ListKanjiComponentMatchesErrors, ThrowOnError>({
+    querySerializer: { parameters: { components: { array: { explode: false } } } },
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/kanji/component-matches',
+    ...options
+});
+
+/**
  * Look up a kanji
  *
- * Returns the KANJIDIC entry for `char` plus a short list of JMdict
- * compounds that contain the character.
+ * Returns the KANJIDIC character. Use `include` for dictionary-aware compounds
+ * and the optional relationships shown by the website.
  *
  */
 export const getKanji = <ThrowOnError extends boolean = false>(options: Options<GetKanjiData, ThrowOnError>): RequestResult<GetKanjiResponses, GetKanjiErrors, ThrowOnError> => (options.client ?? client).get<GetKanjiResponses, GetKanjiErrors, ThrowOnError>({
+    querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/api/v1/kanji/{char}',
-    ...options
-});
-
-/**
- * List all Kangxi radicals
- *
- * The 214 Kangxi radicals (部首), grouped by stroke count, the
- * classical character-indexing system every printed Japanese
- * dictionary still uses. Static data; safe to cache aggressively.
- *
- */
-export const listRadicals = <ThrowOnError extends boolean = false>(options?: Options<ListRadicalsData, ThrowOnError>): RequestResult<ListRadicalsResponses, ListRadicalsErrors, ThrowOnError> => (options?.client ?? client).get<ListRadicalsResponses, ListRadicalsErrors, ThrowOnError>({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/radicals',
-    ...options
-});
-
-/**
- * Find kanji by component radicals
- *
- * The radkfile component picker: pass one or more component glyphs and get
- * the kanji built from all of them, plus the components still combinable
- * with the current selection. List the 253 component radicals via
- * `GET /api/v1/radicals?set=search`.
- *
- */
-export const searchRadicals = <ThrowOnError extends boolean = false>(options?: Options<SearchRadicalsData, ThrowOnError>): RequestResult<SearchRadicalsResponses, SearchRadicalsErrors, ThrowOnError> => (options?.client ?? client).get<SearchRadicalsResponses, SearchRadicalsErrors, ThrowOnError>({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/radicals/search',
-    ...options
-});
-
-/**
- * Look up a Kangxi radical
- *
- * Returns one radical plus every joyo kanji whose classical radical
- * matches. We use the canonical Kangxi number (1-214) because a
- * handful of radicals have multiple Unicode forms (艸/艹, 水/氵/⺡)
- * that make URL-by-glyph ambiguous.
- *
- */
-export const getRadical = <ThrowOnError extends boolean = false>(options: Options<GetRadicalData, ThrowOnError>): RequestResult<GetRadicalResponses, GetRadicalErrors, ThrowOnError> => (options.client ?? client).get<GetRadicalResponses, GetRadicalErrors, ThrowOnError>({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/radicals/{number}',
+    url: '/api/v1/kanji/{character}',
     ...options
 });

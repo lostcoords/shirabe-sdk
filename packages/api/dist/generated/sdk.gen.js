@@ -4,7 +4,7 @@ import { formDataBodySerializer } from './client/index.js';
 /**
  * Pair a native Anki installation
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const pairAnkiProfile = (options) => (options.client ?? client).post({
     security: [{
@@ -22,7 +22,7 @@ export const pairAnkiProfile = (options) => (options.client ?? client).post({
 /**
  * Unlink an Anki profile
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const unlinkAnkiProfile = (options) => (options.client ?? client).delete({
     security: [{
@@ -36,7 +36,7 @@ export const unlinkAnkiProfile = (options) => (options.client ?? client).delete(
 /**
  * Finish an Anki snapshot epoch
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const finishAnkiSnapshot = (options) => (options.client ?? client).patch({
     security: [{
@@ -54,7 +54,7 @@ export const finishAnkiSnapshot = (options) => (options.client ?? client).patch(
 /**
  * Start a new Anki snapshot epoch
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const startAnkiSnapshot = (options) => (options.client ?? client).post({
     security: [{
@@ -106,7 +106,7 @@ export const prepareAnkiPublications = (options) => (options.client ?? client).p
 /**
  * Select a source Anki deck
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const selectAnkiDeck = (options) => (options.client ?? client).post({
     security: [{
@@ -124,7 +124,7 @@ export const selectAnkiDeck = (options) => (options.client ?? client).post({
 /**
  * Apply a retryable Anki batch
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const applyAnkiBatch = (options) => (options.client ?? client).post({
     security: [{
@@ -343,7 +343,7 @@ export const getAnkiReviewUndo = (options) => (options.client ?? client).get({
 /**
  * Deliver changes to native Anki
  *
- * Delivery freezes undo for included reviews before returning. It requires WRITE_SRS even when replaying an earlier cursor. Retry the same cursor after a lost response.
+ * Delivery freezes undo for included reviews before returning. It requires user:study:write even when replaying an earlier cursor. Retry the same cursor after a lost response.
  */
 export const deliverAnkiChanges = (options) => (options.client ?? client).post({
     security: [{
@@ -373,7 +373,7 @@ export const getAnkiDeliveryReceipt = (options) => (options.client ?? client).ge
 /**
  * Acknowledge durable Anki changes
  *
- * Sync writes require Pro and WRITE_SRS.
+ * Sync writes require Pro and user:study:write.
  */
 export const acknowledgeAnkiChanges = (options) => (options.client ?? client).post({
     security: [{
@@ -391,7 +391,10 @@ export const acknowledgeAnkiChanges = (options) => (options.client ?? client).po
 /**
  * Refuse unsupported MCP SSE sessions
  *
- * Shirabe is stateless and does not expose a standalone SSE stream.
+ * Shirabe is stateless and does not expose a standalone SSE stream. MCP
+ * Streamable HTTP requires a server without that stream to answer GET with
+ * `405 Method Not Allowed`.
+ *
  */
 export const inspectMcpTransport = (options) => (options?.client ?? client).get({
     security: [{
@@ -428,7 +431,7 @@ export const callMcp = (options) => (options.client ?? client).post({
  * Obtain or renew tokens (the OAuth 2.0 token endpoint)
  *
  * The token endpoint (RFC 6749 §3.2), for every way a connected app gets its
- * credentials. Three grants:
+ * credentials. Four grants:
  *
  * - `authorization_code`: the redirect flow. Redeem the one-time `code`
  * from the `/oauth/authorize` redirect with the PKCE `code_verifier`.
@@ -438,6 +441,10 @@ export const callMcp = (options) => (options.client ?? client).post({
  * `invalid_grant` as "the link is over, reconnect". Presenting a refresh
  * token that was already traded (outside a short retry grace) revokes the
  * whole grant.
+ * - `client_credentials`: backend-to-backend access with no user. A
+ * confidential client authenticates with HTTP Basic and receives a
+ * short-lived token carrying only its registered machine scopes. It never
+ * receives a refresh token.
  * - `urn:ietf:params:oauth:grant-type:device_code`: the device flow (RFC
  * 8628). Poll with the `device_code` from `/oauth/device_authorization`
  * every `interval` seconds until the user approves; `authorization_pending`
@@ -507,16 +514,25 @@ export const oauthDeviceAuthorization = (options) => (options.client ?? client).
     }
 });
 /**
- * Mixed-result search
+ * Search
  *
- * Tokenizes `query` with Sudachi (so 食べている finds 食べる via the lemma),
- * then returns word, name, and kanji hits in a single response. Filter via
- * the `#key:value` grammar inside `query` or the structured `filters` object
- * (both are merged). Word cards are paginated with an opaque cursor; each
- * carries an `id` slug you can pass to `GET /api/v1/words/{id}`.
+ * Searches the caller's dictionary stack using the same tokenizer, ranking,
+ * filters, and dictionary preferences as the website's
+ * dictionary search. For example, Sudachi tokenization lets 食べている find
+ * 食べる by its lemma.
  *
- * A read modeled as POST: the request carries a structured body, and results
- * are key-scoped to the caller's preferences (not edge-cacheable).
+ * The response contains Shirabe's preferred segmentation of the query. Every
+ * segment contains its ranked word-card matches; every match merges word,
+ * name, and encyclopedia entries by canonical form. Use `include` to add kanji
+ * details or example sentences to each match. The website's sentence, grammar,
+ * and people search pages are not part of this operation.
+ *
+ * Put `#key:value` filters in `query`, send them in `filters`, or use both.
+ * The two sets are merged. `limit` caps the ranked matches in each segment.
+ * Each match's `id` can be passed to `GET /api/v1/words/{id}`.
+ *
+ * This read uses POST because it accepts a structured JSON body and depends on
+ * the API key owner's preferences, so it is not edge-cacheable.
  *
  */
 export const search = (options) => (options.client ?? client).post({
@@ -533,24 +549,49 @@ export const search = (options) => (options.client ?? client).post({
     }
 });
 /**
- * Parse Japanese text
+ * Identify a word
  *
- * Segments `text` with Shirabe's Sudachi tokenizer and returns tokens in
- * reading order, each stamped with a UTF-16 `[position, length]` so they map
- * straight onto a DOM. Every token a reader could study carries the API key
- * owner's per-word SRS `state`, so a reader can colour a page in a single
- * round-trip. Large text is split safely before parsing; the maximum size
- * depends on the owning user.
+ * Finds dictionary expressions beginning at one UTF-16 position in surrounding
+ * text. This is the popup counterpart to search: it uses the caller's active
+ * dictionary stack and returns overlapping spans rather than one segmentation
+ * of the complete text.
  *
- * `state` is private study data: it is only populated for keys that carry the
- * `READ_SRS` scope. A plain `READ_DICTIONARY` key still gets segmentation,
- * positions, and (with `include`) dictionary data, but every `state` is
- * `none`.
- *
- * Supersedes the former `POST /api/v1/tokenize`.
+ * `target.endOffset` is an optional boundary hint from the caller. A matching span is
+ * ranked first, but Shirabe still returns other dictionary-bearing spans that
+ * begin at `target.startOffset`. No caller tokenization or dictionary override is
+ * accepted. This operation does not apply contextual JEV sense ranking.
  *
  */
-export const parseText = (options) => (options.client ?? client).post({
+export const identifyWord = (options) => (options.client ?? client).post({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/identify',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+/**
+ * Parse Japanese text
+ *
+ * Returns one preferred segmentation for every item in `texts`. Shirabe uses
+ * the caller's active dictionary stack, including private dictionaries, when
+ * choosing useful word boundaries. It does not return alternative parses or
+ * definitions; send a token to `POST /api/v1/words/identify` when the user
+ * asks for its dictionary card.
+ *
+ * Offsets are UTF-16 and map directly to browser text nodes. Add
+ * `Prefer: respond-async` to queue the same operation and poll the URL in the
+ * `Location` header. The request and completed result shapes are identical in
+ * synchronous and asynchronous use. `results` follows the same order as
+ * `texts`, and each result repeats its submitted text.
+ *
+ */
+export const parse = (options) => (options.client ?? client).post({
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
@@ -564,64 +605,17 @@ export const parseText = (options) => (options.client ?? client).post({
     }
 });
 /**
- * Submit a bulk parse
+ * Get a queued parse
  *
- * Queues a parse and returns immediately with a handle to poll. The same
- * analysis as `POST /api/v1/parse`, answered off the request path.
- *
- * Use this whenever you are parsing a corpus rather than a page. The
- * synchronous endpoint spends the same CPU that serves readers, so a client
- * working through a large body of text there degrades the site for everyone
- * and can only be slowed down by choosing to be slower. Batches are worked one
- * at a time, so the pace is set by the queue and a bulk caller cannot crowd
- * anybody out however fast it submits.
- *
- * Poll `GET /api/v1/parse/batches/{id}` for the tokens. A finished batch stays
- * fetchable for a limited window and may be fetched more than once inside it;
- * `expiresAt` says when it goes. Two limits apply per credential: how many
- * batches may be waiting or running at once, and how many unexpired batches
- * may be held; exceeding either is `429` with a `Retry-After`.
- *
- * Character limits are the same as the synchronous endpoint and are charged on
- * submission, over the whole batch.
- *
+ * Poll the parse operation URL returned by `POST /api/v1/parse`.
  */
-export const createParseBatch = (options) => (options.client ?? client).post({
+export const getParseOperation = (options) => (options.client ?? client).get({
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/api/v1/parse/batches',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-/**
- * Fetch a bulk parse
- *
- * The batch's status, and its tokens once `status` is `done`. `tokens` is an
- * array of token lists, index-aligned with the `texts` submitted, exactly as
- * `POST /api/v1/parse` answers a `texts` array.
- *
- * Poll until `status` is `done` or `failed`. A `failed` batch carries `error`
- * and will not be retried: the texts will not become more parseable.
- *
- * A finished batch may be fetched repeatedly until `expiresAt`, so a client
- * that dies mid-download can simply ask again. After that it is `404`, as is a
- * batch belonging to another credential: whether an id exists is not a
- * stranger's business.
- *
- */
-export const getParseBatch = (options) => (options.client ?? client).get({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/parse/batches/{id}',
+    url: '/api/v1/parse/{id}',
     ...options
 });
 /**
@@ -934,7 +928,8 @@ export const bulkUpdateCards = (options) => (options.client ?? client).patch({
 /**
  * Delete (un-save) a card
  *
- * Permanently removes one of the API key owner's cards. Requires SRS
+ * Moves one of the API key owner's cards to recoverable trash. Use the bulk
+ * card operation with `cardAction=purge` for permanent removal. Requires SRS
  * entitlement, like every card mutation (docs/srs.md §10).
  *
  */
@@ -1118,51 +1113,6 @@ export const deleteWordNote = (options) => (options.client ?? client).delete({
     ...options
 });
 /**
- * List curated word sets
- *
- * The curated JLPT / frequency word-set catalog (docs/srs.md §13b).
- */
-export const listWordSets = (options) => (options?.client ?? client).get({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/srs/word-sets',
-    ...options
-});
-/**
- * Get a word set's words
- *
- * One page of a set's words, in set order (docs/srs.md §13b).
- */
-export const getWordSet = (options) => (options.client ?? client).get({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/srs/word-sets/{slug}',
-    ...options
-});
-/**
- * Clone a word set into a new deck
- *
- * Creates a new deck seeded with the set's words (in set order), skipping words
- * you already have as a card, have marked known, or have ignored (docs/srs.md
- * §13b). Requires SRS entitlement.
- *
- */
-export const cloneWordSet = (options) => (options.client ?? client).post({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/srs/word-sets/{slug}/clone',
-    ...options
-});
-/**
  * Ignore a word (blacklist)
  *
  * Marks a word "don't study," so bulk seeds / clones skip it (docs/srs.md
@@ -1226,10 +1176,10 @@ export const bulkAddSearch = (options) => (options.client ?? client).post({
  *
  * **Nothing has to be stored for this to keep working.** An id is our decision
  * about which word a token is, so it moves when we get better at deciding; the
- * token does not move. Store the tokens `POST /api/v1/parse` gave you (or your
- * own tokenizer's, if it speaks our `pos` vocabulary) and ask again whenever a
- * reader taps. You will get whatever we know today, and a dictionary re-import
- * or a resolution fix never costs you a re-parse.
+ * token does not move. Keep the parse token and ask again whenever a reader
+ * taps. You will get whatever we know today. Reparse when `stackFingerprint`
+ * changes if your application needs boundaries from the current dictionary
+ * stack.
  *
  * Batched because a page has many words and a round trip is expensive. Not
  * paginated, deliberately: a candidate list is short by nature, and you asked
@@ -1250,28 +1200,22 @@ export const identifyWords = (options) => (options.client ?? client).post({
     }
 });
 /**
- * Look up a word
+ * Get a word
  *
  * Returns full detail for one word, addressed by its headword slug
- * (`猫`, `私-わたくし`, `開く-ひらく-1202650`). Merges every source for the
- * canonical form with complete senses. Use `?include=examples,wikipedia`
- * for the optional blocks.
+ * (`猫`, `私-わたくし`, `開く-ひらく-1202650`). The `word` card merges every
+ * source in the API key owner's active dictionary stack with complete senses.
+ * Use `?include=sentences` to add up to 20 preview sentences. Use
+ * `/api/v1/sentences` when you need filtering or pagination.
  *
  * The reading disambiguator may be written in either kana script, so a
  * caller holding a morphological analyser's katakana reading looks a word
  * up without converting first: `私-ワタクシ` resolves to the same entry as
  * `私-わたくし`.
  *
- * This answers "show me THIS word". For **"which word is this token"**, use
- * `POST /api/v1/search` with the token's `reading` and `pos`: it returns the
- * same ranked list the website's own search shows, resolved through the same
- * rules a parsed token goes through.
- *
- * Prefer that over storing an id. An id is our decision about which word a
- * token is, so it moves when we improve the rules; the token itself does not
- * move, so asking with the token gets the current answer every time. Store
- * `sourceId` and `dictionary` if you must store something: that pair is an
- * identity and survives a re-import, where the slug is a handle and does not.
+ * This answers "show me this selected word". Use `POST /api/v1/identify` to
+ * determine which word begins at a position in text, or `POST /api/v1/search`
+ * to search without a known position.
  *
  */
 export const getWord = (options) => (options.client ?? client).get({
@@ -1286,16 +1230,17 @@ export const getWord = (options) => (options.client ?? client).get({
 /**
  * Search example sentences
  *
- * Returns examples from ready official sentence corpora, paginated with an
- * opaque cursor. Without `entry`, the indexed surface form must exactly
- * match `query`. With `entry`, returns occurrences linked to that dictionary
- * word, including inflected forms, regardless of the query spelling.
- * A personal word dictionary requires READ_ACCOUNT and access to that upload.
- * An unavailable word identity returns 404 without a surface-search fallback.
- * Personal sentence corpora are not included.
+ * Searches ready official sentence corpora using the website's behavior.
+ * Japanese words include linked inflections and dictionary forms, Japanese
+ * phrases match the complete phrase, and non-Japanese text searches selected
+ * translations. Provide either `query` or `filter[wordId]`.
+ *
+ * Personal sentence banks, mining, and i+1 recommendations belong to Study
+ * and are not included here.
  *
  */
-export const listSentences = (options) => (options.client ?? client).get({
+export const listSentences = (options) => (options?.client ?? client).get({
+    querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
@@ -1305,11 +1250,27 @@ export const listSentences = (options) => (options.client ?? client).get({
     ...options
 });
 /**
+ * Get a sentence
+ *
+ * Returns one official-corpus sentence by the stable ID returned from sentence search.
+ */
+export const getSentence = (options) => (options.client ?? client).get({
+    querySerializer: { parameters: { include: { array: { explode: false } } } },
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/sentences/{id}',
+    ...options
+});
+/**
  * List the dictionary code definitions
  *
  * Resolves every coded field the API emits (parts of speech, misc, field,
  * dialect, name-type) to a human label and description in the requested
- * locale. Cache it once and resolve `{ code }` values client-side.
+ * language selected by `Accept-Language`. Cache it once and resolve
+ * `{ code }` values client-side.
  *
  */
 export const listTags = (options) => (options?.client ?? client).get({
@@ -1324,10 +1285,9 @@ export const listTags = (options) => (options?.client ?? client).get({
 /**
  * List available dictionaries
  *
- * Resolves the dictionary slugs used across the API (search
- * `entries[].dictionary`, the `dictionaries` filter, `type`) to names,
- * languages, and metadata. Personal uploads are included when the key
- * carries the READ_ACCOUNT scope.
+ * Resolves dictionary slugs used across lookup results and source filters to
+ * names, content kinds, languages, capabilities, and attribution. Personal
+ * uploads are included when the key carries the user:dictionary:read scope.
  *
  */
 export const listDictionaries = (options) => (options?.client ?? client).get({
@@ -1340,6 +1300,123 @@ export const listDictionaries = (options) => (options?.client ?? client).get({
     ...options
 });
 /**
+ * Remove access to a personal dictionary
+ *
+ * Removes the dictionary from the account and its dictionary stack. Shared content may be retained for another entitled account.
+ */
+export const deleteDictionary = (options) => (options.client ?? client).delete({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionaries/{slug}',
+    ...options
+});
+/**
+ * Get the account's dictionary stack
+ *
+ * Returns enabled dictionaries in lookup order. Language order within each source controls definition order.
+ */
+export const getDictionaryStack = (options) => (options?.client ?? client).get({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-stack',
+    ...options
+});
+/**
+ * Replace the account's dictionary stack
+ *
+ * Replaces dictionary order, definition-language order, and reveal behavior together.
+ */
+export const replaceDictionaryStack = (options) => (options.client ?? client).put({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-stack',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+/**
+ * List personal dictionary imports
+ */
+export const listDictionaryImports = (options) => (options?.client ?? client).get({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-imports',
+    ...options
+});
+/**
+ * Import a personal Yomitan dictionary
+ *
+ * Uploads one ZIP archive and returns an asynchronous import resource.
+ */
+export const createDictionaryImport = (options) => (options.client ?? client).post({
+    ...formDataBodySerializer,
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-imports',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+/**
+ * Delete a queued or failed personal dictionary import
+ */
+export const deleteDictionaryImport = (options) => (options.client ?? client).delete({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-imports/{id}',
+    ...options
+});
+/**
+ * Get a personal dictionary import
+ */
+export const getDictionaryImport = (options) => (options.client ?? client).get({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-imports/{id}',
+    ...options
+});
+/**
+ * List offline dictionary packs available to the account
+ *
+ * Returns the structured account dictionary stack and the shared base pack
+ * plus every membership-gated personal overlay available offline.
+ *
+ */
+export const listDictionaryPacks = (options) => (options?.client ?? client).get({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/dictionary-packs',
+    ...options
+});
+/**
  * Get the current offline dictionary pack manifest
  *
  * Public, cacheable metadata for the compressed EN/ES dictionary pack used by
@@ -1349,40 +1426,27 @@ export const listDictionaries = (options) => (options?.client ?? client).get({
  */
 export const getCurrentDictionaryPack = (options) => (options?.client ?? client).get({ url: '/api/v1/dictionary-packs/current', ...options });
 /**
- * Download the current compressed offline dictionary pack
+ * Download an immutable Shirabe dictionary pack
  *
- * Development and self-hosting fallback. Production manifests may direct clients to public R2 instead.
+ * Public development fallback for the base pack named by the current
+ * manifest. Production manifests may point directly to public object storage.
+ *
  */
-export const downloadCurrentDictionaryPack = (options) => (options?.client ?? client).get({ url: '/api/v1/dictionary-packs/current/download', ...options });
+export const downloadShirabeDictionaryPack = (options) => (options.client ?? client).get({ url: '/api/v1/dictionary-packs/shirabe/{revision}', ...options });
 /**
- * Get the account's offline dictionary stack
+ * Get an immutable dictionary pack
  *
- * Returns the ordered dictionary sources and reveal modes used by the account,
- * plus the shared public pack and membership-gated personal overlays needed to
- * reproduce that stack locally.
+ * Downloads an immutable personal-dictionary overlay available to the
+ * authenticated account. The public Shirabe base pack has its own route.
  *
  */
-export const getDictionaryStack = (options) => (options?.client ?? client).get({
+export const getDictionaryPack = (options) => (options.client ?? client).get({
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/api/v1/dictionary-packs/stack',
-    ...options
-});
-/**
- * Download a personal dictionary overlay
- *
- * The bearer must still have access to the personal dictionary named by the immutable artifact URL.
- */
-export const downloadPersonalDictionaryPack = (options) => (options.client ?? client).get({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/dictionary-packs/stack/{slug}/{revision}/download',
+    url: '/api/v1/dictionary-packs/{slug}/{revision}',
     ...options
 });
 /**
@@ -1396,7 +1460,7 @@ export const getReaderHostRules = (options) => (options?.client ?? client).get({
  *
  * Returns the profile, the limits this key is held to, and
  * dictionary preferences for the user that owns the API key. All of it is
- * covered by READ_ACCOUNT.
+ * covered by user:profile:read.
  *
  */
 export const getMe = (options) => (options?.client ?? client).get({
@@ -1437,15 +1501,23 @@ export const revokeOwnKey = (options) => (options?.client ?? client).delete({
     ...options
 });
 /**
+ * Get the API key owner's reader preferences
+ */
+export const getPreferences = (options) => (options?.client ?? client).get({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/preferences',
+    ...options
+});
+/**
  * Update the API key owner's reader preferences
  *
  * A partial update, send only the fields you want to change.
  *
- * The dictionary stack (the ordered `slug:lang` list that decides which dictionaries resolve, in which languages, in what order) has two ways in: send `dictionaries` to set it outright, or send `languages` if your client only models languages (the browser extension's offline pack is a single dictionary), the stack's dictionary order is preserved untouched and each dictionary is re-filtered and re-ordered to the languages given.
- *
  * `sentenceLanguages` (ordered, `ja` = immersion) and `sentenceTranslation` (show|hover|hide) are separate axes governing example sentences.
- *
- * `dictionaryReveal` is another: how each dictionary's definitions are shown (`show`|`hover`), rather than whether they resolve at all.
  *
  */
 export const updatePreferences = (options) => (options.client ?? client).patch({
@@ -1462,15 +1534,16 @@ export const updatePreferences = (options) => (options.client ?? client).patch({
     }
 });
 /**
- * Browse the joyo-kanji index
+ * Browse the kanji index
  *
- * Returns the joyo-kanji index that backs the website's `/kanji`
- * page, grouped by the chosen `order`. Pass the matching filter
- * parameter to narrow to a single group, for example
- * `?order=kanken&kanken=2` returns just the level-2 kanken kanji,
- * `?order=radical&radical=85` returns kanji under the water radical.
+ * Returns the KANJIDIC index that backs the website's `/kanji`
+ * page, grouped by `groupBy`. Without a group filter, each group contains a
+ * small preview. Pass `filter[group]` to paginate one complete group. For
+ * example, `?groupBy=kanken&filter[group]=2` returns level-2 kanji.
  *
- * The joyo set is static, so this endpoint is safe to cache.
+ * JLPT and Kanken grouping include characters ranked by those systems. Stroke,
+ * radical, and frequency grouping include every available KANJIDIC character.
+ * The dictionary data is versioned, so this endpoint is safe to cache.
  *
  */
 export const listKanji = (options) => (options?.client ?? client).get({
@@ -1483,72 +1556,79 @@ export const listKanji = (options) => (options?.client ?? client).get({
     ...options
 });
 /**
+ * List radicals
+ *
+ * Returns radicals (部首) and their displayed forms using the website's grouping.
+ */
+export const listKanjiRadicals = (options) => (options?.client ?? client).get({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/kanji/radicals',
+    ...options
+});
+/**
+ * Get a radical
+ *
+ * Returns one radical and a cursor-paginated list of all KANJIDIC characters that use it.
+ */
+export const getKanjiRadical = (options) => (options.client ?? client).get({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/kanji/radicals/{number}',
+    ...options
+});
+/**
+ * List kanji components
+ *
+ * Returns the component glyphs available for component-based kanji discovery.
+ */
+export const listKanjiComponents = (options) => (options?.client ?? client).get({
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/kanji/components',
+    ...options
+});
+/**
+ * Find kanji by components
+ *
+ * Returns kanji containing every requested component, plus components that
+ * can still narrow the current selection.
+ *
+ */
+export const listKanjiComponentMatches = (options) => (options?.client ?? client).get({
+    querySerializer: { parameters: { components: { array: { explode: false } } } },
+    security: [{
+            key: 'ApiKeyAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/kanji/component-matches',
+    ...options
+});
+/**
  * Look up a kanji
  *
- * Returns the KANJIDIC entry for `char` plus a short list of JMdict
- * compounds that contain the character.
+ * Returns the KANJIDIC character. Use `include` for dictionary-aware compounds
+ * and the optional relationships shown by the website.
  *
  */
 export const getKanji = (options) => (options.client ?? client).get({
+    querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
             key: 'ApiKeyAuth',
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/api/v1/kanji/{char}',
-    ...options
-});
-/**
- * List all Kangxi radicals
- *
- * The 214 Kangxi radicals (部首), grouped by stroke count, the
- * classical character-indexing system every printed Japanese
- * dictionary still uses. Static data; safe to cache aggressively.
- *
- */
-export const listRadicals = (options) => (options?.client ?? client).get({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/radicals',
-    ...options
-});
-/**
- * Find kanji by component radicals
- *
- * The radkfile component picker: pass one or more component glyphs and get
- * the kanji built from all of them, plus the components still combinable
- * with the current selection. List the 253 component radicals via
- * `GET /api/v1/radicals?set=search`.
- *
- */
-export const searchRadicals = (options) => (options?.client ?? client).get({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/radicals/search',
-    ...options
-});
-/**
- * Look up a Kangxi radical
- *
- * Returns one radical plus every joyo kanji whose classical radical
- * matches. We use the canonical Kangxi number (1-214) because a
- * handful of radicals have multiple Unicode forms (艸/艹, 水/氵/⺡)
- * that make URL-by-glyph ambiguous.
- *
- */
-export const getRadical = (options) => (options.client ?? client).get({
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/radicals/{number}',
+    url: '/api/v1/kanji/{character}',
     ...options
 });
 //# sourceMappingURL=sdk.gen.js.map

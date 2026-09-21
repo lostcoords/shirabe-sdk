@@ -1,6 +1,6 @@
 {
   "name": "@shirabe-org/api",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Typed client for the Shirabe API, generated from its OpenAPI contract.",
   "license": "MIT",
   "repository": {
@@ -27,7 +27,7 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "codegen": "../../bin/openapi bundle && openapi-ts",
-    "codegen:check": "../../bin/api-client-check",
+    "codegen:check": "../../bin/openapi check-client",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "check": "npm run codegen:check && npm run typecheck && npm test",

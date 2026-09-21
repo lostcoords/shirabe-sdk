@@ -9,7 +9,12 @@ import { createShirabeClient, search } from "@shirabe-org/api";
 const client = createShirabeClient({ accessToken: process.env.SHIRABE_TOKEN });
 const { data, error } = await search({
   client,
-  body: { query: "猫", definitionLanguages: ["en"] },
+  body: {
+    query: "猫",
+    filters: {
+      sources: [{ dictionary: "jmdict", languages: ["en"] }],
+    },
+  },
 });
 ```
 
@@ -34,7 +39,7 @@ and type-checks its public declarations.
 Publish a GitHub release whose tag matches the manifest version:
 
 ```sh
-api-v0.5.0
+api-v0.6.0
 ```
 
 `.github/workflows/npm-release.yml` verifies both package tarballs, then
