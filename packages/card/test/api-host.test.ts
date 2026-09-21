@@ -4,35 +4,37 @@ import { apiHost, toDefinition } from "../src/word-card/api-host.js";
 import { createLink, type Link } from "../src/word-card/link.js";
 import type { ApiWordDetail } from "../src/word-card/api-types.js";
 
-test("the full-entry link preserves the selected dictionary identity", () => {
-  const definition = toDefinition({ ...payload, id: "猫", dictionary: "personal-review", sourceId: "cat:1" }, "https://shirabe.org", ["eng"]);
+test("the full-entry link uses the selected word handle without an entry query", () => {
+  const definition = toDefinition({ ...payload, id: "猫-ねこ-cat:1", dictionary: "personal-review", sourceId: "cat:1" }, "https://shirabe.org", ["eng"]);
   assert.equal(definition.entry, "personal-review:cat:1");
-  assert.equal(new URL(definition.url!).searchParams.get("entry"), definition.entry);
+  assert.equal(new URL(definition.url!).pathname, "/en/words/%E7%8C%AB-%E3%81%AD%E3%81%93-cat%3A1");
+  assert.equal(new URL(definition.url!).search, "");
 });
 
 test("resolved particles remain clickable while punctuation does not", async () => {
-  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async () => new Response(JSON.stringify({ tokens: [
-    { surface: "が", position: 0, length: 1, lemma: "が", kind: "function", entry: { dictionary: "jmdict", sourceId: "2028940" } },
-    { surface: "。", position: 1, length: 1, kind: "symbol" },
-  ] })) });
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async () => new Response(JSON.stringify({
+    stackFingerprint: "test", results: [{ tokens: [
+      { surface: "が", startOffset: 0, endOffset: 1, lemma: "が", kind: "function" },
+      { surface: "。", startOffset: 1, endOffset: 2, kind: "symbol" },
+    ] }],
+  })) });
   const tokens = await host.tokenize!("が。");
   assert.equal(tokens[0]!.content, true);
-  assert.equal(tokens[0]!.entry, "jmdict:2028940");
   assert.equal(tokens[1]!.content, false);
 });
 
 test("online scans retain the matched surface and localized inflection without contaminating entry cache", async () => {
   const calls: string[] = [];
-  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", languages: ["spa"], fetch: async (url) => {
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", languages: ["spa"], fetch: async (url, init) => {
     const path = new URL(String(url)).pathname;
     calls.push(path);
     if (path.endsWith("/parse")) {
-      assert.equal(new URL(String(url)).searchParams.get("locale"), "es");
-      return Response.json({ tokens: [
-      { surface: "開いた", position: 0, length: 3, lemma: "開く", reading: "ヒライタ", pos: "verb",
-        inflection: { labels: ["pasado"], base: "開く" } },
-      { surface: "。", position: 3, length: 1, kind: "symbol" },
-      ] });
+      assert.equal(new Headers(init?.headers).get("Accept-Language"), "es");
+      return Response.json({ stackFingerprint: "test", results: [{ tokens: [
+        { surface: "開いた", startOffset: 0, endOffset: 3, lemma: "開く", reading: "ヒライタ", partOfSpeech: "verb",
+          kind: "inflected", inflection: { forms: [{ code: "past", label: "pasado" }], base: "開く" } },
+        { surface: "。", startOffset: 3, endOffset: 4, kind: "symbol" },
+      ] }] });
     }
     return Response.json({ words: [{ candidates: [payload] }] });
   } });
@@ -64,23 +66,21 @@ test("saving sends the Rails lemma and selected dictionary identity", async () =
   });
 });
 
-test("a raw scan keeps the parser's selected entry even when identify ranks a homograph first", async () => {
-  const chosen = { ...payload, dictionary: "personal", sourceId: "open:1", headword: "開く" };
+test("a raw scan uses identify to choose among homographs", async () => {
   const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async (url) => {
     const path = new URL(String(url)).pathname;
-    if (path.endsWith("/parse")) return Response.json({ tokens: [
-      { surface: "開いた", lemma: "開く", position: 0, length: 3, entry: { dictionary: "personal", sourceId: "open:1" } },
-    ] });
-    if (path.endsWith("/words/identify")) return Response.json({ words: [{ candidates: [payload, chosen] }] });
-    assert.equal(new URL(String(url)).searchParams.get("entry"), "personal:open:1");
-    return Response.json(chosen);
+    if (path.endsWith("/parse")) return Response.json({ stackFingerprint: "test", results: [{ tokens: [
+      { surface: "開いた", lemma: "開く", startOffset: 0, endOffset: 3, kind: "inflected" },
+    ] }] });
+    if (path.endsWith("/words/identify")) return Response.json({ words: [{ candidates: [payload] }] });
+    throw new Error(`Unexpected request: ${url}`);
   } });
   const result = await host.lookup("開いた。", "text");
   assert.equal(result.status, "found");
   if (result.status !== "found") return;
-  assert.equal(result.definition!.entry, "personal:open:1");
+  assert.equal(result.definition!.entry, "jmdict:1202650");
   assert.equal(result.definition!.sourceForm, "開いた");
-  assert.deepEqual(result.candidates?.map((candidate) => candidate.entry), ["jmdict:1202650", "personal:open:1"]);
+  assert.deepEqual(result.candidates?.map((candidate) => candidate.entry), ["jmdict:1202650"]);
 });
 
 // A payload shaped like GET /api/v1/words/{id}: two dictionaries, two
@@ -104,11 +104,7 @@ const payload: ApiWordDetail = {
   ],
   entries: [
     {
-      order: 2, dictionary: "daijirin", dictionaryName: "大辞林", type: "definition", sourceId: "9",
-      senses: [{ position: 0, definitions: [{ lang: "ja", text: "とじていたものをあける" }], tags: [] }],
-    },
-    {
-      order: 1, dictionary: "jmdict", dictionaryName: "JMdict", type: "definition", sourceId: "1202650",
+      dictionary: "jmdict", dictionaryName: "JMdict", type: "definition", sourceId: "1202650",
       senses: [
         {
           position: 0,
@@ -120,15 +116,20 @@ const payload: ApiWordDetail = {
         { position: 3, definitions: [{ lang: "en", text: "to bloom" }], tags: [] },
       ],
     },
+    {
+      dictionary: "daijirin", dictionaryName: "大辞林", type: "definition", sourceId: "9",
+      senses: [{ position: 0, definitions: [{ lang: "ja", text: "とじていたものをあける" }], tags: [] }],
+    },
   ],
-  examples: [{ id: "tatoeba:1", japanese: "花が開く。", translations: [{ lang: "en", text: "The flower blooms." }, { lang: "es", text: "La flor florece." }] }],
+  examples: [{ id: "tatoeba:1", japanese: "花が開く。",
+    source: { dictionary: "tatoeba", name: "Tatoeba", sourceId: "1" }, matches: [],
+    translations: [{ lang: "en", text: "The flower blooms." }, { lang: "es", text: "La flor florece." }] }],
 };
 
 const built = () => toDefinition(payload, "https://shirabe.org", ["eng"]);
 
-test("entries are flattened in the reader's dictionary order, not payload order", () => {
+test("entries are flattened in the server-provided dictionary order", () => {
   const def = built();
-  // JMdict is order 1 and listed second in the payload; it must come first.
   assert.equal(def.senses[0]?.glosses[0]?.text, "to open");
   assert.equal(def.senses.at(-1)?.glosses[0]?.text, "とじていたものをあける");
   assert.equal(def.entry, "jmdict:1202650");
@@ -215,7 +216,7 @@ test("a note-only sense remains visible without inventing a definition", () => {
 
 test("a relation-only sense remains visible without inventing a definition", () => {
   const source = {
-    ...payload.entries[1]!,
+    ...payload.entries[0]!,
     senses: [{
       ...payload.entries[1]!.senses[0]!,
       definitions: [],
@@ -250,7 +251,7 @@ test("sense hierarchy keeps labels, depth, and annotation scope", () => {
   const groupTag = { category: "partOfSpeech", code: "v1", label: "Ichidan verb", scope: "group" } as const;
   const senseTag = { category: "misc", code: "arch", label: "Archaic", scope: "sense" } as const;
   const entry = {
-    ...payload.entries[1]!,
+    ...payload.entries[0]!,
     senses: [{ position: 4, depth: 2, label: "一㋐", definitions: [{ lang: "en", text: "to open" }], tags: [entryTag, groupTag, senseTag] }],
   };
   const definition = toDefinition({ ...payload, entries: [entry] }, "https://shirabe.org", ["eng"]);
@@ -317,7 +318,7 @@ test("source tags retain publisher metadata and headword association", () => {
   const sourceHeadwords = [{ text: "開く", reading: "ひらく", tags: [sourceTag], rules: ["v5k"], score: 7 }];
   const sourcePayload = {
     ...payload,
-    entries: payload.entries.map((entry, index) => index === 1
+    entries: payload.entries.map((entry, index) => index === 0
       ? { ...entry, senses: entry.senses.map((sense) => ({ ...sense, sourceTags: [sourceTag] })), sourceHeadwords }
       : entry),
   };
@@ -334,7 +335,7 @@ test("mixed dictionary entries retain source headwords per originating entry", (
     ...payload,
     entries: payload.entries.map((entry, index) => ({
       ...entry,
-      sourceHeadwords: [{ text: "開く", reading: index === 0 ? "ヒラク" : "ひらく", tags: [index === 0 ? daijirinTag : jmdictTag], rules: [], score: index },
+      sourceHeadwords: [{ text: "開く", reading: index === 0 ? "ひらく" : "ヒラク", tags: [index === 0 ? jmdictTag : daijirinTag], rules: [], score: index },
         { text: "開く", reading: "あく", tags: [], rules: [], score: 9 }],
     })),
   };
@@ -342,8 +343,8 @@ test("mixed dictionary entries retain source headwords per originating entry", (
   const definition = toDefinition(sourcePayload, "https://shirabe.org", ["eng"]);
 
   assert.deepEqual(definition.sourceHeadwordsByEntry, {
-    "daijirin:9": sourcePayload.entries[0]!.sourceHeadwords,
-    "jmdict:1202650": sourcePayload.entries[1]!.sourceHeadwords,
+    "jmdict:1202650": sourcePayload.entries[0]!.sourceHeadwords,
+    "daijirin:9": sourcePayload.entries[1]!.sourceHeadwords,
   });
 });
 
@@ -427,35 +428,39 @@ test("no token means no study port, so the card offers nothing it cannot do", ()
 });
 
 test("the key rides the Authorization header and the base never doubles its slash", async () => {
-  const seen: Array<{ url: string; auth: string | null }> = [];
+  const seen: Array<{ url: string; auth: string | null; language: string | null }> = [];
   const host = apiHost({
     apiBase: "https://shirabe.org/",
     token: "shra_x",
     fetch: async (url, init) => {
-      seen.push({ url: String(url), auth: new Headers(init?.headers).get("Authorization") });
+      const headers = new Headers(init?.headers);
+      seen.push({ url: String(url), auth: headers.get("Authorization"), language: headers.get("Accept-Language") });
       return new Response(JSON.stringify({ words: [{ candidates: [payload] }] }), { status: 200 });
     },
   });
   await host.lookup("猫", "word");
-  // `locale` rides the query string: the request body declares `tokens` and
-  // `include` and rejects anything else with a 400.
-  assert.equal(seen[0]?.url, "https://shirabe.org/api/v1/words/identify?locale=en");
+  assert.equal(seen[0]?.url, "https://shirabe.org/api/v1/words/identify");
   assert.equal(seen[0]?.auth, "Bearer shra_x");
+  assert.equal(seen[0]?.language, "en");
 });
 
 test("a picked entry keeps its dictionary, source id and locale", async () => {
-  const asked: string[] = [];
+  const asked: Array<{ url: string; language: string | null; body: unknown }> = [];
   const host = apiHost({
     apiBase: "https://shirabe.org",
     languages: ["spa"],
-    fetch: async (url) => { asked.push(String(url)); return new Response(JSON.stringify(payload), { status: 200 }); },
+    fetch: async (url, init) => {
+      asked.push({ url: String(url), language: new Headers(init?.headers).get("Accept-Language"), body: JSON.parse(String(init?.body)) });
+      return new Response(JSON.stringify({ words: [{ candidates: [payload] }] }), { status: 200 });
+    },
   });
   await host.lookupEntry("jmdict:1202650", "開く");
   await host.lookupEntry("jmnedict:1202650", "開く");
   assert.equal(asked.length, 2);
-  assert.equal(new URL(asked[0]!).searchParams.get("entry"), "jmdict:1202650");
-  assert.equal(new URL(asked[1]!).searchParams.get("entry"), "jmnedict:1202650");
-  assert.equal(new URL(asked[0]!).searchParams.get("locale"), "es");
+  assert.equal(new URL(asked[0]!.url).pathname, "/api/v1/words/identify");
+  assert.equal(new URL(asked[1]!.url).pathname, "/api/v1/words/identify");
+  assert.deepEqual(asked[0]!.body, asked[1]!.body);
+  assert.equal(asked[0]!.language, "es");
 });
 
 test("each lookup carries its candidates even when the headword changes", async () => {
@@ -528,10 +533,10 @@ test("a raw-text scan cuts the text before identifying its first word", async ()
     fetch: async (url, init) => {
       asked.push(String(url).replace("https://shirabe.org/api/v1", "").split("?")[0]!);
       if (String(url).includes("/parse")) {
-        return new Response(JSON.stringify({ tokens: [
-          { surface: "猫", lemma: "猫", pos: "noun", reading: "ネコ" },
-          { surface: "が", lemma: "が", pos: "prt" },
-        ] }), { status: 200 });
+        return new Response(JSON.stringify({ stackFingerprint: "test", results: [{ tokens: [
+          { surface: "猫", lemma: "猫", partOfSpeech: "noun", reading: "ネコ", startOffset: 0, endOffset: 1, kind: "word" },
+          { surface: "が", lemma: "が", partOfSpeech: "prt", startOffset: 1, endOffset: 2, kind: "function" },
+        ] }] }), { status: 200 });
       }
       identified = (JSON.parse(String(init?.body)).tokens as Record<string, unknown>[])[0]!;
       return new Response(JSON.stringify({ words: [{ candidates: [payload] }] }), { status: 200 });
@@ -550,7 +555,7 @@ test("a raw-text scan cuts the text before identifying its first word", async ()
 test("a scan over text the parser finds no word in is a miss, not an error", async () => {
   const host = apiHost({
     apiBase: "https://shirabe.org",
-    fetch: async () => new Response(JSON.stringify({ tokens: [] }), { status: 200 }),
+    fetch: async () => new Response(JSON.stringify({ stackFingerprint: "test", results: [{ tokens: [] }] }), { status: 200 }),
   });
   assert.deepEqual(await host.lookup("!!!", "text"), { status: "found", definition: null });
 });
@@ -640,7 +645,9 @@ test("and it starts asking the moment the reader signs in", async () => {
 
   const answer = (async () => {
     calls += 1;
-    return new Response(JSON.stringify({ tokens: [{ surface: "猫", position: 0, length: 1, lemma: "猫", entry: { dictionary: "personal", sourceId: "cat:1" } }] }), { status: 200 });
+    return new Response(JSON.stringify({ stackFingerprint: "test", results: [{ tokens: [
+      { surface: "猫", startOffset: 0, endOffset: 1, lemma: "猫", kind: "word" },
+    ] }] }), { status: 200 });
   }) as unknown as typeof globalThis.fetch;
 
   const link: Link = {
@@ -657,7 +664,6 @@ test("and it starts asking the moment the reader signs in", async () => {
   await link.signIn(() => {});
   const tokens = await host.tokenize!("猫が");
   assert.equal(tokens[0]?.surface, "猫", "signed in: the same host cuts the text");
-  assert.equal(tokens[0]?.entry, "personal:cat:1");
   assert.equal(calls, 1, "so the guard is read per request, not decided when the host was built");
 });
 

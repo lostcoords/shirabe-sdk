@@ -31,7 +31,7 @@ test("compression preserves multilingual definitions, preferences, examples and 
   data.preferences = { languages: ["es", "en", "ja"], dictionaryReveal: { "jmdict:en": "hover" } };
   const candidate = data.segments[0]!.results[0]!.candidates[0]!;
   candidate.entries.push({
-    order: 1, dictionary: "uploaded", dictionaryName: "日本語辞典", sourceId: "opaque:1", type: "definition",
+    dictionary: "uploaded", dictionaryName: "日本語辞典", sourceId: "opaque:1", type: "definition",
     senses: [{ position: 7, definitions: [{ lang: "ja", text: "猫の説明" }, { lang: "unknown", text: "Unknown language" }], tags: [], notes: ["Keep this note"] }],
   });
   candidate.examples = [{ japanese: "猫がいる。", translations: [{ lang: "en", text: "There is a cat." }, { lang: "es", text: "Hay un gato." }] }];

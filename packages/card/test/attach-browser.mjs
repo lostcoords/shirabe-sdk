@@ -198,23 +198,24 @@ const server = createServer(async (request, response) => {
   if (url.pathname === "/api/v1/me")
     payload = {
       preferences: { languages: ["en"], dictionaryReveal: {} },
-      credential: { scopes: ["READ_ACCOUNT", "READ_DICTIONARY", "READ_SRS"] },
+      credential: { scopes: ["user:account:read", "user:dictionary:read", "user:study:read"] },
     };
   else if (url.pathname === "/api/v1/words/identify")
     payload = { words: [{ candidates: [cat] }] };
   else if (url.pathname.startsWith("/api/v1/words/")) payload = cat;
   else if (url.pathname === "/api/v1/parse")
     payload = {
-      tokens: [
+      stackFingerprint: "test",
+      results: [{ tokens: [
         {
           surface: "猫",
           lemma: "猫",
           reading: "ネコ",
-          position: 0,
-          length: 1,
+          startOffset: 0,
+          endOffset: 1,
           kind: "word",
         },
-      ],
+      ] }],
     };
   else if (url.pathname === "/api/v1/srs/states/lookup")
     payload = { states: data.words.map((lemma) => ({ lemma, state: "none" })) };

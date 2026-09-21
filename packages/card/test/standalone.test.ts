@@ -32,7 +32,7 @@ test("a prepared definition renders before an unresolved online study-state read
       const path = new URL(String(input)).pathname;
       calls.push(path);
       if (path === "/api/v1/me") return new Response(JSON.stringify({
-        preferences: { languages: ["en"] }, credential: { scopes: ["READ_ACCOUNT", "READ_DICTIONARY", "READ_SRS"] },
+        preferences: { languages: ["en"] }, credential: { scopes: ["user:account:read", "user:dictionary:read", "user:study:read"] },
       }));
       assert.equal(path, "/api/v1/srs/states/lookup");
       return pending;
@@ -103,7 +103,7 @@ for (const studyColors of [false, true, undefined]) {
         const path = new URL(String(input)).pathname;
         calls.push({ path, body: init?.body ? JSON.parse(String(init.body)) : null });
         if (path === "/api/v1/me") return new Response(JSON.stringify({
-          preferences: { languages: ["en"] }, credential: { scopes: ["READ_ACCOUNT", "READ_DICTIONARY", "READ_SRS"] },
+          preferences: { languages: ["en"] }, credential: { scopes: ["user:account:read", "user:dictionary:read", "user:study:read"] },
         }));
         assert.equal(path, "/api/v1/srs/states/lookup", "Snapshot definitions must not fall back online");
         return new Response(JSON.stringify({ states: [{ lemma: "猫", state: "none" }] }));
@@ -311,9 +311,9 @@ test("explicit selection identifies the whole chosen span without parsing it aga
   const host = SDK.apiHost({ apiBase: "https://example.test", fetch: async (input, init) => {
     const path = new URL(String(input)).pathname;
     calls.push({ path, body: init?.body ? JSON.parse(String(init.body)) : null });
-    return new Response(JSON.stringify(path.endsWith("/parse") ? { tokens: [
-      { surface: "勉強", lemma: "勉強", position: 0, length: 2, kind: "word" },
-    ] } : { words: [{ candidates: [] }] }));
+    return new Response(JSON.stringify(path.endsWith("/parse") ? { stackFingerprint: "test", results: [{ tokens: [
+      { surface: "勉強", lemma: "勉強", startOffset: 0, endOffset: 2, kind: "word" },
+    ] }] } : { words: [{ candidates: [] }] }));
   } });
   const lookup = host.lookup.bind(host);
   host.lookup = (query, kind, context) => { kinds.push({ query, kind }); return lookup(query, kind, context); };
@@ -465,7 +465,7 @@ test("web and Anki attach preserve the same visible parse input, private entry p
     const detail = {
       id: "勉強", dictionary: "personal", sourceId: "mine:1", headword: "勉強", reading: "ベンキョウ",
       common: false, forms: [], pitch: [], entries: [{
-        order: 0, dictionary: "personal", type: "definition", sourceId: "mine:1", senses: [{
+        dictionary: "personal", type: "definition", sourceId: "mine:1", senses: [{
           position: 3, definitions: [{ lang: "en", text: "study" }, { lang: "es", text: "estudio" }], tags: [],
         }],
       }],
@@ -475,14 +475,14 @@ test("web and Anki attach preserve the same visible parse input, private entry p
       calls.push({ path: `${url.pathname}${url.search}`, body: init?.body ? JSON.parse(String(init.body)) : null });
       let payload: unknown = detail;
       if (url.pathname.endsWith("/me")) payload = {
-        credential: { scopes: ["READ_ACCOUNT"] },
+        credential: { scopes: ["user:account:read"] },
         preferences: { languages: ["es", "en"], dictionaryReveal: { "personal:es": "hover" } },
       };
-      else if (url.pathname.endsWith("/parse")) payload = { tokens: [
-        { surface: "😀", position: 0, length: 2, kind: "symbol" },
-        { surface: "勉強", lemma: "勉強", reading: "ベンキョウ", position: 2, length: 2, kind: "word", entry: { dictionary: "personal", sourceId: "mine:1" } },
-        { surface: "する。", position: 4, length: 3, kind: "symbol" },
-      ] };
+      else if (url.pathname.endsWith("/parse")) payload = { stackFingerprint: "test", results: [{ tokens: [
+        { surface: "😀", startOffset: 0, endOffset: 2, kind: "symbol" },
+        { surface: "勉強", lemma: "勉強", reading: "ベンキョウ", startOffset: 2, endOffset: 4, kind: "word" },
+        { surface: "する。", startOffset: 4, endOffset: 7, kind: "symbol" },
+      ] }] };
       else if (url.pathname.endsWith("/states/lookup")) payload = { states: [] };
       return new Response(JSON.stringify(payload));
     };
@@ -520,8 +520,11 @@ test("web and Anki attach preserve the same visible parse input, private entry p
   }
   assert.deepEqual(observed[1], observed[0]);
   assert.deepEqual(observed[0], {
-    texts: ["😀勉強する。"], parse: [{ path: "/api/v1/parse?locale=es", body: { text: "😀勉強する。" } }],
-    pinned: [{ path: "/api/v1/words/%E5%8B%89%E5%BC%B7?entry=personal%3Amine%3A1&include=examples&locale=es", body: null }],
+    texts: ["😀勉強する。"], parse: [{ path: "/api/v1/parse", body: { texts: ["😀勉強する。"] } }],
+    pinned: [{ path: "/api/v1/words/identify", body: {
+      tokens: [{ lemma: "勉強", surface: "勉強" }],
+      include: ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"],
+    } }],
     entry: "personal:mine:1", ref: "personal#3", glosses: [{ text: "estudio", lang: "spa", tag: "ES" }, { text: "study", lang: "eng", tag: "EN" }],
   });
 });

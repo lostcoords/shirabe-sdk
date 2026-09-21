@@ -16,15 +16,17 @@ const bundle = await build({
     window.parses = 0;
     const candidate = {
       id: "食べる", dictionary: "jmdict", sourceId: "1", headword: "食べる", reading: "タベル", common: true,
-      pitch: [], forms: [], entries: [{ order: 0, dictionary: "jmdict", type: "word", sourceId: "1",
+      pitch: [], forms: [], entries: [{ dictionary: "jmdict", type: "word", sourceId: "1",
         senses: [{ position: 0, definitions: [{ lang: "en", text: "to eat" }], tags: [] }] }],
     };
     const host = apiHost({ apiBase: "https://review.test", fetch: async (url) => {
       const path = new URL(url).pathname;
       if (path.endsWith("/parse")) {
         if (++window.parses === 1) return new Response(JSON.stringify({ detail: "Connection interrupted. Check your connection and retry." }), { status: 503 });
-        return new Response(JSON.stringify({ tokens: [{ surface: "食べました", lemma: "食べる", reading: "タベマシタ", position: 0, length: 5,
-          entry: { dictionary: "jmdict", sourceId: "1" }, kind: "inflected", inflection: { labels: ["past", "polite"], base: "食べる" } }] }));
+        return new Response(JSON.stringify({ stackFingerprint: "test", results: [{ tokens: [{
+          surface: "食べました", lemma: "食べる", reading: "タベマシタ", startOffset: 0, endOffset: 5,
+          kind: "inflected", inflection: { forms: [{ code: "past", label: "past" }, { code: "polite", label: "polite" }], base: "食べる" },
+        }] }] }));
       }
       if (path.endsWith("/sentences")) return new Response(JSON.stringify({
         sentences: [{ id: "tatoeba:7", japanese: "パンを食べる。", translations: [{ lang: "en", text: "I eat bread." }] }],

@@ -65,7 +65,7 @@ export function authoringActions(
   const examples = exampleChoices({
     initial: definition.examples,
     query: lemma,
-    entry: definition.entry,
+    wordId: decodeURIComponent(new URL(definition.url).pathname.split("/").pop() ?? "") || undefined,
     language: uiLanguagesFrom(definition.senses.flatMap((sense) => sense.glosses.map((gloss) => gloss.lang)))
       .find((language) => language !== "ja") ?? "en",
     search: exampleSearch,

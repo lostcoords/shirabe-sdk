@@ -36,7 +36,7 @@ let hideTimer: number | undefined;
 let token = 0; // guards against a slow lookup landing after we've moved on
 let activeAudio: HTMLAudioElement | null = null;
 let audioGeneration = 0;
-let canWrite = false; // WRITE_SRS + entitled → render mining controls
+let canWrite = false; // user:study:write + entitled → render mining controls
 let readOnly = false;
 let connected = false; // signed in at all: decides what the no-controls row offers
 // The current popup's sense-picker checkboxes (empty unless the word has 2–8
@@ -496,7 +496,16 @@ function wrappedInflection(word: HTMLElement): WordInflection | undefined {
 function showWord(word: HTMLElement): void {
   const lemma = word.dataset.lemma ?? word.dataset.surface ?? "";
   const pick = word.dataset.entry;
-  const context = { surface: word.dataset.surface, reading: word.dataset.reading, pos: word.dataset.lookupPos ?? word.dataset.pos };
+  const startOffset = Number(word.dataset.targetStart);
+  const endOffset = Number(word.dataset.targetEnd);
+  const context = {
+    surface: word.dataset.surface,
+    reading: word.dataset.reading,
+    pos: word.dataset.lookupPos ?? word.dataset.pos,
+    ...(word.dataset.sentence ? { text: word.dataset.sentence } : {}),
+    ...(Number.isInteger(startOffset) && startOffset >= 0 ? { startOffset } : {}),
+    ...(Number.isInteger(endOffset) && endOffset > startOffset ? { endOffset } : {}),
+  };
   const query = pick ? context.surface ?? lemma : lemma;
   const stored = wordCandidates.get(word);
   const candidates = optional().candidatesFor?.(word) ?? (stored && stored.surface === context.surface

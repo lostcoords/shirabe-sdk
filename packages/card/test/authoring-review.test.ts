@@ -36,11 +36,13 @@ test("raw API lookup highlights and proposes only the parsed surface, not the sc
   const oldHighlight = Object.getOwnPropertyDescriptor(globalThis, "Highlight");
   Object.assign(globalThis, { CSS: { highlights }, Highlight: class extends Set<Range> { constructor(...ranges: Range[]) { super(ranges); } } });
   const candidate = { id: "食べる", dictionary: "jmdict", sourceId: "1", headword: "食べる", reading: "タベル", common: true,
-    pitch: [], forms: [], entries: [{ order: 0, dictionary: "jmdict", type: "word", sourceId: "1",
+    pitch: [], forms: [], entries: [{ dictionary: "jmdict", type: "word", sourceId: "1",
       senses: [{ position: 0, definitions: [{ lang: "en", text: "eat" }], tags: [] }] }] };
   const host = apiHost({ apiBase: "https://fixture.invalid", fetch: async (url) => new Response(JSON.stringify(
-    new URL(String(url)).pathname.endsWith("/parse") ? { tokens: [{ surface: "食べました", lemma: "食べる", position: 0, length: 5,
-      kind: "inflected", inflection: { labels: ["past", "polite"], base: "食べる" } }] } : { words: [{ candidates: [candidate] }] },
+    new URL(String(url)).pathname.endsWith("/parse") ? { stackFingerprint: "test", results: [{ tokens: [{
+      surface: "食べました", lemma: "食べる", startOffset: 0, endOffset: 5,
+      kind: "inflected", inflection: { forms: [{ code: "past", label: "past" }, { code: "polite", label: "polite" }], base: "食べる" },
+    }] }] } : { words: [{ candidates: [candidate] }] },
   )) });
   const proposals: AuthoringSelection[] = [];
   let origin!: HTMLElement;
@@ -280,7 +282,7 @@ test("selecting the current sentence sends its source without changing context o
   assert.deepEqual(proposals[0].examples, [{ japanese: "昨日、食べました。", translation: null, source: "Current card" }]);
 });
 
-test("example queries keep the chosen entry only while searching this lookup's default term", async () => {
+test("example queries keep the chosen word only while searching this lookup's default term", async () => {
   const queries: ExampleSearchQuery[] = [];
   const section = authoringActions(taberu, word(), undefined, undefined, async (query) => {
     queries.push(query);
@@ -294,5 +296,5 @@ test("example queries keep the chosen entry only while searching this lookup's d
     button(section, "Find examples").click();
     await settle();
   }
-  assert.deepEqual(queries.map(({ entry }) => entry), [taberu.entry, undefined, taberu.entry]);
+  assert.deepEqual(queries.map(({ wordId }) => wordId), ["食べる-たべる", undefined, "食べる-たべる"]);
 });

@@ -6,13 +6,12 @@ import { GLOSS_TAGS } from "./languages.js";
 import { kataToHira } from "./furigana.js";
 import { apiExampleSearch } from "./api-example-search.js";
 import type {
-  GetWordResponse,
   IdentifyWordsData,
   IdentifyWordsResponse,
   LookupWordStatesData,
   LookupWordStatesResponse,
-  ParseTextData,
-  ParseTextResponse,
+  ParseData,
+  ParseResponse,
   ParseToken,
   SaveCardData,
 } from "@shirabe-org/api";
@@ -87,6 +86,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       ...init,
       headers: {
         Accept: "application/json",
+        "Accept-Language": uiLocale(languages),
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
         ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
         ...init?.headers,
@@ -119,28 +119,6 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
     return { status: "failed", message: error instanceof Error ? error.message : "Lookup failed" };
   }
 
-  const lookupBy = async (path: string): Promise<LookupResult> => {
-    const cached = cache.get(path);
-    if (cached) return cached;
-    try {
-      const payload = await request<GetWordResponse>(path);
-      const found: LookupResult = { status: "found", definition: toDefinition(payload, base, languages) };
-      remember(cache, path, found);
-      return found;
-    } catch (error) {
-      // A word the dictionary does not have is an answer, not a failure: the
-      // card says "no entry" rather than "something went wrong".
-      // A word the dictionary does not have will not start existing, so that
-      // answer is worth keeping. A failure is not: the server may be back.
-      if (error instanceof ApiError && error.status === 404) {
-        const missing: LookupResult = { status: "found", definition: null };
-        remember(cache, path, missing);
-        return missing;
-      }
-      return whatWentWrong(error);
-    }
-  };
-
   // Which word a token is, asked the way the server wants it asked.
   //
   // NOT `GET /api/v1/words/{id}`. That takes a spelling and ignores everything
@@ -149,19 +127,18 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
   // `identify` takes the token, uses the reading and the part of speech to rank,
   // and answers a LIST, because one answer is often a claim that cannot be
   // supported: きみ is 君, 黄身 or 黍 and only the reader knows which.
-  const identify = async (token: IdentifyToken): Promise<LookupResult> => {
-    const key = `identify:${JSON.stringify(token)}`;
+  const identify = async (token: IdentifyToken, selectedEntry?: string): Promise<LookupResult> => {
+    const key = `identify:${JSON.stringify([token, selectedEntry])}`;
     const cached = cache.get(key);
     if (cached) return cached;
     try {
-      // `locale` rides in the query string: the request body rejects properties
-      // it does not declare. `include` is what makes this ONE call rather than a
-      // second fetch for the pitch diagram and the badges.
+      // `include` is what makes this one call rather than a second fetch for the
+      // pitch diagram and the badges.
       const body = {
         tokens: [token],
         include: ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"],
       } satisfies IdentifyWordsData["body"];
-      const answer = await request<IdentifyWordsResponse>(`/words/identify?locale=${encodeURIComponent(uiLocale(languages))}`, {
+      const answer = await request<IdentifyWordsResponse>("/words/identify", {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -177,9 +154,10 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       const words = all.filter((candidate) => !isName(candidate));
       const candidates = words.length ? words : all;
 
+      const selected = selectedEntry ? all.find((candidate) => entryIdentity(candidate) === selectedEntry) : candidates[0];
       const found: LookupResult = {
         status: "found",
-        definition: candidates.length ? toDefinition(candidates[0]!, base, languages) : null,
+        definition: selected ? toDefinition(selected, base, languages) : null,
         candidates: candidates.map((candidate) => ({
           entry: entryIdentity(candidate),
           headword: candidate.headword,
@@ -236,10 +214,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       } };
     },
 
-    lookupEntry: (entry, surface) => {
-      const params = new URLSearchParams({ entry, include: "examples", locale: uiLocale(languages) });
-      return lookupBy(`/words/${encodeURIComponent(surface)}?${params}`);
-    },
+    lookupEntry: (entry, surface) => identify({ lemma: surface, surface }, entry),
 
     exampleSearch: apiExampleSearch(request, languages),
 
@@ -255,26 +230,25 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       const key = `parse:${text}`;
       const cached = parses.get(key);
       if (cached) return cached;
-      const body = { text } satisfies ParseTextData["body"];
-      const parsed = await request<ParseTextResponse>(`/parse?locale=${uiLocale(languages)}`, {
+      const body = { texts: [text] } satisfies ParseData["body"];
+      const parsed = await request<ParseResponse>("/parse", {
         method: "POST",
         body: JSON.stringify(body),
       });
-      if (parsed.tokens.some(Array.isArray)) throw new Error("The parser returned a batch for one text.");
-      const parsedTokens = parsed.tokens as ParseToken[];
+      if (!("results" in parsed) || parsed.results.length !== 1) throw new Error("The parser returned an invalid result.");
+      const parsedTokens = parsed.results[0]!.tokens as ParseToken[];
 
-      // `position` and `length` come from the server, in UTF-16 units, which is
+      // The offsets come from the server in UTF-16 units, which is
       // what a JavaScript string index is. Searching for each surface instead
       // would put the second 猫 of a sentence at the first one's offset.
       const tokens: CardToken[] = parsedTokens.map((token) => ({
         surface: token.surface,
-        start: token.position,
-        length: token.length,
+        start: token.startOffset,
+        length: token.endOffset - token.startOffset,
         lemma: token.lemma ?? token.surface,
         reading: token.reading,
-        pos: token.pos,
-        entry: token.entry ? `${token.entry.dictionary}:${token.entry.sourceId}` : undefined,
-        ...(token.inflection ? { inflection: token.inflection.labels, inflectionBase: token.inflection.base } : {}),
+        pos: token.partOfSpeech,
+        ...(token.inflection ? { inflection: token.inflection.forms.map(({ label }) => label), inflectionBase: token.inflection.base } : {}),
         content: token.kind !== "symbol",
       })).filter((token) => token.surface);
       remember(parses, key, tokens);
@@ -413,7 +387,7 @@ function entryIdentity(payload: ApiWordDetail): string {
 }
 
 export function toDefinition(payload: ApiWordDetail, base: string, languages: readonly GlossLanguage[]): Definition {
-  const entries = [...payload.entries].sort((a, b) => a.order - b.order);
+  const entries = payload.entries;
   const mixed = new Set(entries.map((e) => e.dictionary)).size > 1;
   const senses = entries.flatMap((entry) => sensesOf(entry, languages, mixed));
   const entryTagsByEntry = Object.fromEntries(entries.flatMap((entry) => {
@@ -431,7 +405,7 @@ export function toDefinition(payload: ApiWordDetail, base: string, languages: re
     // first when it is all there is.
     reading: readingOf(payload),
     entry: entryIdentity(payload),
-    url: `${base}/en/words/${encodeURIComponent(payload.id)}?${new URLSearchParams({ entry: entryIdentity(payload) })}`,
+    url: `${base}/en/words/${encodeURIComponent(payload.id)}`,
     common: payload.common,
     jlpt: payload.jlpt ?? null,
     frequency: payload.frequency ?? null,

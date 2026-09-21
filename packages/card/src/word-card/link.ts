@@ -8,7 +8,7 @@ import type {
 } from "@shirabe-org/api";
 
 /** Device-flow sign-in for card WebViews and Desktop.
- * Anki's card client uses READ_DICTIONARY, READ_SRS and READ_ACCOUNT, including
+ * Anki's card client uses user:dictionary:read, user:study:read and user:profile:read, including
  * personal dictionaries, study state and account preferences. Other deck
  * scripts can read WebView localStorage and reuse its tokens to read those
  * records. These grants do not permit study or account changes. */
@@ -261,7 +261,7 @@ export function createLink(options: LinkOptions): Link {
     if (!live) {
       const fields = {
         client_id: options.clientId,
-        scope: options.scope ?? "READ_DICTIONARY READ_SRS",
+        scope: options.scope ?? "user:dictionary:read user:study:read",
         resource,
       } satisfies OauthDeviceAuthorizationData["body"];
       const started = await post<OauthDeviceAuthorizationResponse | OauthDeviceAuthorizationError>(

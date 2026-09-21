@@ -498,7 +498,9 @@ test("corpus API to popup to native proposal retains the selected language and d
     calls.push(new URL(String(url)));
     const next = calls[calls.length - 1].searchParams.has("cursor");
     return Response.json({
-      sentences: [{ id: next ? "uploaded:8" : "tatoeba:7", ...(next ? { source: "<b>My dictionary</b>" } : {}),
+      query: "食べる", sentences: [{ id: next ? "uploaded:8" : "tatoeba:7",
+        source: next ? { dictionary: "uploaded", name: "<b>My dictionary</b>", sourceId: "8" } :
+          { dictionary: "tatoeba", name: "Tatoeba", sourceId: "7" }, matches: [],
         japanese: next ? "パンを食べる。" : "ご飯を食べた。",
         translations: [{ lang: "en", text: "I ate rice." }, { lang: "es", text: "Comí arroz." }] }],
       pagination: { hasMore: !next, cursor: next ? null : "next/+==" },

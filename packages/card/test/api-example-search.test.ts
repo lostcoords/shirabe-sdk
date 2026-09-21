@@ -6,9 +6,10 @@ import { apiExampleSearch } from "../src/word-card/api-example-search.js";
 const rice = {
   id: "tatoeba:7", japanese: "ご飯を食べた。",
   translations: [{ lang: "en", text: "I ate rice." }, { lang: "es", text: "Comí arroz." }],
+  source: { dictionary: "tatoeba", name: "Tatoeba", sourceId: "7" }, matches: [],
 };
 const page = (sentences: unknown[] = [rice], cursor: string | null = null) => ({
-  sentences, pagination: { hasMore: !!cursor, cursor },
+  query: "食べる", sentences, pagination: { hasMore: !!cursor, cursor },
 });
 
 test("corpus search uses the authenticated GET endpoint and carries exact Spanish attribution", async () => {
@@ -17,16 +18,17 @@ test("corpus search uses the authenticated GET endpoint and carries exact Spanis
     apiBase: "https://dictionary.test", token: "test-token", languages: ["spa"],
     fetch: async (url, init) => {
       calls.push({ url: new URL(String(url)), init });
-      return Response.json(page([rice, { ...rice, id: "uploaded:42", source: "My dictionary", translations: [] }]));
+      return Response.json(page([rice, { ...rice, id: "uploaded:42", source: { dictionary: "uploaded", name: "My dictionary", sourceId: "42" }, translations: [] }]));
     },
   });
   const controller = new AbortController();
   const result = await host.exampleSearch!({ query: " 食べる ", keyword: "", maxLength: 8, translation: "any" }, controller.signal);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url.pathname, "/api/v1/sentences");
-  assert.deepEqual([...calls[0].url.searchParams], [["query", "食べる"], ["take", "50"]]);
+  assert.deepEqual([...calls[0].url.searchParams], [["query", "食べる"], ["limit", "50"], ["filter[translationLanguages][]", "es"]]);
   assert.equal(calls[0].init?.method ?? "GET", "GET");
   assert.equal(new Headers(calls[0].init?.headers).get("Authorization"), "Bearer test-token");
+  assert.equal(new Headers(calls[0].init?.headers).get("Accept-Language"), "es");
   assert.equal(calls[0].init?.signal, controller.signal);
   assert.deepEqual(result, {
     examples: [
@@ -56,16 +58,16 @@ test("filters walk corpus pages and preserve opaque cursors for More examples", 
   assert.deepEqual(cursors, [null, "next/+==", "last:2"]);
 });
 
-test("chosen entry identity survives filtered pagination without broadening to a homograph", async () => {
+test("chosen word identity survives filtered pagination without broadening to a homograph", async () => {
   const calls: URL[] = [];
   const search = apiExampleSearch(async (path) => {
     calls.push(new URL(path, "https://dictionary.test"));
     return calls.length === 1 ? page([], "next/+==") : page([rice]);
   });
-  await search({ query: "開いた", entry: "personal:open:1/字", translationLanguage: "es" });
+  await search({ query: "開いた", wordId: "開く-ひらく", translationLanguage: "es" });
   assert.equal(calls.length, 2);
   for (const url of calls) {
-    assert.equal(url.searchParams.get("entry"), "personal:open:1/字");
+    assert.equal(url.searchParams.get("filter[wordId]"), "開く-ひらく");
     assert.equal(url.searchParams.get("query"), "開いた");
   }
 });
@@ -80,7 +82,7 @@ test("a missing requested language never borrows English, including translation-
 });
 
 test("Unicode length counts characters, source strings remain plain data and malformed pages fail", async () => {
-  const search = apiExampleSearch(async () => page([{ ...rice, id: "uploaded:9", source: "<script>source</script>", japanese: "𠮟る。" }]));
+  const search = apiExampleSearch(async () => page([{ ...rice, id: "uploaded:9", source: { dictionary: "uploaded", name: "<script>source</script>", sourceId: "9" }, japanese: "𠮟る。" }]));
   const result = await search({ query: "𠮟る", maxLength: 3 });
   assert.equal(result.examples.length, 1);
   assert.equal(result.examples[0].source, "<script>source</script>");

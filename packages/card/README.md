@@ -186,8 +186,8 @@ runtime exports, and type-checks their public declarations.
 bin/package-check
 ```
 
-Publish a GitHub release whose tag matches the manifest version, such as
-`card-v0.1.0`. `.github/workflows/npm-release.yml` checks that the exact API
+Publish a GitHub release whose tag matches the manifest version, for example
+`card-v<version>`. `.github/workflows/npm-release.yml` checks that the exact API
 version this package depends on is already on npm, verifies both tarballs, and
 publishes the card through npm trusted publishing.
 

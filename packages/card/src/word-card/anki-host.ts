@@ -2,9 +2,9 @@ import { apiHost } from "./api-host.js";
 import { glossLanguagesFrom } from "./languages.js";
 import type { Link } from "./link.js";
 import type { LookupResult, WordCardHost } from "./host.js";
-import type { GetMeResponse } from "@shirabe-org/api";
+import type { GetDictionaryStackResponse, GetMeResponse } from "@shirabe-org/api";
 
-type Preferences = NonNullable<GetMeResponse["preferences"]>;
+type Preferences = { languages: string[]; dictionaryReveal: Record<string, "show" | "hover"> };
 
 class ConnectionRequired extends Error {}
 
@@ -27,20 +27,27 @@ export function createAnkiHost(options: { apiBase: string; link: Link; now?: () 
     if (loading) return loading;
     const requested = revision;
     loading = (async () => {
-      const response = await options.link.fetch(`${base}/api/v1/me`, { headers: { Accept: "application/json" } });
-      if (response.status === 401 || response.status === 403) {
+      const [meResponse, stackResponse] = await Promise.all([
+        options.link.fetch(`${base}/api/v1/me`, { headers: { Accept: "application/json" } }),
+        options.link.fetch(`${base}/api/v1/dictionary-stack`, { headers: { Accept: "application/json" } }),
+      ]);
+      if ([meResponse.status, stackResponse.status].some((status) => status === 401 || status === 403)) {
         reconnect = true;
         throw new ConnectionRequired("Reconnect to use your dictionary preferences and uploaded dictionaries.");
       }
-      if (!response.ok) throw new Error("Couldn't load your dictionary settings. Try again.");
-      const data = await response.json() as GetMeResponse;
-      if (!data.preferences || !data.credential?.scopes?.includes("READ_ACCOUNT")) {
+      if (!meResponse.ok || !stackResponse.ok) throw new Error("Couldn't load your dictionary settings. Try again.");
+      const me = await meResponse.json() as GetMeResponse;
+      const stack = (await stackResponse.json() as GetDictionaryStackResponse).dictionaryStack;
+      if (!me.credential?.scopes?.includes("user:profile:read") || !stack) {
         reconnect = true;
         throw new ConnectionRequired("Reconnect to use your dictionary preferences and uploaded dictionaries.");
       }
       if (revision !== requested || !options.link.linked()) throw new ConnectionRequired("Sign in again to continue.");
-      const preferences = data.preferences;
-      const languages = glossLanguagesFrom(preferences.languages ?? ["en"]);
+      const preferences: Preferences = {
+        languages: stack.sources.flatMap((source) => source.languages),
+        dictionaryReveal: Object.fromEntries(stack.sources.map((source) => [source.dictionary, source.reveal])),
+      };
+      const languages = glossLanguagesFrom(preferences.languages);
       cached = { host: apiHost({ ...options, languages: languages.length ? languages : ["eng"] }), preferences, expires: now() + 60_000 };
       return cached;
     })();

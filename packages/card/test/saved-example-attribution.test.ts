@@ -26,7 +26,7 @@ function fixture() {
       { surface: "猫", start: 0, length: 1, entry: "jmdict:1", lemma: "猫", reading: "ネコ", content: true },
     ], results: [{ tokenIndex: 0, candidates: [{
       id: "猫", dictionary: "jmdict", sourceId: "1", headword: "猫", reading: "ネコ", common: true,
-      pitch: [], forms: [], entries: [{ order: 0, dictionary: "jmdict", sourceId: "1", type: "word",
+      pitch: [], forms: [], entries: [{ dictionary: "jmdict", sourceId: "1", type: "word",
         senses: [{ position: 0, definitions: [{ lang: "es", text: "gato" }], tags: [] }] }],
       examples: [
         { japanese: "猫が寝ています。", translations: [{ lang: "es", text: "El gato está durmiendo." }] },

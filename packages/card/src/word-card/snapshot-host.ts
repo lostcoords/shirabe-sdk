@@ -180,7 +180,7 @@ const CANDIDATE: Shape = {
   pitch: array(PITCH, 32),
   forms: array({ text: string(), script: string(), common: boolean, "tags?": array(TAG, 32) }, 64),
   entries: array({
-    order: integer, dictionary: string(), "dictionaryName?": string(), type: string(), sourceId: string(),
+    dictionary: string(), "dictionaryName?": string(), type: string(), sourceId: string(),
     "sourceHeadwords?": array({ text: string(), reading: string(), tags: array(SOURCE_TAG, 32), rules: array(string(128), 16), score: number }, 128),
     senses: array({
       position: integer, "depth?": integer, "label?": string(),

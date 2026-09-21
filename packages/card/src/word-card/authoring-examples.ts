@@ -6,7 +6,7 @@ import { matchesExample } from "./api-example-search.js";
 export function exampleChoices(options: {
   initial: AuthoringExample[];
   query: string;
-  entry?: string;
+  wordId?: string;
   language: string;
   search?: ExampleSearch;
   load?: (signal: AbortSignal) => Promise<Example[]>;
@@ -49,7 +49,7 @@ export function exampleChoices(options: {
   }
   const query = (): ExampleSearchQuery => ({
     query: term.value.trim(),
-    ...(options.entry && term.value.trim() === options.query.trim() ? { entry: options.entry } : {}),
+    ...(options.wordId && term.value.trim() === options.query.trim() ? { wordId: options.wordId } : {}),
     keyword: keyword.value,
     ...(length.value ? { maxLength: Number(length.value) } : {}),
     translationLanguage: language.value,

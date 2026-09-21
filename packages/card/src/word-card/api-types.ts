@@ -4,9 +4,14 @@ export type {
   Form as ApiForm,
   Sense as ApiSense,
   Tag as ApiTag,
-  WordDetail as ApiWordDetail,
 } from "@shirabe-org/api";
 
-import type { WordDetail } from "@shirabe-org/api";
+import type { Sentence, WordCard } from "@shirabe-org/api";
 
-export type ApiPitch = WordDetail["pitch"][number];
+export type ApiWordDetail = WordCard & {
+  dictionary: string;
+  sourceId: string;
+  examples?: Sentence[];
+};
+
+export type ApiPitch = WordCard["pitch"][number];

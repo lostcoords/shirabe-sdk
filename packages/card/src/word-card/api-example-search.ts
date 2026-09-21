@@ -1,7 +1,7 @@
 import type { AuthoringExample, ExampleSearch, ExampleSearchQuery, ExampleSearchResult } from "./host.js";
 import type { GlossLanguage } from "./types.js";
 import { uiLanguagesFrom } from "./languages.js";
-import type { ListSentencesData, ListSentencesResponse } from "@shirabe-org/api";
+import type { ListSentencesResponse } from "@shirabe-org/api";
 
 export function apiExampleSearch(
   request: (path: string, init?: RequestInit) => Promise<unknown>,
@@ -23,11 +23,12 @@ export function apiExampleSearch(
       visited.add(cursor ?? "");
       const apiQuery = {
         query: surface,
-        take: 50,
-        ...(query.entry ? { entry: query.entry } : {}),
+        limit: 50,
         ...(cursor ? { cursor } : {}),
-      } satisfies ListSentencesData["query"];
+      };
       const params = new URLSearchParams(Object.entries(apiQuery).map(([key, value]) => [key, String(value)]));
+      if (query.wordId) params.set("filter[wordId]", query.wordId);
+      params.append("filter[translationLanguages][]", language);
       const payload = await request(`/sentences?${params}`, { signal }) as ListSentencesResponse;
       signal?.throwIfAborted();
       const page = sentencePage(payload);
@@ -36,7 +37,7 @@ export function apiExampleSearch(
         return {
           japanese: sentence.japanese,
           translation: translation?.text ?? null,
-          source: sentence.source || (sentence.id.startsWith("tatoeba:") ? "Tatoeba" : sentence.id.split(":")[0]),
+          source: sentence.source.name,
           reference: sentence.id,
           ...(translation ? { translationLanguage: translation.lang } : {}),
         };
@@ -64,7 +65,7 @@ function sentencePage(value: unknown): ListSentencesResponse {
     || (page.pagination.hasMore && !page.pagination.cursor)
     || page.sentences.some((sentence) => !sentence || typeof sentence.id !== "string" || !sentence.id.includes(":")
       || typeof sentence.japanese !== "string" || !sentence.japanese.trim()
-      || (sentence.source !== undefined && typeof sentence.source !== "string")
+      || !sentence.source || typeof sentence.source.name !== "string"
       || !Array.isArray(sentence.translations) || sentence.translations.some((translation) => !translation
         || typeof translation.lang !== "string" || typeof translation.text !== "string"))) {
     throw new Error("The example search returned an invalid response. Try again.");

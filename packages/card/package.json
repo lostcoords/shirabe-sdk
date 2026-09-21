@@ -1,6 +1,6 @@
 {
   "name": "@shirabe-org/card",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shirabe's word card renderer for browsers, extensions, and Anki templates.",
   "license": "MIT",
   "repository": {
@@ -51,7 +51,7 @@
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@shirabe-org/api": "0.5.0"
+    "@shirabe-org/api": "0.6.0"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

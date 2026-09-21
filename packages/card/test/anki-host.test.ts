@@ -11,7 +11,7 @@ function setup(scope = true) {
   const detail = {
     id: "猫-ねこ", dictionary: "personal", sourceId: "1", headword: "猫", reading: "ねこ",
     common: true, forms: [], pitch: [], entries: [
-      { order: 0, dictionary: "personal", type: "definition", sourceId: "1", senses: [
+      { dictionary: "personal", type: "definition", sourceId: "1", senses: [
         { position: 3, definitions: [{ lang: "es", text: "gato" }, { lang: "en", text: "cat" }], tags: [] },
       ] },
     ],
@@ -24,11 +24,17 @@ function setup(scope = true) {
       const path = String(input);
       calls.push(path);
       if (path.endsWith("/me")) return new Response(JSON.stringify({
-        credential: { scopes: scope ? ["READ_ACCOUNT"] : [] },
-        preferences: { languages: ["es", "en"], stackFingerprint: "stack1", dictionaryReveal: { "personal:es": "hover" } },
+        credential: { scopes: scope ? ["user:account:read"] : [] },
+        preferences: { uiLocale: "en", sentenceLanguages: ["es", "en"], sentenceTranslation: "show", furiganaMode: "unknown" },
+      }));
+      if (path.endsWith("/dictionary-stack")) return new Response(JSON.stringify({
+        dictionaryStack: { fingerprint: "stack1", sources: [
+          { dictionary: "personal", languages: ["es", "en"], reveal: "hover" },
+        ] },
       }));
       if (path.includes("/sentences?")) return new Response(JSON.stringify({
-        sentences: [{ id: "tatoeba:1", japanese: "猫だ。", source: "Tatoeba", translations: [
+        query: "猫", sentences: [{ id: "tatoeba:1", japanese: "猫だ。",
+          source: { dictionary: "tatoeba", name: "Tatoeba", sourceId: "1" }, matches: [], translations: [
           { lang: "en", text: "A cat." }, { lang: "es", text: "Un gato." },
         ] }], pagination: { hasMore: false, cursor: null },
       }));
@@ -48,7 +54,7 @@ test("Anki reads dictionary preferences on demand, preserving language, reveal m
   assert.equal(result.definition?.senses[0].glosses[0].text, "gato");
   assert.equal(result.definition?.senses[0].covered, true);
   assert.equal(result.definition?.senses[0].ref, "personal#3");
-  assert.match(calls[1], /locale=es/);
+  assert.doesNotMatch(calls[2], /locale=/);
   assert.equal(host.study?.save, undefined);
 });
 
@@ -56,7 +62,7 @@ test("old Anki sessions explicitly reconnect instead of silently ignoring upload
   const fixture = setup(false);
   const result = await fixture.host.lookup("猫", "word");
   assert.equal(result.status, "pending");
-  assert.equal(fixture.calls.length, 1);
+  assert.equal(fixture.calls.length, 2);
   await fixture.host.resolvePending!(() => {});
   assert.equal(fixture.signedOut(), 1);
 });
@@ -66,14 +72,14 @@ test("cached private results are not returned after sign-out, and preferences re
   assert.equal(fixture.host.account?.connected?.(), true);
   await fixture.host.lookup("猫", "word");
   await fixture.host.lookup("猫", "word");
-  assert.equal(fixture.calls.length, 2);
+  assert.equal(fixture.calls.length, 3);
   fixture.setTime(61_000);
   await fixture.host.lookup("猫", "word");
-  assert.equal(fixture.calls.length, 4);
+  assert.equal(fixture.calls.length, 6);
   fixture.link.signOut();
   assert.equal(fixture.host.account?.connected?.(), false);
   assert.equal((await fixture.host.lookup("猫", "word")).status, "pending");
-  assert.equal(fixture.calls.length, 4);
+  assert.equal(fixture.calls.length, 6);
 });
 
 test("signing out during a lookup cannot return the previous account's private definition", async () => {
@@ -99,8 +105,8 @@ test("Anki corpus search uses saved translation preferences and loses access aft
   assert.equal(result.examples[0].translation, "Un gato.");
   assert.equal(result.examples[0].translationLanguage, "es");
   assert.equal(result.examples[0].reference, "tatoeba:1");
-  assert.equal(fixture.calls.length, 2);
+  assert.equal(fixture.calls.length, 3);
   fixture.host.account!.signOut();
   await assert.rejects(fixture.host.exampleSearch!({ query: "猫" }), /Sign in/);
-  assert.equal(fixture.calls.length, 2);
+  assert.equal(fixture.calls.length, 3);
 });

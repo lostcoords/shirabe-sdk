@@ -60,6 +60,12 @@ export type LookupContext = {
   surface?: string;
   reading?: string;
   pos?: string;
+  /** Surrounding source text for position-based lookup APIs. */
+  text?: string;
+  /** UTF-16 source offset where the lookup begins. */
+  startOffset?: number;
+  /** Optional UTF-16 exclusive boundary hint for the clicked token. */
+  endOffset?: number;
 };
 
 export type LookupPending = { status: "pending"; message: string };
@@ -81,7 +87,7 @@ export type AuthoringExample = {
 
 export type ExampleSearchQuery = {
   query: string;
-  entry?: string;
+  wordId?: string;
   keyword?: string;
   maxLength?: number;
   translationLanguage?: string;
