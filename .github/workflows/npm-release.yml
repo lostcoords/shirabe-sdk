@@ -18,7 +18,7 @@ jobs:
       github.event.release.prerelease == false &&
       (startsWith(github.event.release.tag_name, 'api-v') ||
       startsWith(github.event.release.tag_name, 'card-v'))
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, ARM64, ci]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
