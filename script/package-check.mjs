@@ -151,12 +151,12 @@ try {
   writeFileSync(
     join(consumer, "smoke.ts"),
     [
-      'import { createShirabeClient, parseText, type Parse } from "@shirabe-org/api";',
+      'import { createShirabeClient, parse, type Parse } from "@shirabe-org/api";',
       'import { wordCard } from "@shirabe-org/card";',
       'import { isR2AudioUrl } from "@shirabe-org/card/word-card/audio";',
       'import type { Definition, WordCardHost } from "@shirabe-org/card/word-card";',
       "const client = createShirabeClient();",
-      'const parseRequest: Parameters<typeof parseText>[0] = { body: { text: "猫" } };',
+      'const parseRequest: Parameters<typeof parse>[0] = { body: { texts: ["猫"] } };',
       "const parsed: Parse | undefined = undefined;",
       "const definition: Definition | null = null;",
       "const host: WordCardHost = {",
