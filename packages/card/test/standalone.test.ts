@@ -29,7 +29,7 @@ test("a prepared definition renders before an unresolved online study-state read
   const link: Link = {
     linked: () => true, signIn: async () => {}, signOut() {},
     fetch: async (input) => {
-      const path = new URL(String(input)).pathname;
+      const path = new URL((input instanceof Request ? input.url : String(input))).pathname;
       calls.push(path);
       if (path === "/api/v1/me") return new Response(JSON.stringify({
         preferences: { languages: ["en"] }, credential: { scopes: ["user:account:read", "user:dictionary:read", "user:study:read"] },
@@ -100,7 +100,7 @@ for (const studyColors of [false, true, undefined]) {
     const link = {
       linked: () => true, signIn: async () => {}, signOut() {},
       fetch: async (input: string | URL | Request, init?: RequestInit) => {
-        const path = new URL(String(input)).pathname;
+        const path = new URL((input instanceof Request ? input.url : String(input))).pathname;
         calls.push({ path, body: init?.body ? JSON.parse(String(init.body)) : null });
         if (path === "/api/v1/me") return new Response(JSON.stringify({
           preferences: { languages: ["en"] }, credential: { scopes: ["user:account:read", "user:dictionary:read", "user:study:read"] },
@@ -309,7 +309,7 @@ test("explicit selection identifies the whole chosen span without parsing it aga
   const calls: Array<{ path: string; body: unknown }> = [];
   const kinds: Array<{ query: string; kind: unknown }> = [];
   const host = SDK.apiHost({ apiBase: "https://example.test", fetch: async (input, init) => {
-    const path = new URL(String(input)).pathname;
+    const path = new URL((input instanceof Request ? input.url : String(input))).pathname;
     calls.push({ path, body: init?.body ? JSON.parse(String(init.body)) : null });
     return new Response(JSON.stringify(path.endsWith("/parse") ? { stackFingerprint: "test", results: [{ tokens: [
       { surface: "勉強", lemma: "勉強", startOffset: 0, endOffset: 2, kind: "word" },
@@ -471,7 +471,7 @@ test("web and Anki attach preserve the same visible parse input, private entry p
       }],
     };
     const http: typeof fetch = async (input, init) => {
-      const url = new URL(String(input));
+      const url = new URL((input instanceof Request ? input.url : String(input)));
       calls.push({ path: `${url.pathname}${url.search}`, body: init?.body ? JSON.parse(String(init.body)) : null });
       let payload: unknown = detail;
       if (url.pathname.endsWith("/me")) payload = {

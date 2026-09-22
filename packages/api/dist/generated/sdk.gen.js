@@ -1358,25 +1358,6 @@ export const listDictionaryImports = (options) => (options?.client ?? client).ge
     ...options
 });
 /**
- * Import a personal Yomitan dictionary
- *
- * Uploads one ZIP archive and returns an asynchronous import resource.
- */
-export const createDictionaryImport = (options) => (options.client ?? client).post({
-    ...formDataBodySerializer,
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/dictionary-imports',
-    ...options,
-    headers: {
-        'Content-Type': null,
-        ...options.headers
-    }
-});
-/**
  * Delete a queued or failed personal dictionary import
  */
 export const deleteDictionaryImport = (options) => (options.client ?? client).delete({
@@ -1404,7 +1385,9 @@ export const getDictionaryImport = (options) => (options.client ?? client).get({
  * List offline dictionary packs available to the account
  *
  * Returns the structured account dictionary stack and the shared base pack
- * plus every membership-gated personal overlay available offline.
+ * plus every membership-gated personal overlay available offline. A missing or
+ * stale personal overlay is built after the request and returns 202 with its
+ * slug in `pendingPacks`.
  *
  */
 export const listDictionaryPacks = (options) => (options?.client ?? client).get({

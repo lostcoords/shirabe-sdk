@@ -495,7 +495,7 @@ test("corpus API to popup to native proposal retains the selected language and d
   const proposals: AuthoringSelection[] = [];
   const calls: URL[] = [];
   const corpus = apiHost({ apiBase: "https://dictionary.test", fetch: async (url) => {
-    calls.push(new URL(String(url)));
+    calls.push(new URL((url instanceof Request ? url.url : String(url))));
     const next = calls[calls.length - 1].searchParams.has("cursor");
     return Response.json({
       query: "食べる", sentences: [{ id: next ? "uploaded:8" : "tatoeba:7",

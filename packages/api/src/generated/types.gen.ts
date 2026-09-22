@@ -1690,6 +1690,10 @@ export type DictionaryStackManifest = {
     packs: Array<DictionaryPackManifest & {
         kind: 'base' | 'overlay';
     }>;
+    /**
+     * Personal dictionary slugs whose offline pack is building. The dictionary remains available for online lookup.
+     */
+    pendingPacks?: Array<string>;
 };
 
 /**
@@ -2959,6 +2963,11 @@ export type WordIdentify = {
     } | null>;
 };
 
+export type DictionaryStack2 = {
+    fingerprint: string;
+    sources: Array<DictionaryStackSource>;
+};
+
 /**
  * A dictionary operation is temporarily unavailable.
  */
@@ -2969,11 +2978,6 @@ export type Error503 = {
     detail?: string;
     code: 'DICTIONARY_PACK_UNAVAILABLE' | 'IMPORT_CAPACITY_UNAVAILABLE';
     instance: string;
-};
-
-export type DictionaryStack2 = {
-    fingerprint: string;
-    sources: Array<DictionaryStackSource>;
 };
 
 export type ReaderHostRules = {
@@ -7798,72 +7802,6 @@ export type ListDictionaryImportsResponses = {
 
 export type ListDictionaryImportsResponse = ListDictionaryImportsResponses[keyof ListDictionaryImportsResponses];
 
-export type CreateDictionaryImportData = {
-    body: {
-        archive: Blob | File;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/dictionary-imports';
-};
-
-export type CreateDictionaryImportErrors = {
-    /**
-     * Malformed request or failed validation.
-     */
-    400: Error400;
-    /**
-     * Missing, invalid, expired, or revoked bearer token. Carries a
-     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
-     * `error="invalid_token"` should renew with its refresh token and retry once.
-     *
-     */
-    401: Error401;
-    /**
-     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
-     */
-    402: Error402;
-    /**
-     * The API key lacks a scope required for this operation.
-     */
-    403: Error403;
-    /**
-     * The request body uses an unsupported media type.
-     */
-    415: Error415;
-    /**
-     * Too many requests; back off and retry after `Retry-After` seconds.
-     *
-     * There is one kind of 429 now. It comes from in front of the application, which
-     * is why the answer is a wait and nothing else: the budget it names refills on a
-     * fixed 60-second window, so retrying after the header says is enough. There is
-     * no monthly quota and no `RateLimit-*` fields to read.
-     *
-     * A request that is too LARGE is not this: that answers 413 with no
-     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
-     * both ceilings, under `rateLimit` and `payloadLimit`.
-     *
-     */
-    429: Error429;
-    /**
-     * The requested generated artifact is not currently available.
-     */
-    503: Error503;
-};
-
-export type CreateDictionaryImportError = CreateDictionaryImportErrors[keyof CreateDictionaryImportErrors];
-
-export type CreateDictionaryImportResponses = {
-    /**
-     * Import queued.
-     */
-    202: {
-        import: DictionaryImport;
-    };
-};
-
-export type CreateDictionaryImportResponse = CreateDictionaryImportResponses[keyof CreateDictionaryImportResponses];
-
 export type DeleteDictionaryImportData = {
     body?: never;
     path: {
@@ -8028,6 +7966,10 @@ export type ListDictionaryPacksResponses = {
      * Current account stack and its downloadable artifacts. Returns an ETag for conditional requests.
      */
     200: DictionaryStackManifest;
+    /**
+     * The account stack is current, but one or more private offline packs are building.
+     */
+    202: DictionaryStackManifest;
 };
 
 export type ListDictionaryPacksResponse = ListDictionaryPacksResponses[keyof ListDictionaryPacksResponses];

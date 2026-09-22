@@ -675,7 +675,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     }
   }
   if (root?.activeElement && el.contains(root.activeElement)) box?.focus({ preventScroll: true });
-  el.replaceChildren(...definitionRows(res.definition, target.query, target.word, studyStatus));
+  el.replaceChildren(...definitionRows(res.definition, target.query, target.word, studyStatus, res.alternatives));
   position(target);
   if (studyStatus) void refreshReadOnlyStudy(target, mine, studyStatus);
   // Which of the two happened matters: a card that renders and a card that says
@@ -815,7 +815,13 @@ function messageRow(text: string | Node): HTMLElement {
   return div;
 }
 
-function definitionRows(def: Definition | null, lemma: string, word: HTMLElement, studyStatus?: HTMLElement): Node[] {
+function definitionRows(
+  def: Definition | null,
+  lemma: string,
+  word: HTMLElement,
+  studyStatus?: HTMLElement,
+  alternatives?: readonly Definition[],
+): Node[] {
   sensePicks = []; // rebuilt by sensesList for this render
   sensePickWord = null;
   if (!def) {
@@ -836,7 +842,10 @@ function definitionRows(def: Definition | null, lemma: string, word: HTMLElement
   // It changes once per card, so polite is not chatty.
   body.setAttribute("aria-live", "polite");
   if (def.inflection?.length) body.append(block("sb-inflection", `${def.sourceForm ?? lemma} → ${def.inflectionBase ?? def.headword} · ${def.inflection.join(" · ")}`));
-  const picker = candidateRow(word, def);
+  const otherMatches = alternatives?.filter((alternative) => alternative.entry !== def.entry) ?? [];
+  // A host that supplied complete alternatives can show their actual definitions
+  // in one scroll. Metadata-only hosts retain the compact picker below.
+  const picker = otherMatches.length ? null : candidateRow(word, def);
   if (picker) body.append(picker);
   const badges = badgeRow(def);
   if (badges) body.append(badges);
@@ -856,6 +865,7 @@ function definitionRows(def: Definition | null, lemma: string, word: HTMLElement
   if (kanji) body.append(kanji);
   const examples = examplesBlock(def.examples, def);
   if (examples) body.append(examples);
+  if (otherMatches.length) body.append(alternativeResults(otherMatches, word));
   const lookupHost = backend();
   body.append(authoringActions(def, word, lookupHost.authoring, def.entry ? async () => {
     const result = await lookupHost.lookupEntry(def.entry!, def.headword);
@@ -870,6 +880,36 @@ function definitionRows(def: Definition | null, lemma: string, word: HTMLElement
     if (offer) rows.push(offer);
   }
   return rows;
+}
+
+/** Complete alternative definitions, rather than a row of opaque homograph pills. */
+function alternativeResults(alternatives: readonly Definition[], word: HTMLElement): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "sb-alternatives";
+  section.setAttribute("aria-label", "Other dictionary matches");
+  section.append(chip("sb-alternatives-label", "Other matches"));
+
+  for (const alternative of alternatives) {
+    const result = document.createElement("article");
+    result.className = "sb-alternative";
+    const heading = document.createElement("button");
+    heading.type = "button";
+    heading.className = "sb-alternative-headword";
+    heading.append(japanese("", alternative.headword));
+    if (alternative.reading && alternative.reading !== alternative.headword) heading.append(japanese("sb-alternative-reading", alternative.reading));
+    heading.setAttribute("aria-label", `Use ${alternative.headword} as this word`);
+    if (alternative.entry) heading.addEventListener("click", () => pickCandidate(word, alternative.entry!));
+    else heading.disabled = true;
+    result.append(heading);
+    const badges = badgeRow(alternative);
+    if (badges) result.append(badges);
+    if (alternative.pitch.length && alternative.reading) result.append(pitchRows(alternative.pitch, alternative.reading, alternative.offline === true));
+    result.append(sensesList(alternative));
+    const forms = formsRow(alternative.forms);
+    if (forms) result.append(forms);
+    section.append(result);
+  }
+  return section;
 }
 
 // The word's kanji, each opening its own card HERE rather than a tab.
@@ -1132,12 +1172,13 @@ function pitchRows(pitch: Definition["pitch"], reading: string, offline: boolean
   return wrap;
 }
 
-// One NHK-style graph + [downstep], with its own play button: each clip speaks
-// that exact accent, so a word read two ways (箸 / 橋) lets you hear both rather
-// than whichever pattern happened to come first.
+// One compact mora-overline + [downstep], with its own play button. Each clip
+// speaks that exact accent, so a word read two ways (箸 / 橋) lets a learner hear
+// the same pattern they selected without spending a graph's height on it.
 function pitchPattern(entry: Definition["pitch"][number], reading: string, offline: boolean): HTMLElement {
   const item = document.createElement("div");
   item.className = "sb-pitch-item";
+  item.setAttribute("aria-label", `Pitch accent: ${reading}, downstep ${entry.downstep}`);
   const local = offline && isSnapshotRecordingFilename(entry.audioUrl) && !!optional().audio;
   if (isR2AudioUrl(entry.audioUrl) || local) {
     const url = entry.audioUrl!;
@@ -1158,58 +1199,33 @@ function pitchPattern(entry: Definition["pitch"][number], reading: string, offli
     audio.setAttribute("aria-label", local ? "Play saved pronunciation" : "Play pronunciation");
     item.append(audio, status);
   }
-  item.append(pitchGraph(reading, entry.downstep), chip("sb-pitch-num", `[${entry.downstep}]`));
+  item.append(pitchOverline(reading, entry.downstep), chip("sb-pitch-num", `[${entry.downstep}]`));
   return item;
 }
 
-// The mora overline diagram (heiban L H H…; atamadaka H L L…; else H to the
-// downstep). Mirrors app/views/components/dictionary/_pitch_accent.html.erb.
+// Heiban is L H H…, atamadaka is H L L…, and every other pattern is high from
+// the second mora through its downstep. An overline on the high morae plus a
+// right edge at the drop conveys that without a tall SVG graph.
 const SMALL_KANA = "ゃゅょャュョぁぃぅぇぉァィゥェォ";
-const SVG_NS = "http://www.w3.org/2000/svg";
-function pitchGraph(reading: string, downstep: number): SVGSVGElement {
+function pitchOverline(reading: string, downstep: number): HTMLElement {
   const morae: string[] = [];
   for (const c of reading) {
     if (SMALL_KANA.includes(c) && morae.length) morae[morae.length - 1] += c;
     else morae.push(c);
   }
-  const n = morae.length;
   const high = (i: number) => (downstep === 0 ? i > 0 : downstep === 1 ? i === 0 : i > 0 && i < downstep);
-  // A column per mora, widened for the multi-character ones: きゃ and しょ collide
-  // under a fixed step. Same rule as the site's component.
-  const centers: number[] = [];
-  let edge = 8;
-  for (const mora of morae) {
-    const step = Math.max(22, mora.length * 12);
-    centers.push(edge + step / 2);
-    edge += step;
+  const notation = document.createElement("span");
+  notation.className = "sb-pitch-notation";
+  notation.lang = "ja";
+  for (let index = 0; index < morae.length; index += 1) {
+    const mora = document.createElement("span");
+    mora.className = "sb-pitch-mora";
+    if (high(index)) mora.classList.add("sb-pitch-high");
+    if (high(index) && !high(index + 1)) mora.classList.add("sb-pitch-drop");
+    mora.textContent = morae[index]!;
+    notation.append(mora);
   }
-  const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", `0 0 ${edge + 8} 46`);
-  svg.setAttribute("class", "sb-pitch-svg");
-  const x = (i: number) => centers[i];
-  const y = (i: number) => (high(i) ? 10 : 30);
-  for (let i = 0; i < n; i++) {
-    if (i < n - 1) {
-      const line = document.createElementNS(SVG_NS, "line");
-      line.setAttribute("x1", `${x(i)}`);
-      line.setAttribute("y1", `${y(i)}`);
-      line.setAttribute("x2", `${x(i + 1)}`);
-      line.setAttribute("y2", `${y(i + 1)}`);
-      svg.append(line);
-    }
-    const dot = document.createElementNS(SVG_NS, "circle");
-    dot.setAttribute("cx", `${x(i)}`);
-    dot.setAttribute("cy", `${y(i)}`);
-    dot.setAttribute("r", "3");
-    const label = document.createElementNS(SVG_NS, "text");
-    label.setAttribute("x", `${x(i)}`);
-    label.setAttribute("y", "44");
-    label.setAttribute("text-anchor", "middle");
-    label.setAttribute("class", "sb-pitch-mora");
-    label.textContent = morae[i];
-    svg.append(dot, label);
-  }
-  return svg;
+  return notation;
 }
 
 // Numbered senses: POS and qualifier chips, a gloss row per language, the usage
@@ -2135,72 +2151,72 @@ ${ACCOUNT_CSS}
 /* What the OS asks for, unless the reader has overridden it to light. */
 @media (prefers-color-scheme: dark) {
   :host(:not([data-sb-theme="light"])) {
-    --sb-surface: #1a1a1e;
-    --sb-surface-muted: #212129;
-    --sb-surface-hover: #2d2d36;
-    --sb-ink: #e8e6e3;
-    --sb-ink-body: #e8e6e3;
-    --sb-ink-muted: #adaaa6;
-    --sb-ink-subtle: #898680;
-    --sb-ink-faint: #7d7a74;
-    --sb-outline: rgba(227, 227, 242, 0.14);
-    --sb-outline-strong: rgba(227, 227, 242, 0.22);
-    --sb-divider: rgba(227, 227, 242, 0.1);
-    --sb-accent: #43acfb;
-    --sb-accent-hover: #70c6ff;
-    --sb-accent-tint: #002647;
-    --sb-accent-tint-strong: #003562;
-    --sb-accent-border: #4886b8;
-    --sb-source: #43acfb;
-    --sb-field: #6fa4fc;
-    --sb-dialect: #b995f6;
-    --sb-common-bg: #00300e;
-    --sb-common-fg: #38ea8f;
-    --sb-jlpt-bg: #002647;
-    --sb-jlpt-fg: #6abfff;
-    --sb-error: #ff7d76;
-    --sb-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
-    --sb-known-btn: #4f5661;
-    --sb-known-btn-hover: #626975;
-    --sb-chip-bg: rgba(232, 230, 227, 0.1);
-    --sb-chip-bg-strong: rgba(232, 230, 227, 0.18);
-    --sb-chip-border: rgba(232, 230, 227, 0.24);
+    --sb-surface: #252525;
+    --sb-surface-muted: #303030;
+    --sb-surface-hover: #3a3a3a;
+    --sb-ink: #f0eeee;
+    --sb-ink-body: #e4e0e0;
+    --sb-ink-muted: #b4aeae;
+    --sb-ink-subtle: #928b8b;
+    --sb-ink-faint: #777171;
+    --sb-outline: rgba(255, 244, 244, 0.14);
+    --sb-outline-strong: rgba(255, 244, 244, 0.24);
+    --sb-divider: rgba(255, 244, 244, 0.13);
+    --sb-accent: #df9aa1;
+    --sb-accent-hover: #f0b4ba;
+    --sb-accent-tint: #452e31;
+    --sb-accent-tint-strong: #5a383d;
+    --sb-accent-border: #a8666e;
+    --sb-source: #df9aa1;
+    --sb-field: #d7a0bf;
+    --sb-dialect: #c4a5df;
+    --sb-common-bg: #203b28;
+    --sb-common-fg: #a8d9af;
+    --sb-jlpt-bg: #393536;
+    --sb-jlpt-fg: #c9c1c1;
+    --sb-error: #ff9999;
+    --sb-shadow: 0 18px 50px rgba(0, 0, 0, 0.58);
+    --sb-known-btn: #595454;
+    --sb-known-btn-hover: #6d6666;
+    --sb-chip-bg: rgba(240, 224, 224, 0.08);
+    --sb-chip-bg-strong: rgba(240, 224, 224, 0.15);
+    --sb-chip-border: rgba(240, 224, 224, 0.25);
   }
 }
 /* The reader's own choice, which wins over the OS in both directions. */
 :host([data-sb-theme="light"]) { color-scheme: light; }
 :host([data-sb-theme="dark"]) {
   color-scheme: dark;
-    --sb-surface: #1a1a1e;
-    --sb-surface-muted: #212129;
-    --sb-surface-hover: #2d2d36;
-    --sb-ink: #e8e6e3;
-    --sb-ink-body: #e8e6e3;
-    --sb-ink-muted: #adaaa6;
-    --sb-ink-subtle: #898680;
-    --sb-ink-faint: #7d7a74;
-    --sb-outline: rgba(227, 227, 242, 0.14);
-    --sb-outline-strong: rgba(227, 227, 242, 0.22);
-    --sb-divider: rgba(227, 227, 242, 0.1);
-    --sb-accent: #43acfb;
-    --sb-accent-hover: #70c6ff;
-    --sb-accent-tint: #002647;
-    --sb-accent-tint-strong: #003562;
-    --sb-accent-border: #4886b8;
-    --sb-source: #43acfb;
-    --sb-field: #6fa4fc;
-    --sb-dialect: #b995f6;
-    --sb-common-bg: #00300e;
-    --sb-common-fg: #38ea8f;
-    --sb-jlpt-bg: #002647;
-    --sb-jlpt-fg: #6abfff;
-    --sb-error: #ff7d76;
-    --sb-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
-    --sb-known-btn: #4f5661;
-    --sb-known-btn-hover: #626975;
-    --sb-chip-bg: rgba(232, 230, 227, 0.1);
-    --sb-chip-bg-strong: rgba(232, 230, 227, 0.18);
-    --sb-chip-border: rgba(232, 230, 227, 0.24);
+  --sb-surface: #252525;
+  --sb-surface-muted: #303030;
+  --sb-surface-hover: #3a3a3a;
+  --sb-ink: #f0eeee;
+  --sb-ink-body: #e4e0e0;
+  --sb-ink-muted: #b4aeae;
+  --sb-ink-subtle: #928b8b;
+  --sb-ink-faint: #777171;
+  --sb-outline: rgba(255, 244, 244, 0.14);
+  --sb-outline-strong: rgba(255, 244, 244, 0.24);
+  --sb-divider: rgba(255, 244, 244, 0.13);
+  --sb-accent: #df9aa1;
+  --sb-accent-hover: #f0b4ba;
+  --sb-accent-tint: #452e31;
+  --sb-accent-tint-strong: #5a383d;
+  --sb-accent-border: #a8666e;
+  --sb-source: #df9aa1;
+  --sb-field: #d7a0bf;
+  --sb-dialect: #c4a5df;
+  --sb-common-bg: #203b28;
+  --sb-common-fg: #a8d9af;
+  --sb-jlpt-bg: #393536;
+  --sb-jlpt-fg: #c9c1c1;
+  --sb-error: #ff9999;
+  --sb-shadow: 0 18px 50px rgba(0, 0, 0, 0.58);
+  --sb-known-btn: #595454;
+  --sb-known-btn-hover: #6d6666;
+  --sb-chip-bg: rgba(240, 224, 224, 0.08);
+  --sb-chip-bg-strong: rgba(240, 224, 224, 0.15);
+  --sb-chip-border: rgba(240, 224, 224, 0.25);
 }
 
 .sb-popup {
@@ -2216,16 +2232,16 @@ ${ACCOUNT_CSS}
      senses on anything with three candidates, and a two-line gloss is the normal
      case rather than the long one. Still capped to the viewport so a narrow
      phone window is not pushed sideways. */
-  width: min(420px, calc(100vw - 24px));
-  max-height: min(60vh, 460px);
-  padding: 12px 14px;
+  width: min(480px, calc(100vw - 24px));
+  max-height: min(70vh, 620px);
+  padding: 16px 18px;
   background: var(--sb-surface);
   color: var(--sb-ink-body);
   border: 1px solid var(--sb-outline);
-  border-radius: 12px;
+  border-radius: 18px;
   box-shadow: var(--sb-shadow);
   font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
   opacity: 0;
   visibility: hidden;
@@ -2276,7 +2292,7 @@ ${ACCOUNT_CSS}
   align-items: baseline;
   gap: 8px;
   padding-right: var(--sb-chrome-gutter);
-  font-size: 20px;
+  font-size: 28px;
   font-weight: 700;
 }
 .sb-headword { color: var(--sb-ink); text-decoration: none; cursor: pointer; }
@@ -2371,6 +2387,17 @@ ${ACCOUNT_CSS}
 /* The rest of the ranked list, one click away. A chip because it sits in the row
    and takes the same click, but with no headword to show. */
 .sb-candidate-more { font-size: 12px; color: var(--sb-ink-subtle); }
+.sb-alternatives { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--sb-divider); }
+.sb-alternatives-label { margin-bottom: 6px; color: var(--sb-ink-subtle); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+.sb-alternative { padding: 10px 0; border-top: 1px solid var(--sb-divider); }
+.sb-alternative:first-of-type { border-top: 0; }
+.sb-alternative-headword { display: inline-flex; align-items: baseline; gap: 7px; margin: 0 0 5px; padding: 0; border: 0; background: transparent; color: var(--sb-ink); font: 700 19px/1.35 inherit; cursor: pointer; text-align: start; }
+.sb-alternative-headword:hover:not(:disabled) { color: var(--sb-accent); }
+.sb-alternative-headword:disabled { cursor: default; }
+.sb-alternative-headword:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 3px; border-radius: 3px; }
+.sb-alternative-reading { color: var(--sb-accent); font-size: 12px; font-weight: 500; }
+.sb-alternative .sb-badges { margin-bottom: 6px; }
+.sb-alternative .sb-pitch { margin-bottom: 6px; }
 .sb-study-unavailable { flex: 0 0 auto; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--sb-outline); color: var(--sb-ink-subtle); font-size: 11px; }
 .sb-study-unavailable .sb-plans { font-size: 11px; }
 
@@ -2397,8 +2424,8 @@ ${ACCOUNT_CSS}
 .sb-badge-jlpt { background: var(--sb-jlpt-bg); color: var(--sb-jlpt-fg); }
 .sb-badge-freq, .sb-badge-prepared { background: var(--sb-surface-muted); color: var(--sb-ink-muted); font-variant-numeric: tabular-nums; }
 
-.sb-pitch { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 8px; }
-.sb-pitch-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.sb-pitch { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
+.sb-pitch-item { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; min-width: 0; max-width: 100%; }
 .sb-audio-status { order: 1; flex-basis: 100%; color: var(--sb-error); font-size: 12px; }
 .sb-audio-status:empty { display: none; }
 .sb-btn.sb-audio:disabled { cursor: wait; opacity: .5; }
@@ -2411,10 +2438,10 @@ ${ACCOUNT_CSS}
   font-variant-numeric: tabular-nums;
 }
 .sb-btn.sb-pitch-more:hover { background: var(--sb-surface-hover); color: var(--sb-ink); }
-.sb-pitch-svg { height: 46px; }
-.sb-pitch-svg line { stroke: var(--sb-accent); stroke-width: 2; }
-.sb-pitch-svg circle { fill: var(--sb-accent); }
-.sb-pitch-mora { fill: var(--sb-ink-subtle); font-size: 11px; font-family: inherit; }
+.sb-pitch-notation { display: inline-flex; align-items: baseline; color: var(--sb-ink); font-size: 14px; line-height: 1.35; }
+.sb-pitch-mora { box-sizing: border-box; padding: 1px 0; border-top: 2px solid transparent; color: var(--sb-ink); }
+.sb-pitch-mora.sb-pitch-high { border-top-color: var(--sb-accent); }
+.sb-pitch-mora.sb-pitch-drop { border-right: 2px solid var(--sb-accent); }
 .sb-pitch-num { font-size: 12px; font-weight: 600; color: var(--sb-ink-faint); font-variant-numeric: tabular-nums; }
 .sb-kanji-strip { display: flex; gap: 5px; margin: 8px 0; }
 .sb-btn.sb-kanji-button {

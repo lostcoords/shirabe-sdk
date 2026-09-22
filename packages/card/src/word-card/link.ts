@@ -6,10 +6,13 @@ import type {
   OauthTokenError,
   OauthTokenResponse2,
 } from "@shirabe-org/api";
+import { oauthDeviceAuthorization, oauthToken } from "@shirabe-org/api";
+import { createCardApiClient } from "./api-client.js";
 
 /** Device-flow sign-in for card WebViews and Desktop.
- * Anki's card client uses user:dictionary:read, user:study:read and user:profile:read, including
- * personal dictionaries, study state and account preferences. Other deck
+ * Anki's card client uses user:dictionary:read and user:study:read, including
+ * personal dictionaries and study state. Its language and reveal choices come
+ * from the authorized dictionary stack, not the reader profile. Other deck
  * scripts can read WebView localStorage and reuse its tokens to read those
  * records. These grants do not permit study or account changes. */
 
@@ -72,6 +75,7 @@ export function createLink(options: LinkOptions): Link {
   const base = options.apiBase.replace(/\/$/, "");
   const resource = `${base}/api/v1`;
   const http = options.fetch ?? globalThis.fetch.bind(globalThis);
+  const client = createCardApiClient({ apiBase: base, fetch: http });
   const now = options.now ?? (() => Date.now());
   const store = safeStorage(options.storage);
 
@@ -107,17 +111,11 @@ export function createLink(options: LinkOptions): Link {
     }
   }
 
-  const post = async <T>(path: string, fields: unknown, signal: AbortSignal): Promise<T> => {
+  const token = async (body: OauthTokenData["body"], signal: AbortSignal): Promise<OauthTokenResponse2 | OauthTokenError> => {
     signal.throwIfAborted();
-    const response = await http(`${base}/api/v1${path}`, {
-      signal,
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(fields),
-    });
-    const body = await response.json().catch(() => ({})) as T;
+    const result = await oauthToken({ client, body, signal });
     signal.throwIfAborted();
-    return body;
+    return (result.data ?? result.error ?? {}) as OauthTokenResponse2 | OauthTokenError;
   };
 
   /** A code from an earlier attempt that is still worth trying. */
@@ -153,7 +151,7 @@ export function createLink(options: LinkOptions): Link {
       client_id: options.clientId,
       resource,
     } satisfies OauthTokenData["body"];
-    const answer = await post<OauthTokenResponse2 | OauthTokenError>("/oauth/token", fields, signal);
+    const answer = await token(fields, signal);
     if (!("access_token" in answer)) return false;
     keep(answer);
     remember(null);
@@ -176,7 +174,7 @@ export function createLink(options: LinkOptions): Link {
       client_id: options.clientId,
       resource,
     } satisfies OauthTokenData["body"];
-    const answer = await post<OauthTokenResponse2 | OauthTokenError>("/oauth/token", fields, signal);
+    const answer = await token(fields, signal);
     if (!("access_token" in answer)) {
       if ("error" in answer && answer.error === "invalid_grant") {
         write(null);
@@ -264,9 +262,9 @@ export function createLink(options: LinkOptions): Link {
         scope: options.scope ?? "user:dictionary:read user:study:read",
         resource,
       } satisfies OauthDeviceAuthorizationData["body"];
-      const started = await post<OauthDeviceAuthorizationResponse | OauthDeviceAuthorizationError>(
-        "/oauth/device_authorization", fields, signal,
-      );
+      const result = await oauthDeviceAuthorization({ client, body: fields, signal });
+      signal.throwIfAborted();
+      const started = (result.data ?? result.error ?? {}) as OauthDeviceAuthorizationResponse | OauthDeviceAuthorizationError;
       if (!("device_code" in started)) {
         throw new Error(("error_description" in started && started.error_description) || "Shirabe could not start the sign-in.");
       }
@@ -295,7 +293,7 @@ export function createLink(options: LinkOptions): Link {
         client_id: options.clientId,
         resource,
       } satisfies OauthTokenData["body"];
-      const answer = await post<OauthTokenResponse2 | OauthTokenError>("/oauth/token", fields, signal);
+      const answer = await token(fields, signal);
       if ("access_token" in answer) {
         keep(answer);
         remember(null);

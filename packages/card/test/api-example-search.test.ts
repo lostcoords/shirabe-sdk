@@ -13,23 +13,23 @@ const page = (sentences: unknown[] = [rice], cursor: string | null = null) => ({
 });
 
 test("corpus search uses the authenticated GET endpoint and carries exact Spanish attribution", async () => {
-  const calls: { url: URL; init?: RequestInit }[] = [];
+  const calls: Request[] = [];
   const host = apiHost({
     apiBase: "https://dictionary.test", token: "test-token", languages: ["spa"],
     fetch: async (url, init) => {
-      calls.push({ url: new URL(String(url)), init });
+      calls.push(url instanceof Request ? url : new Request(url, init));
       return Response.json(page([rice, { ...rice, id: "uploaded:42", source: { dictionary: "uploaded", name: "My dictionary", sourceId: "42" }, translations: [] }]));
     },
   });
   const controller = new AbortController();
   const result = await host.exampleSearch!({ query: " 食べる ", keyword: "", maxLength: 8, translation: "any" }, controller.signal);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url.pathname, "/api/v1/sentences");
-  assert.deepEqual([...calls[0].url.searchParams], [["query", "食べる"], ["limit", "50"], ["filter[translationLanguages][]", "es"]]);
-  assert.equal(calls[0].init?.method ?? "GET", "GET");
-  assert.equal(new Headers(calls[0].init?.headers).get("Authorization"), "Bearer test-token");
-  assert.equal(new Headers(calls[0].init?.headers).get("Accept-Language"), "es");
-  assert.equal(calls[0].init?.signal, controller.signal);
+  assert.equal(new URL(calls[0]!.url).pathname, "/api/v1/sentences");
+  assert.deepEqual([...new URL(calls[0]!.url).searchParams], [["query", "食べる"], ["limit", "50"], ["filter[translationLanguages][]", "es"]]);
+  assert.equal(calls[0]?.method, "GET");
+  assert.equal(calls[0]?.headers.get("Authorization"), "Bearer test-token");
+  assert.equal(calls[0]?.headers.get("Accept-Language"), "es");
+  assert.equal(calls[0]?.signal.aborted, false);
   assert.deepEqual(result, {
     examples: [
       { japanese: rice.japanese, translation: "Comí arroz.", source: "Tatoeba", reference: "tatoeba:7", translationLanguage: "es" },
@@ -40,8 +40,8 @@ test("corpus search uses the authenticated GET endpoint and carries exact Spanis
 
 test("filters walk corpus pages and preserve opaque cursors for More examples", async () => {
   const cursors: (string | null)[] = [];
-  const search = apiExampleSearch(async (path) => {
-    const cursor = new URL(path, "https://dictionary.test").searchParams.get("cursor");
+  const search = apiExampleSearch(async (query) => {
+    const cursor = query.cursor ?? null;
     cursors.push(cursor);
     if (!cursor) return page([{ ...rice, japanese: "とても長い文でご飯を食べた。" }], "next/+==");
     if (cursor === "next/+==") return page([rice], "last:2");
@@ -59,16 +59,16 @@ test("filters walk corpus pages and preserve opaque cursors for More examples", 
 });
 
 test("chosen word identity survives filtered pagination without broadening to a homograph", async () => {
-  const calls: URL[] = [];
-  const search = apiExampleSearch(async (path) => {
-    calls.push(new URL(path, "https://dictionary.test"));
+  const calls: { cursor?: string; wordId?: string; query?: string }[] = [];
+  const search = apiExampleSearch(async (query) => {
+    calls.push({ cursor: query.cursor, wordId: query.filter?.wordId, query: query.query });
     return calls.length === 1 ? page([], "next/+==") : page([rice]);
   });
   await search({ query: "開いた", wordId: "開く-ひらく", translationLanguage: "es" });
   assert.equal(calls.length, 2);
-  for (const url of calls) {
-    assert.equal(url.searchParams.get("filter[wordId]"), "開く-ひらく");
-    assert.equal(url.searchParams.get("query"), "開いた");
+  for (const call of calls) {
+    assert.equal(call.wordId, "開く-ひらく");
+    assert.equal(call.query, "開いた");
   }
 });
 
@@ -95,9 +95,9 @@ test("Unicode length counts characters, source strings remain plain data and mal
 test("aborting filtered pagination stops the next request and network failure is not a synthetic empty result", async () => {
   const controller = new AbortController();
   let calls = 0;
-  const search = apiExampleSearch(async (_path, init) => {
+  const search = apiExampleSearch(async (_query, signal) => {
     calls += 1;
-    assert.equal(init?.signal, controller.signal);
+    assert.equal(signal, controller.signal);
     controller.abort();
     return page([], "next");
   });
@@ -120,8 +120,8 @@ test("repeated cursors and invalid query limits fail without an unbounded reques
 
 test("a filtered-out corpus is bounded to three pages per explicit Search or More action", async () => {
   const cursors: (string | null)[] = [];
-  const search = apiExampleSearch(async (path) => {
-    const cursor = new URL(path, "https://dictionary.test").searchParams.get("cursor");
+  const search = apiExampleSearch(async (query) => {
+    const cursor = query.cursor ?? null;
     cursors.push(cursor);
     const offset = Number(cursor ?? 0);
     return page([rice], offset < 8 ? String(offset + 1) : null);

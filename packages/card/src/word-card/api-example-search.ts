@@ -1,11 +1,16 @@
 import type { AuthoringExample, ExampleSearch, ExampleSearchQuery, ExampleSearchResult } from "./host.js";
 import type { GlossLanguage } from "./types.js";
 import { uiLanguagesFrom } from "./languages.js";
-import type { ListSentencesResponse } from "@shirabe-org/api";
+import type { ListSentencesData, ListSentencesResponse } from "@shirabe-org/api";
+
+/** The API operation is typed at the host boundary; this remains unknown here so
+ * malformed server output is still checked before it reaches the popup. */
+export type SentenceLister = (query: NonNullable<ListSentencesData["query"]>, signal?: AbortSignal) => Promise<unknown>;
 
 export function apiExampleSearch(
-  request: (path: string, init?: RequestInit) => Promise<unknown>,
+  list: SentenceLister,
   languages: readonly GlossLanguage[] = ["eng"],
+  ensureCredentialed?: () => void,
 ): ExampleSearch {
   return async (query, signal) => {
     const surface = query.query.trim();
@@ -19,17 +24,19 @@ export function apiExampleSearch(
     let result: ExampleSearchResult = { examples: [], hasMore: false, cursor: null };
     for (let pages = 0; pages < 3; pages += 1) {
       signal?.throwIfAborted();
+      ensureCredentialed?.();
       if (visited.has(cursor ?? "")) throw new Error("The example search returned a repeated cursor. Try again.");
       visited.add(cursor ?? "");
       const apiQuery = {
         query: surface,
         limit: 50,
         ...(cursor ? { cursor } : {}),
-      };
-      const params = new URLSearchParams(Object.entries(apiQuery).map(([key, value]) => [key, String(value)]));
-      if (query.wordId) params.set("filter[wordId]", query.wordId);
-      params.append("filter[translationLanguages][]", language);
-      const payload = await request(`/sentences?${params}`, { signal }) as ListSentencesResponse;
+        filter: {
+          ...(query.wordId ? { wordId: query.wordId } : {}),
+          translationLanguages: [language],
+        },
+      } satisfies NonNullable<ListSentencesData["query"]>;
+      const payload = await list(apiQuery, signal) as ListSentencesResponse;
       signal?.throwIfAborted();
       const page = sentencePage(payload);
       const examples = page.sentences.map((sentence): AuthoringExample => {

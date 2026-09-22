@@ -26,10 +26,10 @@ test("resolved particles remain clickable while punctuation does not", async () 
 test("online scans retain the matched surface and localized inflection without contaminating entry cache", async () => {
   const calls: string[] = [];
   const host = apiHost({ apiBase: "https://shirabe.org", token: "test", languages: ["spa"], fetch: async (url, init) => {
-    const path = new URL(String(url)).pathname;
+    const path = new URL((url instanceof Request ? url.url : String(url))).pathname;
     calls.push(path);
     if (path.endsWith("/parse")) {
-      assert.equal(new Headers(init?.headers).get("Accept-Language"), "es");
+      assert.equal((url instanceof Request ? url.headers : new Headers(init?.headers)).get("Accept-Language"), "es");
       return Response.json({ stackFingerprint: "test", results: [{ tokens: [
         { surface: "開いた", startOffset: 0, endOffset: 3, lemma: "開く", reading: "ヒライタ", partOfSpeech: "verb",
           kind: "inflected", inflection: { forms: [{ code: "past", label: "pasado" }], base: "開く" } },
@@ -56,7 +56,8 @@ test("online scans retain the matched surface and localized inflection without c
 test("saving sends the Rails lemma and selected dictionary identity", async () => {
   let body: unknown;
   const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async (_url, init) => {
-    body = JSON.parse(String(init?.body));
+    const request = _url instanceof Request ? _url : new Request(_url, init);
+    body = JSON.parse(await request.clone().text());
     return new Response("{}", { status: 201 });
   } });
   const word = { dataset: { lemma: "開く", reading: "ひらく", entry: "jmdict:1202650" } } as unknown as HTMLElement;
@@ -68,7 +69,7 @@ test("saving sends the Rails lemma and selected dictionary identity", async () =
 
 test("a raw scan uses identify to choose among homographs", async () => {
   const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async (url) => {
-    const path = new URL(String(url)).pathname;
+    const path = new URL((url instanceof Request ? url.url : String(url))).pathname;
     if (path.endsWith("/parse")) return Response.json({ stackFingerprint: "test", results: [{ tokens: [
       { surface: "開いた", lemma: "開く", startOffset: 0, endOffset: 3, kind: "inflected" },
     ] }] });
@@ -378,7 +379,9 @@ test("the reading and part of speech are sent, because a spelling alone is ambig
   const host = apiHost({
     apiBase: "https://shirabe.org",
     fetch: async (url, init) => {
-      if (String(url).includes("identify")) body = JSON.parse(String(init?.body));
+      if ((url instanceof Request ? url.url : String(url)).includes("identify")) {
+        body = JSON.parse(await (url instanceof Request ? url.clone().text() : String(init?.body)));
+      }
       return new Response(JSON.stringify({ words: [{ candidates: [payload] }] }), { status: 200 });
     },
   });
@@ -433,8 +436,8 @@ test("the key rides the Authorization header and the base never doubles its slas
     apiBase: "https://shirabe.org/",
     token: "shra_x",
     fetch: async (url, init) => {
-      const headers = new Headers(init?.headers);
-      seen.push({ url: String(url), auth: headers.get("Authorization"), language: headers.get("Accept-Language") });
+      const headers = url instanceof Request ? url.headers : new Headers(init?.headers);
+      seen.push({ url: (url instanceof Request ? url.url : String(url)), auth: headers.get("Authorization"), language: headers.get("Accept-Language") });
       return new Response(JSON.stringify({ words: [{ candidates: [payload] }] }), { status: 200 });
     },
   });
@@ -450,7 +453,8 @@ test("a picked entry keeps its dictionary, source id and locale", async () => {
     apiBase: "https://shirabe.org",
     languages: ["spa"],
     fetch: async (url, init) => {
-      asked.push({ url: String(url), language: new Headers(init?.headers).get("Accept-Language"), body: JSON.parse(String(init?.body)) });
+      const request = url instanceof Request ? url : new Request(url, init);
+      asked.push({ url: request.url, language: request.headers.get("Accept-Language"), body: JSON.parse(await request.clone().text()) });
       return new Response(JSON.stringify({ words: [{ candidates: [payload] }] }), { status: 200 });
     },
   });
@@ -465,7 +469,8 @@ test("a picked entry keeps its dictionary, source id and locale", async () => {
 
 test("each lookup carries its candidates even when the headword changes", async () => {
   const host = apiHost({ apiBase: "https://shirabe.org", fetch: async (_url, init) => {
-    const token = JSON.parse(String(init?.body)).tokens[0];
+    const request = _url instanceof Request ? _url : new Request(_url, init);
+    const token = JSON.parse(await request.clone().text()).tokens[0];
     const candidates = token.reading === "あく" ? [payload, { ...payload, headword: "明く" }] : [payload];
     return new Response(JSON.stringify({ words: [{ candidates }] }), { status: 200 });
   } });
@@ -531,14 +536,15 @@ test("a raw-text scan cuts the text before identifying its first word", async ()
   const host = apiHost({
     apiBase: "https://shirabe.org",
     fetch: async (url, init) => {
-      asked.push(String(url).replace("https://shirabe.org/api/v1", "").split("?")[0]!);
-      if (String(url).includes("/parse")) {
+      asked.push((url instanceof Request ? url.url : String(url)).replace("https://shirabe.org/api/v1", "").split("?")[0]!);
+      if ((url instanceof Request ? url.url : String(url)).includes("/parse")) {
         return new Response(JSON.stringify({ stackFingerprint: "test", results: [{ tokens: [
           { surface: "猫", lemma: "猫", partOfSpeech: "noun", reading: "ネコ", startOffset: 0, endOffset: 1, kind: "word" },
           { surface: "が", lemma: "が", partOfSpeech: "prt", startOffset: 1, endOffset: 2, kind: "function" },
         ] }] }), { status: 200 });
       }
-      identified = (JSON.parse(String(init?.body)).tokens as Record<string, unknown>[])[0]!;
+      const request = url instanceof Request ? url : new Request(url, init);
+      identified = (JSON.parse(await request.clone().text()).tokens as Record<string, unknown>[])[0]!;
       return new Response(JSON.stringify({ words: [{ candidates: [payload] }] }), { status: 200 });
     },
   });
@@ -565,7 +571,7 @@ test("a word hover never parses: the span was already cut", async () => {
   const host = apiHost({
     apiBase: "https://shirabe.org",
     fetch: async (url) => {
-      asked.push(String(url).replace("https://shirabe.org/api/v1", "").split("?")[0]!);
+      asked.push((url instanceof Request ? url.url : String(url)).replace("https://shirabe.org/api/v1", "").split("?")[0]!);
       return new Response(JSON.stringify({ words: [{ candidates: [payload] }] }), { status: 200 });
     },
   });

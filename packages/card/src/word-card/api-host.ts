@@ -5,6 +5,14 @@ import type { Definition, GlossLanguage, GlossRow, Sense, SenseChip, SenseScope,
 import { GLOSS_TAGS } from "./languages.js";
 import { kataToHira } from "./furigana.js";
 import { apiExampleSearch } from "./api-example-search.js";
+import { cardApiResult, createCardApiClient, ApiError } from "./api-client.js";
+import {
+  identifyWords,
+  listSentences,
+  lookupWordStates,
+  parse,
+  saveCard,
+} from "@shirabe-org/api";
 import type {
   IdentifyWordsData,
   IdentifyWordsResponse,
@@ -61,6 +69,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
   // nothing else here: the requests below are written as if signed in, and are,
   // once they are.
   const http = options.link?.fetch ?? options.fetch ?? globalThis.fetch.bind(globalThis);
+  const client = createCardApiClient({ apiBase: base, fetch: http, accessToken: options.token });
   const signInPrompt = options.signInPrompt ?? (options.link ? "Sign in to look this word up" : undefined);
   const authenticated = !!options.token || !!options.link || !!options.authenticated;
 
@@ -80,20 +89,9 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
   // many unauthenticated API requests" instead of the sign-in being offered.
   const credentialed = (): boolean => !!options.token || !options.link || options.link.linked();
 
-  const request = async <T = unknown>(path: string, init?: RequestInit): Promise<T> => {
+  const call = async <T>(operation: () => Promise<{ data?: T; error?: unknown; response?: Response }>): Promise<T> => {
     if (!credentialed()) throw new ApiError(401, signInPrompt ?? "Sign in to look this word up");
-    const response = await http(`${base}/api/v1${path}`, {
-      ...init,
-      headers: {
-        Accept: "application/json",
-        "Accept-Language": uiLocale(languages),
-        ...(init?.body ? { "Content-Type": "application/json" } : {}),
-        ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-        ...init?.headers,
-      },
-    });
-    if (!response.ok) throw new ApiError(response.status, await problemTitle(response));
-    return (response.status === 204 ? null : response.json()) as T;
+    return cardApiResult(operation(), "Shirabe request failed");
   };
 
   // A reader hovering a paragraph asks for the same words over and over, and
@@ -138,10 +136,11 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
         tokens: [token],
         include: ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"],
       } satisfies IdentifyWordsData["body"];
-      const answer = await request<IdentifyWordsResponse>("/words/identify", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const answer = await call<IdentifyWordsResponse>(() => identifyWords({
+        client,
+        headers: { "Accept-Language": uiLocale(languages) },
+        body,
+      }));
 
       // A token that resolves to nothing answers 200 with `words: [null]`, so
       // "no entry" arrives in the body rather than as a status. A name, a
@@ -158,6 +157,10 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       const found: LookupResult = {
         status: "found",
         definition: selected ? toDefinition(selected, base, languages) : null,
+        // `identifyWords` already returned the complete ranked entries. Keep
+        // them as definitions so capable Card renderers can show one scrollable
+        // result stack instead of asking again just to fill candidate pills.
+        ...(candidates.length ? { alternatives: candidates.map((candidate) => toDefinition(candidate, base, languages)) } : {}),
         candidates: candidates.map((candidate) => ({
           entry: entryIdentity(candidate),
           headword: candidate.headword,
@@ -216,7 +219,25 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
 
     lookupEntry: (entry, surface) => identify({ lemma: surface, surface }, entry),
 
-    exampleSearch: apiExampleSearch(request, languages),
+    exampleSearch: apiExampleSearch((query, signal) => call(() => listSentences({
+      client,
+      query,
+      signal,
+      headers: { "Accept-Language": uiLocale(languages) },
+      querySerializer: (parameters) => {
+        const value = parameters as NonNullable<import("@shirabe-org/api").ListSentencesData["query"]>;
+        const search = new URLSearchParams();
+        if (value.query) search.set("query", value.query);
+        if (value.limit !== undefined) search.set("limit", String(value.limit));
+        if (value.cursor) search.set("cursor", value.cursor);
+        if (value.filter?.wordId) search.set("filter[wordId]", value.filter.wordId);
+        for (const language of value.filter?.translationLanguages ?? []) search.append("filter[translationLanguages][]", language);
+        for (const source of value.filter?.sources ?? []) search.append("filter[sources][]", source);
+        return search.toString();
+      },
+    })), languages, () => {
+      if (!credentialed()) throw new ApiError(401, signInPrompt ?? "Sign in to look this word up");
+    }),
 
     // The server's own tokenizer, so a host with no parser gets the same cuts
     // the website and the extension get rather than a guess made from a string.
@@ -231,10 +252,12 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       const cached = parses.get(key);
       if (cached) return cached;
       const body = { texts: [text] } satisfies ParseData["body"];
-      const parsed = await request<ParseResponse>("/parse", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      if (!credentialed()) throw new ApiError(401, signInPrompt ?? "Sign in to look this word up");
+      const parsed = await cardApiResult<ParseResponse>(parse({
+        client,
+        headers: { "Accept-Language": uiLocale(languages) },
+        body,
+      }), "The parser failed.");
       if (!("results" in parsed) || parsed.results.length !== 1) throw new Error("The parser returned an invalid result.");
       const parsedTokens = parsed.results[0]!.tokens as ParseToken[];
 
@@ -266,10 +289,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
           // an object it keys every word by its array index, so the card looks
           // up 猫, finds nothing, and paints no state on anything.
           const body = { words: lemmas } satisfies LookupWordStatesData["body"];
-          const payload = await request<LookupWordStatesResponse>("/srs/states/lookup", {
-            method: "POST",
-            body: JSON.stringify(body),
-          });
+          const payload = await call<LookupWordStatesResponse>(() => lookupWordStates({ client, body }));
           const out: Record<string, StudyDetails> = {};
           for (const value of payload.states) {
             if (!value.lemma) continue;
@@ -290,7 +310,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       },
       save: (word, senses) => {
         const [dictionarySlug, ...sourceId] = (word.dataset.entry ?? "").split(":");
-        return write(request, {
+        return write((body) => call(() => saveCard({ client, body })), {
           lemma: word.dataset.lemma ?? "",
           reading: word.dataset.reading,
           ...(dictionarySlug && sourceId.length ? { dictionarySlug, sourceId: sourceId.join(":") } : {}),
@@ -305,9 +325,9 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
   };
 }
 
-async function write(request: (path: string, init?: RequestInit) => Promise<unknown>, body: SaveCardData["body"], done: string): Promise<Outcome> {
+async function write(save: (body: SaveCardData["body"]) => Promise<unknown>, body: SaveCardData["body"], done: string): Promise<Outcome> {
   try {
-    await request("/srs/saves", { method: "POST", body: JSON.stringify(body) });
+    await save(body);
     return { ok: true, message: done };
   } catch (error) {
     // 402 is the paywall, and the card turns it into an offer rather than an
@@ -317,21 +337,7 @@ async function write(request: (path: string, init?: RequestInit) => Promise<unkn
   }
 }
 
-export class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
-async function problemTitle(response: Response): Promise<string> {
-  try {
-    const body = await response.json() as { title?: string; detail?: string };
-    return body.detail ?? body.title ?? `Request failed (${response.status})`;
-  } catch {
-    return `Request failed (${response.status})`;
-  }
-}
+export { ApiError } from "./api-client.js";
 
 // The server files people under JMnedict, and now says so itself rather than
 // leaving a client to test the slug: JMdict carries thousands of name rows under

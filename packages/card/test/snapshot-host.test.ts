@@ -778,7 +778,7 @@ test("saved language order, reveal preferences, preparation date and license not
 test("media loading permits same-origin sessions without forwarding API authorization", async () => {
   let request!: Request;
   const loaded = await loadSnapshot(filename(wire), { fetch: async (input, init) => {
-    request = new Request(new URL(String(input), "https://ankiuser.net/study/"), init);
+    request = new Request(new URL((input instanceof Request ? input.url : String(input)), "https://ankiuser.net/study/"), init);
     return new Response(wire);
   } });
   assert.equal(request.credentials, "same-origin");

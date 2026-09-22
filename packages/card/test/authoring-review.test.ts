@@ -39,7 +39,7 @@ test("raw API lookup highlights and proposes only the parsed surface, not the sc
     pitch: [], forms: [], entries: [{ dictionary: "jmdict", type: "word", sourceId: "1",
       senses: [{ position: 0, definitions: [{ lang: "en", text: "eat" }], tags: [] }] }] };
   const host = apiHost({ apiBase: "https://fixture.invalid", fetch: async (url) => new Response(JSON.stringify(
-    new URL(String(url)).pathname.endsWith("/parse") ? { stackFingerprint: "test", results: [{ tokens: [{
+    new URL((url instanceof Request ? url.url : String(url))).pathname.endsWith("/parse") ? { stackFingerprint: "test", results: [{ tokens: [{
       surface: "食べました", lemma: "食べる", startOffset: 0, endOffset: 5,
       kind: "inflected", inflection: { forms: [{ code: "past", label: "past" }, { code: "polite", label: "polite" }], base: "食べる" },
     }] }] } : { words: [{ candidates: [candidate] }] },

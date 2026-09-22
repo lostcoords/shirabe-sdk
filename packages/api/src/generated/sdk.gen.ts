@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AcknowledgeAnkiChangesData, AcknowledgeAnkiChangesErrors, AcknowledgeAnkiChangesResponses, ApplyAnkiBatchData, ApplyAnkiBatchErrors, ApplyAnkiBatchResponses, BulkAddSearchData, BulkAddSearchErrors, BulkAddSearchResponses, BulkUpdateCardsData, BulkUpdateCardsErrors, BulkUpdateCardsResponses, CallMcpData, CallMcpErrors, CallMcpResponses, CancelAnkiNoteDeletionData, CancelAnkiNoteDeletionErrors, CancelAnkiNoteDeletionResponses, CancelAnkiReviewUndoData, CancelAnkiReviewUndoErrors, CancelAnkiReviewUndoResponses, CreateDeckData, CreateDeckErrors, CreateDeckResponses, CreateDictionaryImportData, CreateDictionaryImportErrors, CreateDictionaryImportResponses, DeleteAnkiMediaFileData, DeleteAnkiMediaFileErrors, DeleteAnkiMediaFileResponses, DeleteCardData, DeleteCardErrors, DeleteCardResponses, DeleteDeckData, DeleteDeckErrors, DeleteDeckResponses, DeleteDictionaryData, DeleteDictionaryErrors, DeleteDictionaryImportData, DeleteDictionaryImportErrors, DeleteDictionaryImportResponses, DeleteDictionaryResponses, DeleteWordNoteData, DeleteWordNoteErrors, DeleteWordNoteResponses, DeliverAnkiChangesData, DeliverAnkiChangesErrors, DeliverAnkiChangesResponses, DownloadAnkiMediaFileData, DownloadAnkiMediaFileErrors, DownloadAnkiMediaFileResponses, DownloadShirabeDictionaryPackData, DownloadShirabeDictionaryPackErrors, DownloadShirabeDictionaryPackResponses, DueQueueData, DueQueueErrors, DueQueueResponses, EndStudySessionData, EndStudySessionErrors, EndStudySessionResponses, FinishAnkiSnapshotData, FinishAnkiSnapshotErrors, FinishAnkiSnapshotResponses, GetAnkiBatchReceiptData, GetAnkiBatchReceiptErrors, GetAnkiBatchReceiptResponses, GetAnkiCardConflictComparisonData, GetAnkiCardConflictComparisonErrors, GetAnkiCardConflictComparisonResponses, GetAnkiCardConflictData, GetAnkiCardConflictErrors, GetAnkiCardConflictResponses, GetAnkiDeliveryReceiptData, GetAnkiDeliveryReceiptErrors, GetAnkiDeliveryReceiptResponses, GetAnkiNoteConflictData, GetAnkiNoteConflictErrors, GetAnkiNoteConflictResponses, GetAnkiNoteDeletionData, GetAnkiNoteDeletionErrors, GetAnkiNoteDeletionResponses, GetAnkiReviewUndoData, GetAnkiReviewUndoErrors, GetAnkiReviewUndoResponses, GetCardData, GetCardErrors, GetCardResponses, GetCurrentDictionaryPackData, GetCurrentDictionaryPackErrors, GetCurrentDictionaryPackResponses, GetDictionaryImportData, GetDictionaryImportErrors, GetDictionaryImportResponses, GetDictionaryPackData, GetDictionaryPackErrors, GetDictionaryPackResponses, GetDictionaryStackData, GetDictionaryStackErrors, GetDictionaryStackResponses, GetForecastData, GetForecastErrors, GetForecastResponses, GetKanjiData, GetKanjiErrors, GetKanjiRadicalData, GetKanjiRadicalErrors, GetKanjiRadicalResponses, GetKanjiResponses, GetMeData, GetMeErrors, GetMeResponses, GetParseOperationData, GetParseOperationErrors, GetParseOperationResponses, GetPreferencesData, GetPreferencesErrors, GetPreferencesResponses, GetReaderHostRulesData, GetReaderHostRulesErrors, GetReaderHostRulesResponses, GetSentenceData, GetSentenceErrors, GetSentenceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetStudySessionData, GetStudySessionErrors, GetStudySessionResponses, GetWordData, GetWordErrors, GetWordResponses, GradeCardData, GradeCardErrors, GradeCardResponses, IdentifyWordData, IdentifyWordErrors, IdentifyWordResponses, IdentifyWordsData, IdentifyWordsErrors, IdentifyWordsResponses, IgnoreWordData, IgnoreWordErrors, IgnoreWordResponses, InspectMcpTransportData, InspectMcpTransportErrors, ListAnkiMediaFilesData, ListAnkiMediaFilesErrors, ListAnkiMediaFilesResponses, ListCardsData, ListCardsErrors, ListCardsResponses, ListDecksData, ListDecksErrors, ListDecksResponses, ListDictionariesData, ListDictionariesErrors, ListDictionariesResponses, ListDictionaryImportsData, ListDictionaryImportsErrors, ListDictionaryImportsResponses, ListDictionaryPacksData, ListDictionaryPacksErrors, ListDictionaryPacksResponses, ListKanjiComponentMatchesData, ListKanjiComponentMatchesErrors, ListKanjiComponentMatchesResponses, ListKanjiComponentsData, ListKanjiComponentsErrors, ListKanjiComponentsResponses, ListKanjiData, ListKanjiErrors, ListKanjiRadicalsData, ListKanjiRadicalsErrors, ListKanjiRadicalsResponses, ListKanjiResponses, ListSentencesData, ListSentencesErrors, ListSentencesResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListWordNotesData, ListWordNotesErrors, ListWordNotesResponses, LookupWordStatesData, LookupWordStatesErrors, LookupWordStatesResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, PairAnkiProfileData, PairAnkiProfileErrors, PairAnkiProfileResponses, ParseData, ParseErrors, ParseResponses, PrepareAnkiPublicationsData, PrepareAnkiPublicationsErrors, PrepareAnkiPublicationsResponses, RefreshAnkiCollectionSettingsData, RefreshAnkiCollectionSettingsErrors, RefreshAnkiCollectionSettingsResponses, ReplaceDictionaryStackData, ReplaceDictionaryStackErrors, ReplaceDictionaryStackResponses, RequestAnkiNoteDeletionData, RequestAnkiNoteDeletionErrors, RequestAnkiNoteDeletionResponses, RequestAnkiReviewUndoData, RequestAnkiReviewUndoErrors, RequestAnkiReviewUndoResponses, RevokeOwnKeyData, RevokeOwnKeyErrors, RevokeOwnKeyResponses, SaveCardData, SaveCardErrors, SaveCardResponses, SearchData, SearchErrors, SearchResponses, SelectAnkiDeckData, SelectAnkiDeckErrors, SelectAnkiDeckResponses, SetWordStateData, SetWordStateErrors, SetWordStateResponses, StartAnkiSnapshotData, StartAnkiSnapshotErrors, StartAnkiSnapshotResponses, StartStudySessionData, StartStudySessionErrors, StartStudySessionResponses, StudyStatsData, StudyStatsErrors, StudyStatsResponses, UndoLatestReviewData, UndoLatestReviewErrors, UndoLatestReviewResponses, UnlinkAnkiProfileData, UnlinkAnkiProfileErrors, UnlinkAnkiProfileResponses, UnsaveWordData, UnsaveWordErrors, UnsaveWordResponses, UpdateCardData, UpdateCardErrors, UpdateCardResponses, UpdateDeckData, UpdateDeckErrors, UpdateDeckResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UploadAnkiMediaFileData, UploadAnkiMediaFileErrors, UploadAnkiMediaFileResponses, UpsertWordNoteData, UpsertWordNoteErrors, UpsertWordNoteResponses } from './types.gen.js';
+import type { AcknowledgeAnkiChangesData, AcknowledgeAnkiChangesErrors, AcknowledgeAnkiChangesResponses, ApplyAnkiBatchData, ApplyAnkiBatchErrors, ApplyAnkiBatchResponses, BulkAddSearchData, BulkAddSearchErrors, BulkAddSearchResponses, BulkUpdateCardsData, BulkUpdateCardsErrors, BulkUpdateCardsResponses, CallMcpData, CallMcpErrors, CallMcpResponses, CancelAnkiNoteDeletionData, CancelAnkiNoteDeletionErrors, CancelAnkiNoteDeletionResponses, CancelAnkiReviewUndoData, CancelAnkiReviewUndoErrors, CancelAnkiReviewUndoResponses, CreateDeckData, CreateDeckErrors, CreateDeckResponses, DeleteAnkiMediaFileData, DeleteAnkiMediaFileErrors, DeleteAnkiMediaFileResponses, DeleteCardData, DeleteCardErrors, DeleteCardResponses, DeleteDeckData, DeleteDeckErrors, DeleteDeckResponses, DeleteDictionaryData, DeleteDictionaryErrors, DeleteDictionaryImportData, DeleteDictionaryImportErrors, DeleteDictionaryImportResponses, DeleteDictionaryResponses, DeleteWordNoteData, DeleteWordNoteErrors, DeleteWordNoteResponses, DeliverAnkiChangesData, DeliverAnkiChangesErrors, DeliverAnkiChangesResponses, DownloadAnkiMediaFileData, DownloadAnkiMediaFileErrors, DownloadAnkiMediaFileResponses, DownloadShirabeDictionaryPackData, DownloadShirabeDictionaryPackErrors, DownloadShirabeDictionaryPackResponses, DueQueueData, DueQueueErrors, DueQueueResponses, EndStudySessionData, EndStudySessionErrors, EndStudySessionResponses, FinishAnkiSnapshotData, FinishAnkiSnapshotErrors, FinishAnkiSnapshotResponses, GetAnkiBatchReceiptData, GetAnkiBatchReceiptErrors, GetAnkiBatchReceiptResponses, GetAnkiCardConflictComparisonData, GetAnkiCardConflictComparisonErrors, GetAnkiCardConflictComparisonResponses, GetAnkiCardConflictData, GetAnkiCardConflictErrors, GetAnkiCardConflictResponses, GetAnkiDeliveryReceiptData, GetAnkiDeliveryReceiptErrors, GetAnkiDeliveryReceiptResponses, GetAnkiNoteConflictData, GetAnkiNoteConflictErrors, GetAnkiNoteConflictResponses, GetAnkiNoteDeletionData, GetAnkiNoteDeletionErrors, GetAnkiNoteDeletionResponses, GetAnkiReviewUndoData, GetAnkiReviewUndoErrors, GetAnkiReviewUndoResponses, GetCardData, GetCardErrors, GetCardResponses, GetCurrentDictionaryPackData, GetCurrentDictionaryPackErrors, GetCurrentDictionaryPackResponses, GetDictionaryImportData, GetDictionaryImportErrors, GetDictionaryImportResponses, GetDictionaryPackData, GetDictionaryPackErrors, GetDictionaryPackResponses, GetDictionaryStackData, GetDictionaryStackErrors, GetDictionaryStackResponses, GetForecastData, GetForecastErrors, GetForecastResponses, GetKanjiData, GetKanjiErrors, GetKanjiRadicalData, GetKanjiRadicalErrors, GetKanjiRadicalResponses, GetKanjiResponses, GetMeData, GetMeErrors, GetMeResponses, GetParseOperationData, GetParseOperationErrors, GetParseOperationResponses, GetPreferencesData, GetPreferencesErrors, GetPreferencesResponses, GetReaderHostRulesData, GetReaderHostRulesErrors, GetReaderHostRulesResponses, GetSentenceData, GetSentenceErrors, GetSentenceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetStudySessionData, GetStudySessionErrors, GetStudySessionResponses, GetWordData, GetWordErrors, GetWordResponses, GradeCardData, GradeCardErrors, GradeCardResponses, IdentifyWordData, IdentifyWordErrors, IdentifyWordResponses, IdentifyWordsData, IdentifyWordsErrors, IdentifyWordsResponses, IgnoreWordData, IgnoreWordErrors, IgnoreWordResponses, InspectMcpTransportData, InspectMcpTransportErrors, ListAnkiMediaFilesData, ListAnkiMediaFilesErrors, ListAnkiMediaFilesResponses, ListCardsData, ListCardsErrors, ListCardsResponses, ListDecksData, ListDecksErrors, ListDecksResponses, ListDictionariesData, ListDictionariesErrors, ListDictionariesResponses, ListDictionaryImportsData, ListDictionaryImportsErrors, ListDictionaryImportsResponses, ListDictionaryPacksData, ListDictionaryPacksErrors, ListDictionaryPacksResponses, ListKanjiComponentMatchesData, ListKanjiComponentMatchesErrors, ListKanjiComponentMatchesResponses, ListKanjiComponentsData, ListKanjiComponentsErrors, ListKanjiComponentsResponses, ListKanjiData, ListKanjiErrors, ListKanjiRadicalsData, ListKanjiRadicalsErrors, ListKanjiRadicalsResponses, ListKanjiResponses, ListSentencesData, ListSentencesErrors, ListSentencesResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListWordNotesData, ListWordNotesErrors, ListWordNotesResponses, LookupWordStatesData, LookupWordStatesErrors, LookupWordStatesResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, PairAnkiProfileData, PairAnkiProfileErrors, PairAnkiProfileResponses, ParseData, ParseErrors, ParseResponses, PrepareAnkiPublicationsData, PrepareAnkiPublicationsErrors, PrepareAnkiPublicationsResponses, RefreshAnkiCollectionSettingsData, RefreshAnkiCollectionSettingsErrors, RefreshAnkiCollectionSettingsResponses, ReplaceDictionaryStackData, ReplaceDictionaryStackErrors, ReplaceDictionaryStackResponses, RequestAnkiNoteDeletionData, RequestAnkiNoteDeletionErrors, RequestAnkiNoteDeletionResponses, RequestAnkiReviewUndoData, RequestAnkiReviewUndoErrors, RequestAnkiReviewUndoResponses, RevokeOwnKeyData, RevokeOwnKeyErrors, RevokeOwnKeyResponses, SaveCardData, SaveCardErrors, SaveCardResponses, SearchData, SearchErrors, SearchResponses, SelectAnkiDeckData, SelectAnkiDeckErrors, SelectAnkiDeckResponses, SetWordStateData, SetWordStateErrors, SetWordStateResponses, StartAnkiSnapshotData, StartAnkiSnapshotErrors, StartAnkiSnapshotResponses, StartStudySessionData, StartStudySessionErrors, StartStudySessionResponses, StudyStatsData, StudyStatsErrors, StudyStatsResponses, UndoLatestReviewData, UndoLatestReviewErrors, UndoLatestReviewResponses, UnlinkAnkiProfileData, UnlinkAnkiProfileErrors, UnlinkAnkiProfileResponses, UnsaveWordData, UnsaveWordErrors, UnsaveWordResponses, UpdateCardData, UpdateCardErrors, UpdateCardResponses, UpdateDeckData, UpdateDeckErrors, UpdateDeckResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UploadAnkiMediaFileData, UploadAnkiMediaFileErrors, UploadAnkiMediaFileResponses, UpsertWordNoteData, UpsertWordNoteErrors, UpsertWordNoteResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -25,7 +25,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  */
 export const pairAnkiProfile = <ThrowOnError extends boolean = false>(options: Options<PairAnkiProfileData, ThrowOnError>): RequestResult<PairAnkiProfileResponses, PairAnkiProfileErrors, ThrowOnError> => (options.client ?? client).post<PairAnkiProfileResponses, PairAnkiProfileErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -44,7 +44,7 @@ export const pairAnkiProfile = <ThrowOnError extends boolean = false>(options: O
  */
 export const unlinkAnkiProfile = <ThrowOnError extends boolean = false>(options: Options<UnlinkAnkiProfileData, ThrowOnError>): RequestResult<UnlinkAnkiProfileResponses, UnlinkAnkiProfileErrors, ThrowOnError> => (options.client ?? client).delete<UnlinkAnkiProfileResponses, UnlinkAnkiProfileErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -59,7 +59,7 @@ export const unlinkAnkiProfile = <ThrowOnError extends boolean = false>(options:
  */
 export const finishAnkiSnapshot = <ThrowOnError extends boolean = false>(options: Options<FinishAnkiSnapshotData, ThrowOnError>): RequestResult<FinishAnkiSnapshotResponses, FinishAnkiSnapshotErrors, ThrowOnError> => (options.client ?? client).patch<FinishAnkiSnapshotResponses, FinishAnkiSnapshotErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -78,7 +78,7 @@ export const finishAnkiSnapshot = <ThrowOnError extends boolean = false>(options
  */
 export const startAnkiSnapshot = <ThrowOnError extends boolean = false>(options: Options<StartAnkiSnapshotData, ThrowOnError>): RequestResult<StartAnkiSnapshotResponses, StartAnkiSnapshotErrors, ThrowOnError> => (options.client ?? client).post<StartAnkiSnapshotResponses, StartAnkiSnapshotErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -95,7 +95,7 @@ export const startAnkiSnapshot = <ThrowOnError extends boolean = false>(options:
  */
 export const refreshAnkiCollectionSettings = <ThrowOnError extends boolean = false>(options: Options<RefreshAnkiCollectionSettingsData, ThrowOnError>): RequestResult<RefreshAnkiCollectionSettingsResponses, RefreshAnkiCollectionSettingsErrors, ThrowOnError> => (options.client ?? client).patch<RefreshAnkiCollectionSettingsResponses, RefreshAnkiCollectionSettingsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -114,7 +114,7 @@ export const refreshAnkiCollectionSettings = <ThrowOnError extends boolean = fal
  */
 export const prepareAnkiPublications = <ThrowOnError extends boolean = false>(options: Options<PrepareAnkiPublicationsData, ThrowOnError>): RequestResult<PrepareAnkiPublicationsResponses, PrepareAnkiPublicationsErrors, ThrowOnError> => (options.client ?? client).post<PrepareAnkiPublicationsResponses, PrepareAnkiPublicationsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -133,7 +133,7 @@ export const prepareAnkiPublications = <ThrowOnError extends boolean = false>(op
  */
 export const selectAnkiDeck = <ThrowOnError extends boolean = false>(options: Options<SelectAnkiDeckData, ThrowOnError>): RequestResult<SelectAnkiDeckResponses, SelectAnkiDeckErrors, ThrowOnError> => (options.client ?? client).post<SelectAnkiDeckResponses, SelectAnkiDeckErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -152,7 +152,7 @@ export const selectAnkiDeck = <ThrowOnError extends boolean = false>(options: Op
  */
 export const applyAnkiBatch = <ThrowOnError extends boolean = false>(options: Options<ApplyAnkiBatchData, ThrowOnError>): RequestResult<ApplyAnkiBatchResponses, ApplyAnkiBatchErrors, ThrowOnError> => (options.client ?? client).post<ApplyAnkiBatchResponses, ApplyAnkiBatchErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -169,7 +169,7 @@ export const applyAnkiBatch = <ThrowOnError extends boolean = false>(options: Op
  */
 export const getAnkiBatchReceipt = <ThrowOnError extends boolean = false>(options: Options<GetAnkiBatchReceiptData, ThrowOnError>): RequestResult<GetAnkiBatchReceiptResponses, GetAnkiBatchReceiptErrors, ThrowOnError> => (options.client ?? client).get<GetAnkiBatchReceiptResponses, GetAnkiBatchReceiptErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -182,7 +182,7 @@ export const getAnkiBatchReceipt = <ThrowOnError extends boolean = false>(option
  */
 export const listAnkiMediaFiles = <ThrowOnError extends boolean = false>(options: Options<ListAnkiMediaFilesData, ThrowOnError>): RequestResult<ListAnkiMediaFilesResponses, ListAnkiMediaFilesErrors, ThrowOnError> => (options.client ?? client).get<ListAnkiMediaFilesResponses, ListAnkiMediaFilesErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -196,7 +196,7 @@ export const listAnkiMediaFiles = <ThrowOnError extends boolean = false>(options
 export const uploadAnkiMediaFile = <ThrowOnError extends boolean = false>(options: Options<UploadAnkiMediaFileData, ThrowOnError>): RequestResult<UploadAnkiMediaFileResponses, UploadAnkiMediaFileErrors, ThrowOnError> => (options.client ?? client).post<UploadAnkiMediaFileResponses, UploadAnkiMediaFileErrors, ThrowOnError>({
     ...formDataBodySerializer,
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -213,7 +213,7 @@ export const uploadAnkiMediaFile = <ThrowOnError extends boolean = false>(option
  */
 export const deleteAnkiMediaFile = <ThrowOnError extends boolean = false>(options: Options<DeleteAnkiMediaFileData, ThrowOnError>): RequestResult<DeleteAnkiMediaFileResponses, DeleteAnkiMediaFileErrors, ThrowOnError> => (options.client ?? client).delete<DeleteAnkiMediaFileResponses, DeleteAnkiMediaFileErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -230,7 +230,7 @@ export const deleteAnkiMediaFile = <ThrowOnError extends boolean = false>(option
  */
 export const downloadAnkiMediaFile = <ThrowOnError extends boolean = false>(options: Options<DownloadAnkiMediaFileData, ThrowOnError>): RequestResult<DownloadAnkiMediaFileResponses, DownloadAnkiMediaFileErrors, ThrowOnError> => (options.client ?? client).get<DownloadAnkiMediaFileResponses, DownloadAnkiMediaFileErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -243,7 +243,7 @@ export const downloadAnkiMediaFile = <ThrowOnError extends boolean = false>(opti
  */
 export const getAnkiNoteConflict = <ThrowOnError extends boolean = false>(options: Options<GetAnkiNoteConflictData, ThrowOnError>): RequestResult<GetAnkiNoteConflictResponses, GetAnkiNoteConflictErrors, ThrowOnError> => (options.client ?? client).get<GetAnkiNoteConflictResponses, GetAnkiNoteConflictErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -256,7 +256,7 @@ export const getAnkiNoteConflict = <ThrowOnError extends boolean = false>(option
  */
 export const getAnkiCardConflict = <ThrowOnError extends boolean = false>(options: Options<GetAnkiCardConflictData, ThrowOnError>): RequestResult<GetAnkiCardConflictResponses, GetAnkiCardConflictErrors, ThrowOnError> => (options.client ?? client).get<GetAnkiCardConflictResponses, GetAnkiCardConflictErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -269,7 +269,7 @@ export const getAnkiCardConflict = <ThrowOnError extends boolean = false>(option
  */
 export const getAnkiCardConflictComparison = <ThrowOnError extends boolean = false>(options: Options<GetAnkiCardConflictComparisonData, ThrowOnError>): RequestResult<GetAnkiCardConflictComparisonResponses, GetAnkiCardConflictComparisonErrors, ThrowOnError> => (options.client ?? client).get<GetAnkiCardConflictComparisonResponses, GetAnkiCardConflictComparisonErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -288,7 +288,7 @@ export const getAnkiCardConflictComparison = <ThrowOnError extends boolean = fal
  */
 export const requestAnkiNoteDeletion = <ThrowOnError extends boolean = false>(options: Options<RequestAnkiNoteDeletionData, ThrowOnError>): RequestResult<RequestAnkiNoteDeletionResponses, RequestAnkiNoteDeletionErrors, ThrowOnError> => (options.client ?? client).post<RequestAnkiNoteDeletionResponses, RequestAnkiNoteDeletionErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -307,7 +307,7 @@ export const requestAnkiNoteDeletion = <ThrowOnError extends boolean = false>(op
  */
 export const cancelAnkiNoteDeletion = <ThrowOnError extends boolean = false>(options: Options<CancelAnkiNoteDeletionData, ThrowOnError>): RequestResult<CancelAnkiNoteDeletionResponses, CancelAnkiNoteDeletionErrors, ThrowOnError> => (options.client ?? client).delete<CancelAnkiNoteDeletionResponses, CancelAnkiNoteDeletionErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -320,7 +320,7 @@ export const cancelAnkiNoteDeletion = <ThrowOnError extends boolean = false>(opt
  */
 export const getAnkiNoteDeletion = <ThrowOnError extends boolean = false>(options: Options<GetAnkiNoteDeletionData, ThrowOnError>): RequestResult<GetAnkiNoteDeletionResponses, GetAnkiNoteDeletionErrors, ThrowOnError> => (options.client ?? client).get<GetAnkiNoteDeletionResponses, GetAnkiNoteDeletionErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -339,7 +339,7 @@ export const getAnkiNoteDeletion = <ThrowOnError extends boolean = false>(option
  */
 export const requestAnkiReviewUndo = <ThrowOnError extends boolean = false>(options: Options<RequestAnkiReviewUndoData, ThrowOnError>): RequestResult<RequestAnkiReviewUndoResponses, RequestAnkiReviewUndoErrors, ThrowOnError> => (options.client ?? client).post<RequestAnkiReviewUndoResponses, RequestAnkiReviewUndoErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -358,7 +358,7 @@ export const requestAnkiReviewUndo = <ThrowOnError extends boolean = false>(opti
  */
 export const cancelAnkiReviewUndo = <ThrowOnError extends boolean = false>(options: Options<CancelAnkiReviewUndoData, ThrowOnError>): RequestResult<CancelAnkiReviewUndoResponses, CancelAnkiReviewUndoErrors, ThrowOnError> => (options.client ?? client).delete<CancelAnkiReviewUndoResponses, CancelAnkiReviewUndoErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -371,7 +371,7 @@ export const cancelAnkiReviewUndo = <ThrowOnError extends boolean = false>(optio
  */
 export const getAnkiReviewUndo = <ThrowOnError extends boolean = false>(options: Options<GetAnkiReviewUndoData, ThrowOnError>): RequestResult<GetAnkiReviewUndoResponses, GetAnkiReviewUndoErrors, ThrowOnError> => (options.client ?? client).get<GetAnkiReviewUndoResponses, GetAnkiReviewUndoErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -386,7 +386,7 @@ export const getAnkiReviewUndo = <ThrowOnError extends boolean = false>(options:
  */
 export const deliverAnkiChanges = <ThrowOnError extends boolean = false>(options: Options<DeliverAnkiChangesData, ThrowOnError>): RequestResult<DeliverAnkiChangesResponses, DeliverAnkiChangesErrors, ThrowOnError> => (options.client ?? client).post<DeliverAnkiChangesResponses, DeliverAnkiChangesErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -403,7 +403,7 @@ export const deliverAnkiChanges = <ThrowOnError extends boolean = false>(options
  */
 export const getAnkiDeliveryReceipt = <ThrowOnError extends boolean = false>(options: Options<GetAnkiDeliveryReceiptData, ThrowOnError>): RequestResult<GetAnkiDeliveryReceiptResponses, GetAnkiDeliveryReceiptErrors, ThrowOnError> => (options.client ?? client).get<GetAnkiDeliveryReceiptResponses, GetAnkiDeliveryReceiptErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -418,7 +418,7 @@ export const getAnkiDeliveryReceipt = <ThrowOnError extends boolean = false>(opt
  */
 export const acknowledgeAnkiChanges = <ThrowOnError extends boolean = false>(options: Options<AcknowledgeAnkiChangesData, ThrowOnError>): RequestResult<AcknowledgeAnkiChangesResponses, AcknowledgeAnkiChangesErrors, ThrowOnError> => (options.client ?? client).post<AcknowledgeAnkiChangesResponses, AcknowledgeAnkiChangesErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -584,7 +584,7 @@ export const oauthDeviceAuthorization = <ThrowOnError extends boolean = false>(o
  */
 export const search = <ThrowOnError extends boolean = false>(options: Options<SearchData, ThrowOnError>): RequestResult<SearchResponses, SearchErrors, ThrowOnError> => (options.client ?? client).post<SearchResponses, SearchErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -612,7 +612,7 @@ export const search = <ThrowOnError extends boolean = false>(options: Options<Se
  */
 export const identifyWord = <ThrowOnError extends boolean = false>(options: Options<IdentifyWordData, ThrowOnError>): RequestResult<IdentifyWordResponses, IdentifyWordErrors, ThrowOnError> => (options.client ?? client).post<IdentifyWordResponses, IdentifyWordErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -642,7 +642,7 @@ export const identifyWord = <ThrowOnError extends boolean = false>(options: Opti
  */
 export const parse = <ThrowOnError extends boolean = false>(options: Options<ParseData, ThrowOnError>): RequestResult<ParseResponses, ParseErrors, ThrowOnError> => (options.client ?? client).post<ParseResponses, ParseErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -661,7 +661,7 @@ export const parse = <ThrowOnError extends boolean = false>(options: Options<Par
  */
 export const getParseOperation = <ThrowOnError extends boolean = false>(options: Options<GetParseOperationData, ThrowOnError>): RequestResult<GetParseOperationResponses, GetParseOperationErrors, ThrowOnError> => (options.client ?? client).get<GetParseOperationResponses, GetParseOperationErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -682,7 +682,7 @@ export const getParseOperation = <ThrowOnError extends boolean = false>(options:
  */
 export const unsaveWord = <ThrowOnError extends boolean = false>(options: Options<UnsaveWordData, ThrowOnError>): RequestResult<UnsaveWordResponses, UnsaveWordErrors, ThrowOnError> => (options.client ?? client).delete<UnsaveWordResponses, UnsaveWordErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -707,7 +707,7 @@ export const unsaveWord = <ThrowOnError extends boolean = false>(options: Option
  */
 export const saveCard = <ThrowOnError extends boolean = false>(options: Options<SaveCardData, ThrowOnError>): RequestResult<SaveCardResponses, SaveCardErrors, ThrowOnError> => (options.client ?? client).post<SaveCardResponses, SaveCardErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -730,7 +730,7 @@ export const saveCard = <ThrowOnError extends boolean = false>(options: Options<
  */
 export const gradeCard = <ThrowOnError extends boolean = false>(options: Options<GradeCardData, ThrowOnError>): RequestResult<GradeCardResponses, GradeCardErrors, ThrowOnError> => (options.client ?? client).post<GradeCardResponses, GradeCardErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -755,7 +755,7 @@ export const gradeCard = <ThrowOnError extends boolean = false>(options: Options
  */
 export const startStudySession = <ThrowOnError extends boolean = false>(options: Options<StartStudySessionData, ThrowOnError>): RequestResult<StartStudySessionResponses, StartStudySessionErrors, ThrowOnError> => (options.client ?? client).post<StartStudySessionResponses, StartStudySessionErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -774,7 +774,7 @@ export const startStudySession = <ThrowOnError extends boolean = false>(options:
  */
 export const endStudySession = <ThrowOnError extends boolean = false>(options: Options<EndStudySessionData, ThrowOnError>): RequestResult<EndStudySessionResponses, EndStudySessionErrors, ThrowOnError> => (options.client ?? client).delete<EndStudySessionResponses, EndStudySessionErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -793,7 +793,7 @@ export const endStudySession = <ThrowOnError extends boolean = false>(options: O
  */
 export const getStudySession = <ThrowOnError extends boolean = false>(options: Options<GetStudySessionData, ThrowOnError>): RequestResult<GetStudySessionResponses, GetStudySessionErrors, ThrowOnError> => (options.client ?? client).get<GetStudySessionResponses, GetStudySessionErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -816,7 +816,7 @@ export const getStudySession = <ThrowOnError extends boolean = false>(options: O
  */
 export const undoLatestReview = <ThrowOnError extends boolean = false>(options: Options<UndoLatestReviewData, ThrowOnError>): RequestResult<UndoLatestReviewResponses, UndoLatestReviewErrors, ThrowOnError> => (options.client ?? client).delete<UndoLatestReviewResponses, UndoLatestReviewErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -840,7 +840,7 @@ export const undoLatestReview = <ThrowOnError extends boolean = false>(options: 
  */
 export const setWordState = <ThrowOnError extends boolean = false>(options: Options<SetWordStateData, ThrowOnError>): RequestResult<SetWordStateResponses, SetWordStateErrors, ThrowOnError> => (options.client ?? client).post<SetWordStateResponses, SetWordStateErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -862,7 +862,7 @@ export const setWordState = <ThrowOnError extends boolean = false>(options: Opti
  */
 export const lookupWordStates = <ThrowOnError extends boolean = false>(options: Options<LookupWordStatesData, ThrowOnError>): RequestResult<LookupWordStatesResponses, LookupWordStatesErrors, ThrowOnError> => (options.client ?? client).post<LookupWordStatesResponses, LookupWordStatesErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -883,7 +883,7 @@ export const lookupWordStates = <ThrowOnError extends boolean = false>(options: 
  */
 export const listDecks = <ThrowOnError extends boolean = false>(options?: Options<ListDecksData, ThrowOnError>): RequestResult<ListDecksResponses, ListDecksErrors, ThrowOnError> => (options?.client ?? client).get<ListDecksResponses, ListDecksErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -898,7 +898,7 @@ export const listDecks = <ThrowOnError extends boolean = false>(options?: Option
  */
 export const createDeck = <ThrowOnError extends boolean = false>(options: Options<CreateDeckData, ThrowOnError>): RequestResult<CreateDeckResponses, CreateDeckErrors, ThrowOnError> => (options.client ?? client).post<CreateDeckResponses, CreateDeckErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -917,7 +917,7 @@ export const createDeck = <ThrowOnError extends boolean = false>(options: Option
  */
 export const deleteDeck = <ThrowOnError extends boolean = false>(options: Options<DeleteDeckData, ThrowOnError>): RequestResult<DeleteDeckResponses, DeleteDeckErrors, ThrowOnError> => (options.client ?? client).delete<DeleteDeckResponses, DeleteDeckErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -932,7 +932,7 @@ export const deleteDeck = <ThrowOnError extends boolean = false>(options: Option
  */
 export const updateDeck = <ThrowOnError extends boolean = false>(options: Options<UpdateDeckData, ThrowOnError>): RequestResult<UpdateDeckResponses, UpdateDeckErrors, ThrowOnError> => (options.client ?? client).patch<UpdateDeckResponses, UpdateDeckErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -957,7 +957,7 @@ export const updateDeck = <ThrowOnError extends boolean = false>(options: Option
  */
 export const listCards = <ThrowOnError extends boolean = false>(options?: Options<ListCardsData, ThrowOnError>): RequestResult<ListCardsResponses, ListCardsErrors, ThrowOnError> => (options?.client ?? client).get<ListCardsResponses, ListCardsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -979,7 +979,7 @@ export const listCards = <ThrowOnError extends boolean = false>(options?: Option
  */
 export const bulkUpdateCards = <ThrowOnError extends boolean = false>(options: Options<BulkUpdateCardsData, ThrowOnError>): RequestResult<BulkUpdateCardsResponses, BulkUpdateCardsErrors, ThrowOnError> => (options.client ?? client).patch<BulkUpdateCardsResponses, BulkUpdateCardsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1001,7 +1001,7 @@ export const bulkUpdateCards = <ThrowOnError extends boolean = false>(options: O
  */
 export const deleteCard = <ThrowOnError extends boolean = false>(options: Options<DeleteCardData, ThrowOnError>): RequestResult<DeleteCardResponses, DeleteCardErrors, ThrowOnError> => (options.client ?? client).delete<DeleteCardResponses, DeleteCardErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1016,7 +1016,7 @@ export const deleteCard = <ThrowOnError extends boolean = false>(options: Option
  */
 export const getCard = <ThrowOnError extends boolean = false>(options: Options<GetCardData, ThrowOnError>): RequestResult<GetCardResponses, GetCardErrors, ThrowOnError> => (options.client ?? client).get<GetCardResponses, GetCardErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1036,7 +1036,7 @@ export const getCard = <ThrowOnError extends boolean = false>(options: Options<G
  */
 export const updateCard = <ThrowOnError extends boolean = false>(options: Options<UpdateCardData, ThrowOnError>): RequestResult<UpdateCardResponses, UpdateCardErrors, ThrowOnError> => (options.client ?? client).patch<UpdateCardResponses, UpdateCardErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1059,7 +1059,7 @@ export const updateCard = <ThrowOnError extends boolean = false>(options: Option
  */
 export const dueQueue = <ThrowOnError extends boolean = false>(options?: Options<DueQueueData, ThrowOnError>): RequestResult<DueQueueResponses, DueQueueErrors, ThrowOnError> => (options?.client ?? client).get<DueQueueResponses, DueQueueErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1076,7 +1076,7 @@ export const dueQueue = <ThrowOnError extends boolean = false>(options?: Options
  */
 export const studyStats = <ThrowOnError extends boolean = false>(options?: Options<StudyStatsData, ThrowOnError>): RequestResult<StudyStatsResponses, StudyStatsErrors, ThrowOnError> => (options?.client ?? client).get<StudyStatsResponses, StudyStatsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1091,7 +1091,7 @@ export const studyStats = <ThrowOnError extends boolean = false>(options?: Optio
  */
 export const getSettings = <ThrowOnError extends boolean = false>(options?: Options<GetSettingsData, ThrowOnError>): RequestResult<GetSettingsResponses, GetSettingsErrors, ThrowOnError> => (options?.client ?? client).get<GetSettingsResponses, GetSettingsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1109,7 +1109,7 @@ export const getSettings = <ThrowOnError extends boolean = false>(options?: Opti
  */
 export const updateSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateSettingsData, ThrowOnError>): RequestResult<UpdateSettingsResponses, UpdateSettingsErrors, ThrowOnError> => (options.client ?? client).patch<UpdateSettingsResponses, UpdateSettingsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1130,7 +1130,7 @@ export const updateSettings = <ThrowOnError extends boolean = false>(options: Op
  */
 export const getForecast = <ThrowOnError extends boolean = false>(options?: Options<GetForecastData, ThrowOnError>): RequestResult<GetForecastResponses, GetForecastErrors, ThrowOnError> => (options?.client ?? client).get<GetForecastResponses, GetForecastErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1147,7 +1147,7 @@ export const getForecast = <ThrowOnError extends boolean = false>(options?: Opti
  */
 export const listWordNotes = <ThrowOnError extends boolean = false>(options?: Options<ListWordNotesData, ThrowOnError>): RequestResult<ListWordNotesResponses, ListWordNotesErrors, ThrowOnError> => (options?.client ?? client).get<ListWordNotesResponses, ListWordNotesErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1162,7 +1162,7 @@ export const listWordNotes = <ThrowOnError extends boolean = false>(options?: Op
  */
 export const upsertWordNote = <ThrowOnError extends boolean = false>(options: Options<UpsertWordNoteData, ThrowOnError>): RequestResult<UpsertWordNoteResponses, UpsertWordNoteErrors, ThrowOnError> => (options.client ?? client).post<UpsertWordNoteResponses, UpsertWordNoteErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1181,7 +1181,7 @@ export const upsertWordNote = <ThrowOnError extends boolean = false>(options: Op
  */
 export const deleteWordNote = <ThrowOnError extends boolean = false>(options: Options<DeleteWordNoteData, ThrowOnError>): RequestResult<DeleteWordNoteResponses, DeleteWordNoteErrors, ThrowOnError> => (options.client ?? client).delete<DeleteWordNoteResponses, DeleteWordNoteErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1198,7 +1198,7 @@ export const deleteWordNote = <ThrowOnError extends boolean = false>(options: Op
  */
 export const ignoreWord = <ThrowOnError extends boolean = false>(options: Options<IgnoreWordData, ThrowOnError>): RequestResult<IgnoreWordResponses, IgnoreWordErrors, ThrowOnError> => (options.client ?? client).post<IgnoreWordResponses, IgnoreWordErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1221,7 +1221,7 @@ export const ignoreWord = <ThrowOnError extends boolean = false>(options: Option
  */
 export const bulkAddSearch = <ThrowOnError extends boolean = false>(options: Options<BulkAddSearchData, ThrowOnError>): RequestResult<BulkAddSearchResponses, BulkAddSearchErrors, ThrowOnError> => (options.client ?? client).post<BulkAddSearchResponses, BulkAddSearchErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1267,7 +1267,7 @@ export const bulkAddSearch = <ThrowOnError extends boolean = false>(options: Opt
  */
 export const identifyWords = <ThrowOnError extends boolean = false>(options: Options<IdentifyWordsData, ThrowOnError>): RequestResult<IdentifyWordsResponses, IdentifyWordsErrors, ThrowOnError> => (options.client ?? client).post<IdentifyWordsResponses, IdentifyWordsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1300,7 +1300,7 @@ export const identifyWords = <ThrowOnError extends boolean = false>(options: Opt
  */
 export const getWord = <ThrowOnError extends boolean = false>(options: Options<GetWordData, ThrowOnError>): RequestResult<GetWordResponses, GetWordErrors, ThrowOnError> => (options.client ?? client).get<GetWordResponses, GetWordErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1323,7 +1323,7 @@ export const getWord = <ThrowOnError extends boolean = false>(options: Options<G
 export const listSentences = <ThrowOnError extends boolean = false>(options?: Options<ListSentencesData, ThrowOnError>): RequestResult<ListSentencesResponses, ListSentencesErrors, ThrowOnError> => (options?.client ?? client).get<ListSentencesResponses, ListSentencesErrors, ThrowOnError>({
     querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1339,7 +1339,7 @@ export const listSentences = <ThrowOnError extends boolean = false>(options?: Op
 export const getSentence = <ThrowOnError extends boolean = false>(options: Options<GetSentenceData, ThrowOnError>): RequestResult<GetSentenceResponses, GetSentenceErrors, ThrowOnError> => (options.client ?? client).get<GetSentenceResponses, GetSentenceErrors, ThrowOnError>({
     querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1358,7 +1358,7 @@ export const getSentence = <ThrowOnError extends boolean = false>(options: Optio
  */
 export const listTags = <ThrowOnError extends boolean = false>(options?: Options<ListTagsData, ThrowOnError>): RequestResult<ListTagsResponses, ListTagsErrors, ThrowOnError> => (options?.client ?? client).get<ListTagsResponses, ListTagsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1376,7 +1376,7 @@ export const listTags = <ThrowOnError extends boolean = false>(options?: Options
  */
 export const listDictionaries = <ThrowOnError extends boolean = false>(options?: Options<ListDictionariesData, ThrowOnError>): RequestResult<ListDictionariesResponses, ListDictionariesErrors, ThrowOnError> => (options?.client ?? client).get<ListDictionariesResponses, ListDictionariesErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1391,7 +1391,7 @@ export const listDictionaries = <ThrowOnError extends boolean = false>(options?:
  */
 export const deleteDictionary = <ThrowOnError extends boolean = false>(options: Options<DeleteDictionaryData, ThrowOnError>): RequestResult<DeleteDictionaryResponses, DeleteDictionaryErrors, ThrowOnError> => (options.client ?? client).delete<DeleteDictionaryResponses, DeleteDictionaryErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1406,7 +1406,7 @@ export const deleteDictionary = <ThrowOnError extends boolean = false>(options: 
  */
 export const getDictionaryStack = <ThrowOnError extends boolean = false>(options?: Options<GetDictionaryStackData, ThrowOnError>): RequestResult<GetDictionaryStackResponses, GetDictionaryStackErrors, ThrowOnError> => (options?.client ?? client).get<GetDictionaryStackResponses, GetDictionaryStackErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1421,7 +1421,7 @@ export const getDictionaryStack = <ThrowOnError extends boolean = false>(options
  */
 export const replaceDictionaryStack = <ThrowOnError extends boolean = false>(options: Options<ReplaceDictionaryStackData, ThrowOnError>): RequestResult<ReplaceDictionaryStackResponses, ReplaceDictionaryStackErrors, ThrowOnError> => (options.client ?? client).put<ReplaceDictionaryStackResponses, ReplaceDictionaryStackErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1438,7 +1438,7 @@ export const replaceDictionaryStack = <ThrowOnError extends boolean = false>(opt
  */
 export const listDictionaryImports = <ThrowOnError extends boolean = false>(options?: Options<ListDictionaryImportsData, ThrowOnError>): RequestResult<ListDictionaryImportsResponses, ListDictionaryImportsErrors, ThrowOnError> => (options?.client ?? client).get<ListDictionaryImportsResponses, ListDictionaryImportsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1447,31 +1447,11 @@ export const listDictionaryImports = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
- * Import a personal Yomitan dictionary
- *
- * Uploads one ZIP archive and returns an asynchronous import resource.
- */
-export const createDictionaryImport = <ThrowOnError extends boolean = false>(options: Options<CreateDictionaryImportData, ThrowOnError>): RequestResult<CreateDictionaryImportResponses, CreateDictionaryImportErrors, ThrowOnError> => (options.client ?? client).post<CreateDictionaryImportResponses, CreateDictionaryImportErrors, ThrowOnError>({
-    ...formDataBodySerializer,
-    security: [{
-            key: 'ApiKeyAuth',
-            scheme: 'bearer',
-            type: 'http'
-        }],
-    url: '/api/v1/dictionary-imports',
-    ...options,
-    headers: {
-        'Content-Type': null,
-        ...options.headers
-    }
-});
-
-/**
  * Delete a queued or failed personal dictionary import
  */
 export const deleteDictionaryImport = <ThrowOnError extends boolean = false>(options: Options<DeleteDictionaryImportData, ThrowOnError>): RequestResult<DeleteDictionaryImportResponses, DeleteDictionaryImportErrors, ThrowOnError> => (options.client ?? client).delete<DeleteDictionaryImportResponses, DeleteDictionaryImportErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1484,7 +1464,7 @@ export const deleteDictionaryImport = <ThrowOnError extends boolean = false>(opt
  */
 export const getDictionaryImport = <ThrowOnError extends boolean = false>(options: Options<GetDictionaryImportData, ThrowOnError>): RequestResult<GetDictionaryImportResponses, GetDictionaryImportErrors, ThrowOnError> => (options.client ?? client).get<GetDictionaryImportResponses, GetDictionaryImportErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1496,12 +1476,14 @@ export const getDictionaryImport = <ThrowOnError extends boolean = false>(option
  * List offline dictionary packs available to the account
  *
  * Returns the structured account dictionary stack and the shared base pack
- * plus every membership-gated personal overlay available offline.
+ * plus every membership-gated personal overlay available offline. A missing or
+ * stale personal overlay is built after the request and returns 202 with its
+ * slug in `pendingPacks`.
  *
  */
 export const listDictionaryPacks = <ThrowOnError extends boolean = false>(options?: Options<ListDictionaryPacksData, ThrowOnError>): RequestResult<ListDictionaryPacksResponses, ListDictionaryPacksErrors, ThrowOnError> => (options?.client ?? client).get<ListDictionaryPacksResponses, ListDictionaryPacksErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1537,7 +1519,7 @@ export const downloadShirabeDictionaryPack = <ThrowOnError extends boolean = fal
  */
 export const getDictionaryPack = <ThrowOnError extends boolean = false>(options: Options<GetDictionaryPackData, ThrowOnError>): RequestResult<GetDictionaryPackResponses, GetDictionaryPackErrors, ThrowOnError> => (options.client ?? client).get<GetDictionaryPackResponses, GetDictionaryPackErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1562,7 +1544,7 @@ export const getReaderHostRules = <ThrowOnError extends boolean = false>(options
  */
 export const getMe = <ThrowOnError extends boolean = false>(options?: Options<GetMeData, ThrowOnError>): RequestResult<GetMeResponses, GetMeErrors, ThrowOnError> => (options?.client ?? client).get<GetMeResponses, GetMeErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1591,7 +1573,7 @@ export const getMe = <ThrowOnError extends boolean = false>(options?: Options<Ge
  */
 export const revokeOwnKey = <ThrowOnError extends boolean = false>(options?: Options<RevokeOwnKeyData, ThrowOnError>): RequestResult<RevokeOwnKeyResponses, RevokeOwnKeyErrors, ThrowOnError> => (options?.client ?? client).delete<RevokeOwnKeyResponses, RevokeOwnKeyErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1604,7 +1586,7 @@ export const revokeOwnKey = <ThrowOnError extends boolean = false>(options?: Opt
  */
 export const getPreferences = <ThrowOnError extends boolean = false>(options?: Options<GetPreferencesData, ThrowOnError>): RequestResult<GetPreferencesResponses, GetPreferencesErrors, ThrowOnError> => (options?.client ?? client).get<GetPreferencesResponses, GetPreferencesErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1622,7 +1604,7 @@ export const getPreferences = <ThrowOnError extends boolean = false>(options?: O
  */
 export const updatePreferences = <ThrowOnError extends boolean = false>(options: Options<UpdatePreferencesData, ThrowOnError>): RequestResult<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError> => (options.client ?? client).patch<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1649,7 +1631,7 @@ export const updatePreferences = <ThrowOnError extends boolean = false>(options:
  */
 export const listKanji = <ThrowOnError extends boolean = false>(options?: Options<ListKanjiData, ThrowOnError>): RequestResult<ListKanjiResponses, ListKanjiErrors, ThrowOnError> => (options?.client ?? client).get<ListKanjiResponses, ListKanjiErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1664,7 +1646,7 @@ export const listKanji = <ThrowOnError extends boolean = false>(options?: Option
  */
 export const listKanjiRadicals = <ThrowOnError extends boolean = false>(options?: Options<ListKanjiRadicalsData, ThrowOnError>): RequestResult<ListKanjiRadicalsResponses, ListKanjiRadicalsErrors, ThrowOnError> => (options?.client ?? client).get<ListKanjiRadicalsResponses, ListKanjiRadicalsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1679,7 +1661,7 @@ export const listKanjiRadicals = <ThrowOnError extends boolean = false>(options?
  */
 export const getKanjiRadical = <ThrowOnError extends boolean = false>(options: Options<GetKanjiRadicalData, ThrowOnError>): RequestResult<GetKanjiRadicalResponses, GetKanjiRadicalErrors, ThrowOnError> => (options.client ?? client).get<GetKanjiRadicalResponses, GetKanjiRadicalErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1694,7 +1676,7 @@ export const getKanjiRadical = <ThrowOnError extends boolean = false>(options: O
  */
 export const listKanjiComponents = <ThrowOnError extends boolean = false>(options?: Options<ListKanjiComponentsData, ThrowOnError>): RequestResult<ListKanjiComponentsResponses, ListKanjiComponentsErrors, ThrowOnError> => (options?.client ?? client).get<ListKanjiComponentsResponses, ListKanjiComponentsErrors, ThrowOnError>({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1712,7 +1694,7 @@ export const listKanjiComponents = <ThrowOnError extends boolean = false>(option
 export const listKanjiComponentMatches = <ThrowOnError extends boolean = false>(options?: Options<ListKanjiComponentMatchesData, ThrowOnError>): RequestResult<ListKanjiComponentMatchesResponses, ListKanjiComponentMatchesErrors, ThrowOnError> => (options?.client ?? client).get<ListKanjiComponentMatchesResponses, ListKanjiComponentMatchesErrors, ThrowOnError>({
     querySerializer: { parameters: { components: { array: { explode: false } } } },
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1730,7 +1712,7 @@ export const listKanjiComponentMatches = <ThrowOnError extends boolean = false>(
 export const getKanji = <ThrowOnError extends boolean = false>(options: Options<GetKanjiData, ThrowOnError>): RequestResult<GetKanjiResponses, GetKanjiErrors, ThrowOnError> => (options.client ?? client).get<GetKanjiResponses, GetKanjiErrors, ThrowOnError>({
     querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],

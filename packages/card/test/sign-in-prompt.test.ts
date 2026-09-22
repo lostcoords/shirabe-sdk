@@ -9,7 +9,7 @@ test("each device-flow prompt exposes selectable URL and code without clipboard 
   Object.defineProperty(window.navigator, "clipboard", { value: undefined });
   const verification = "https://shirabe.org/link?code=FST7-4RZ3";
   const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: window.localStorage, fetch: async (url) => Response.json(
-    String(url).endsWith("/device_authorization")
+    (url instanceof Request ? url.url : String(url)).endsWith("/device_authorization")
       ? { device_code: "private-device-code", user_code: "FST7-4RZ3", verification_uri_complete: verification, interval: 0.001, expires_in: 600 }
       : { access_token: "private-access-token", expires_in: 3600 },
   ) });

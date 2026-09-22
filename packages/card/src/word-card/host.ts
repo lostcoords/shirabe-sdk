@@ -70,7 +70,13 @@ export type LookupContext = {
 
 export type LookupPending = { status: "pending"; message: string };
 export type LookupFailed = { status: "failed"; message: string };
-export type LookupFound = { status: "found"; definition: Definition | null; candidates?: TokenCandidate[] };
+export type LookupFound = {
+  status: "found";
+  definition: Definition | null;
+  candidates?: TokenCandidate[];
+  /** Complete ranked alternatives for hosts that can show one Yomitan-style result stack. */
+  alternatives?: Definition[];
+};
 export type LookupUnavailable = { status: "unavailable"; message: string; action: { label: string; url: string } };
 export type LookupResult = LookupFound | LookupPending | LookupFailed | LookupUnavailable;
 

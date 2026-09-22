@@ -60,6 +60,53 @@ test("the popup renders source tags on their matching sense and term", async () 
   assert.match(shadow.querySelector(".sb-source-tags")?.getAttribute("title") ?? "", /publisher note/);
 });
 
+test("pitch uses compact mora overlines instead of a graph", async () => {
+  const { card, window } = await page();
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const morae = [...shadow.querySelectorAll(".sb-pitch-mora")];
+  assert.deepEqual(morae.map((mora) => mora.textContent), ["た", "べ", "る"]);
+  assert.equal(morae[0]!.classList.contains("sb-pitch-high"), false);
+  assert.equal(morae[1]!.classList.contains("sb-pitch-high"), true);
+  assert.equal(morae[1]!.classList.contains("sb-pitch-drop"), true);
+  assert.equal(shadow.querySelector(".sb-pitch-svg"), null);
+  assert.equal(shadow.querySelector(".sb-pitch-num")?.textContent, "[2]");
+});
+
+test("a host with complete alternatives renders one scrollable result stack", async () => {
+  const { card, window } = await page();
+  const alternative = {
+    ...taberu,
+    headword: "他べる",
+    reading: "ほかべる",
+    entry: "jmdict:alternative",
+    pitch: [],
+    senses: [{ ...taberu.senses[0]!, glosses: [{ lang: "eng" as const, tag: "EN", text: "an alternative match" }] }],
+  };
+  const host = fakeHost({ study: false, definitions: { "食べる": taberu, "jmdict:alternative": alternative } });
+  host.lookup = async () => ({
+    status: "found",
+    definition: taberu,
+    alternatives: [taberu, alternative],
+    candidates: [
+      { entry: taberu.entry!, headword: taberu.headword, reading: taberu.reading, common: true },
+      { entry: alternative.entry!, headword: alternative.headword, reading: alternative.reading, common: false },
+    ],
+  });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelector(".sb-candidates"), null);
+  assert.equal(shadow.querySelector(".sb-alternatives-label")?.textContent, "Other matches");
+  assert.match(shadow.querySelector(".sb-alternative")?.textContent ?? "", /an alternative match/);
+  assert.equal(shadow.querySelector(".sb-alternative-headword")?.textContent, "他べるほかべる");
+});
+
 test("the popup keeps matching source pairs separated by dictionary", async () => {
   const { card, window } = await page();
   const first = { name: "arch", category: "register", notes: "first", order: 1, score: 1 };

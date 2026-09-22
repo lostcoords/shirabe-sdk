@@ -1,8 +1,9 @@
 import { apiHost } from "./api-host.js";
+import { createCardApiClient } from "./api-client.js";
 import { glossLanguagesFrom } from "./languages.js";
 import type { Link } from "./link.js";
 import type { LookupResult, WordCardHost } from "./host.js";
-import type { GetDictionaryStackResponse, GetMeResponse } from "@shirabe-org/api";
+import { getDictionaryStack } from "@shirabe-org/api";
 
 type Preferences = { languages: string[]; dictionaryReveal: Record<string, "show" | "hover"> };
 
@@ -12,6 +13,7 @@ class ConnectionRequired extends Error {}
 export function createAnkiHost(options: { apiBase: string; link: Link; now?: () => number }): WordCardHost {
   const now = options.now ?? Date.now;
   const base = options.apiBase.replace(/\/$/, "");
+  const client = createCardApiClient({ apiBase: base, fetch: options.link.fetch });
   const fallback = apiHost(options);
   let cached: { host: WordCardHost; preferences: Preferences; expires: number } | undefined;
   let loading: Promise<NonNullable<typeof cached>> | undefined;
@@ -27,18 +29,18 @@ export function createAnkiHost(options: { apiBase: string; link: Link; now?: () 
     if (loading) return loading;
     const requested = revision;
     loading = (async () => {
-      const [meResponse, stackResponse] = await Promise.all([
-        options.link.fetch(`${base}/api/v1/me`, { headers: { Accept: "application/json" } }),
-        options.link.fetch(`${base}/api/v1/dictionary-stack`, { headers: { Accept: "application/json" } }),
-      ]);
-      if ([meResponse.status, stackResponse.status].some((status) => status === 401 || status === 403)) {
+      // The stack is both the data we need and proof of its own permission.
+      // Fetching `/me` just to inspect an identity scope made a generic card
+      // request unrelated data, and required an extra OAuth permission.
+      const result = await getDictionaryStack({ client });
+      const status = result.response?.status;
+      if ([401, 403].includes(status ?? 0)) {
         reconnect = true;
         throw new ConnectionRequired("Reconnect to use your dictionary preferences and uploaded dictionaries.");
       }
-      if (!meResponse.ok || !stackResponse.ok) throw new Error("Couldn't load your dictionary settings. Try again.");
-      const me = await meResponse.json() as GetMeResponse;
-      const stack = (await stackResponse.json() as GetDictionaryStackResponse).dictionaryStack;
-      if (!me.credential?.scopes?.includes("user:profile:read") || !stack) {
+      if (result.error || !result.data) throw new Error("Couldn't load your dictionary settings. Try again.");
+      const stack = result.data.dictionaryStack;
+      if (!stack) {
         reconnect = true;
         throw new ConnectionRequired("Reconnect to use your dictionary preferences and uploaded dictionaries.");
       }

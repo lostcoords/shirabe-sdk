@@ -30,8 +30,9 @@ type Call = { url: string; body: Record<string, string> };
 /** A server that answers the device flow, recording what it was asked. */
 function server(script: Array<Record<string, unknown>>, calls: Call[] = []) {
   const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    const body = init?.body ? JSON.parse(String(init.body)) : {};
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = request.url;
+    const body = request.body ? await request.clone().json() as Record<string, string> : {};
     calls.push({ url, body });
     const next = script.shift() ?? { status: 404 };
     return new Response(JSON.stringify(next.body ?? {}), { status: (next.status as number) ?? 200 });
@@ -53,9 +54,10 @@ test("signing out during renewal rejects the old request without restoring its s
   store.setItem("shirabe.link", JSON.stringify({ access: "old", refresh: "live", expiresAt: 0 }));
   let release!: (response: Response) => void;
   const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: store,
-    fetch: async (url) => String(url).endsWith("/oauth/token") ? new Promise<Response>((resolve) => { release = resolve; }) : new Response("{}") });
+    fetch: async (url) => (url instanceof Request ? url.url : String(url)).endsWith("/oauth/token") ? new Promise<Response>((resolve) => { release = resolve; }) : new Response("{}") });
   const request = link.fetch("https://shirabe.org/a");
   const rejected = assert.rejects(request, { name: "AbortError" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
   link.signOut();
   release(new Response(JSON.stringify({ access_token: "late", expires_in: 3600 })));
   await rejected;
@@ -67,7 +69,7 @@ test("concurrent sign-ins share one authorization and give every caller the prom
   let starts = 0;
   const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: memory(),
     fetch: async (url) => {
-      if (String(url).endsWith("/device_authorization")) {
+      if ((url instanceof Request ? url.url : String(url)).endsWith("/device_authorization")) {
         starts++;
         return new Response(JSON.stringify({ ...started.body, interval: 0.001 }));
       }
@@ -105,10 +107,11 @@ test("a cancelled approval response cannot overwrite a subsequent sign-in", asyn
   const reached = new Promise<void>((resolve) => { requested = resolve; });
   const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: store,
     fetch: async (url, init) => {
-      if (JSON.parse(String(init?.body)).device_code === "old") {
+      const request = url instanceof Request ? url : new Request(url, init);
+      if ((await request.clone().json() as { device_code?: string }).device_code === "old") {
         return new Promise<Response>((resolve) => { release = resolve; requested(); });
       }
-      return new Response(JSON.stringify(String(url).endsWith("/device_authorization")
+      return new Response(JSON.stringify((url instanceof Request ? url.url : String(url)).endsWith("/device_authorization")
         ? { ...started.body, interval: 0.001 }
         : { access_token: "new-session", expires_in: 3600 }));
     } });
@@ -126,7 +129,7 @@ test("signing out stops polling without waiting for its next interval", async ()
   let polls = 0;
   const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: memory(),
     fetch: async (url) => {
-      if (String(url).endsWith("/oauth/token")) polls++;
+      if ((url instanceof Request ? url.url : String(url)).endsWith("/oauth/token")) polls++;
       return new Response(JSON.stringify({ ...started.body, interval: 60 }));
     } });
   await assert.rejects(link.signIn(() => queueMicrotask(() => link.signOut())), { name: "AbortError" });
@@ -177,12 +180,13 @@ test("every request carries the reader, and a spent token is renewed once", asyn
   const calls: Call[] = [];
   const sent: Array<string | undefined> = [];
   const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = request.url;
     if (url.endsWith("/oauth/token")) {
-      calls.push({ url, body: JSON.parse(String(init!.body)) });
+      calls.push({ url, body: await request.clone().json() as Record<string, string> });
       return new Response(JSON.stringify({ access_token: "fresh", expires_in: 3600 }), { status: 200 });
     }
-    sent.push((init?.headers as Record<string, string>)?.Authorization);
+    sent.push(request.headers.get("Authorization") ?? undefined);
     return new Response("{}", { status: 200 });
   }) as typeof globalThis.fetch;
 
@@ -221,7 +225,7 @@ test("concurrent requests share one token renewal", async () => {
   store.setItem("shirabe.link", JSON.stringify({ access: "old", refresh: "live", expiresAt: 0 }));
   let renewals = 0;
   const fetch: typeof globalThis.fetch = async (input) => {
-    if (String(input).endsWith("/oauth/token")) {
+    if ((input instanceof Request ? input.url : String(input)).endsWith("/oauth/token")) {
       renewals++;
       await new Promise((resolve) => setTimeout(resolve, 0));
       return new Response(JSON.stringify({ access_token: "fresh", refresh_token: "next", expires_in: 3600 }));
