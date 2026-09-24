@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createShirabeOAuth, SHIRABE_USER_SCOPES } from "../src/oauth.js";
+import { SHIRABE_SCOPES } from "../src/scopes.js";
 
 const secret = "test-state-secret-with-at-least-32-characters";
 const requests: Request[] = [];
@@ -79,6 +80,12 @@ test("typed user scopes match the server's scope list", () => {
   const names = [...userBlock.matchAll(/\b[A-Z][A-Z_]+\b/g)].map((match) => match[0]);
   const server = names.map((name) => source.match(new RegExp(`^  ${name} = "([^"]+)"`, "m"))?.[1]);
   assert.deepEqual([...SHIRABE_USER_SCOPES].sort(), server.sort());
+});
+
+test("the OpenAPI scope vocabulary matches the server", () => {
+  const source = readFileSync(new URL("../../../app/models/api_scopes.rb", import.meta.url), "utf8");
+  const server = [...source.matchAll(/^  [A-Z_]+ = "([^"]+)"/gm)].map((match) => match[1]);
+  assert.deepEqual([...SHIRABE_SCOPES].sort(), server.sort());
 });
 
 // @ts-expect-error Unknown scope names must fail at compile time.

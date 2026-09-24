@@ -2,19 +2,10 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { createShirabeClient } from "./client.js";
 import { oauthRevoke, oauthToken } from "./generated/sdk.gen.js";
 import type { OauthTokenResponse } from "./generated/types.gen.js";
+import { SHIRABE_SCOPES, type ShirabeScope } from "./scopes.js";
 
-export const SHIRABE_USER_SCOPES = [
-  "user:dictionary:read",
-  "user:profile:read",
-  "user:preferences:read",
-  "user:preferences:write",
-  "user:dictionaries:read",
-  "user:dictionaries:write",
-  "user:study:read",
-  "user:study:write",
-] as const;
-
-export type ShirabeUserScope = (typeof SHIRABE_USER_SCOPES)[number];
+export const SHIRABE_USER_SCOPES = SHIRABE_SCOPES.filter((scope): scope is Extract<ShirabeScope, `user:${string}`> => scope.startsWith("user:"));
+export type ShirabeUserScope = Extract<ShirabeScope, `user:${string}`>;
 
 type Flow = { subject: string; verifier: string; expiresAt: number };
 

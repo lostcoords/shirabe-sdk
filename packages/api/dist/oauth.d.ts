@@ -1,6 +1,7 @@
 import type { OauthTokenResponse } from "./generated/types.gen.js";
-export declare const SHIRABE_USER_SCOPES: readonly ["user:dictionary:read", "user:profile:read", "user:preferences:read", "user:preferences:write", "user:dictionaries:read", "user:dictionaries:write", "user:study:read", "user:study:write"];
-export type ShirabeUserScope = (typeof SHIRABE_USER_SCOPES)[number];
+import { type ShirabeScope } from "./scopes.js";
+export declare const SHIRABE_USER_SCOPES: ("user:dictionary:read" | "user:profile:read" | "user:preferences:read" | "user:preferences:write" | "user:dictionaries:read" | "user:dictionaries:write" | "user:study:read" | "user:study:write")[];
+export type ShirabeUserScope = Extract<ShirabeScope, `user:${string}`>;
 export interface ShirabeOAuthConfig {
     baseUrl?: string;
     clientId: string;

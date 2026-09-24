@@ -1,16 +1,8 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { createShirabeClient } from "./client.js";
 import { oauthRevoke, oauthToken } from "./generated/sdk.gen.js";
-export const SHIRABE_USER_SCOPES = [
-    "user:dictionary:read",
-    "user:profile:read",
-    "user:preferences:read",
-    "user:preferences:write",
-    "user:dictionaries:read",
-    "user:dictionaries:write",
-    "user:study:read",
-    "user:study:write",
-];
+import { SHIRABE_SCOPES } from "./scopes.js";
+export const SHIRABE_USER_SCOPES = SHIRABE_SCOPES.filter((scope) => scope.startsWith("user:"));
 export class ShirabeOAuthError extends Error {
     code;
     status;

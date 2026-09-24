@@ -18,9 +18,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./oauth": {
-      "types": "./dist/oauth.d.ts",
-      "import": "./dist/oauth.js"
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
     }
   },
   "main": "./dist/index.js",
@@ -30,7 +30,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "codegen": "../../bin/openapi bundle && openapi-ts",
+    "codegen": "../../bin/openapi bundle && openapi-ts && node scripts/generate-bound-operations.mjs",
     "codegen:check": "../../bin/openapi check-client",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",

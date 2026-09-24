@@ -3,54 +3,52 @@
 Typed TypeScript client for Shirabe's public API. Request bodies, responses,
 errors, and named operations are generated from `openapi/shirabe.yaml`.
 
-```ts
-import { createShirabeClient, search } from "@shirabe-org/api";
-
-const client = createShirabeClient({ accessToken: process.env.SHIRABE_TOKEN });
-const { data, error } = await search({
-  client,
-  body: {
-    query: "猫",
-    filters: {
-      sources: [{ dictionary: "jmdict", languages: ["en"] }],
-    },
-  },
-});
-```
-
-Run `npm run codegen` after changing the OpenAPI contract. Generated files are
-committed so a consumer and the server change together.
-
-## Connect a reader account from a server
-
-The Node-only `@shirabe-org/api/oauth` entry point handles PKCE, sealed callback
-state, resource binding, code exchange, refresh, and revocation. Keep the client
-secret and returned token pair on your server; store the pair in your own database.
+For a server integration, import the Node-only client. It uses the service
+identity for ordinary calls and provides a separate context for each reader.
+The scope names are one typed `ShirabeScope` union. Only `user:` scopes appear
+on the consent screen.
 
 ```ts
-import { createShirabeOAuth } from "@shirabe-org/api/oauth";
+import { createShirabeClient } from "@shirabe-org/api/server";
 
-const oauth = createShirabeOAuth({
+const shirabe = createShirabeClient({
   clientId: process.env.SHIRABE_CLIENT_ID!,
   clientSecret: process.env.SHIRABE_CLIENT_SECRET!,
-  redirectUri: "https://example.com/shirabe/callback",
-  stateSecret: process.env.STATE_SECRET!,
-  scopes: ["user:dictionary:read"],
+  scopes: ["dictionary:read", "user:dictionary:read"],
+  link: {
+    redirectUri: "https://example.com/shirabe/callback",
+    stateSecret: process.env.STATE_SECRET!,
+  },
 });
 
-const { authorizeUrl } = oauth.begin(String(user.id));
-// Redirect the reader to authorizeUrl.
+const parsed = await shirabe.parse({ texts: ["猫"] });
+const reader = shirabe.asUser(storedAccessToken);
+const identified = await reader.identifyWords({ tokens: [{ lemma: "猫" }] });
 
-const tokens = await oauth.complete({ code, state, subject: String(user.id), issuer: iss });
-// Encrypt and store tokens.access_token and tokens.refresh_token in your database.
-
-const renewed = await oauth.refresh(storedRefreshToken);
-await oauth.revoke(storedRefreshToken);
+const { authorizeUrl } = shirabe.link.begin(String(user.id));
+const tokens = await shirabe.link.complete({
+  code, state, subject: String(user.id), issuer: iss,
+});
+// Encrypt and store the access and refresh tokens against your user.
+const renewed = await shirabe.link.refresh(storedRefreshToken);
+await shirabe.link.revoke(storedRefreshToken);
 ```
 
-`subject` binds the callback to the signed-in user who began the flow. Each
-`begin` call creates a fresh PKCE verifier inside encrypted, 15-minute state.
-`scopes` accepts only Shirabe's known user scope names at compile time.
+`link.begin` generates PKCE and encrypted callback state. `link.complete`
+returns credentials; your application stores them and supplies a reader access
+token to `asUser` for each request. `getCredential()` exposes the shared service
+token and its early-renewal deadline for a trusted internal proxy.
+
+Browser and token-only consumers import `createShirabeClient` from the package
+root and pass `accessToken`. Both clients expose named, typed methods generated
+from the OpenAPI operations. Operations with only a request body take that body
+as their first argument; other operation options, such as headers or a signal,
+are the second argument. Operations with path or query parameters take the
+OpenAPI option object.
+
+Run `npm run codegen --workspace @shirabe-org/api` after changing the OpenAPI
+contract. The generator creates endpoint functions, response types, and the
+bound client methods together.
 
 Build and verify it from the repository root:
 
