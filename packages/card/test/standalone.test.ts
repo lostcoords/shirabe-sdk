@@ -742,6 +742,27 @@ test("raw lookup joins mixed inline text and either parsed fragment resolves the
   assert.deepEqual(host.journal.lookups, ["勉強する。", "jmdict:study", "jmdict:study"]);
 });
 
+test("a raw scan can move its highlight from the caret back to the whole word", async () => {
+  const { scanTargetAt } = await import("../src/word-card/scan.js");
+  const { root } = await mount({ options: { lookupDelay: 0 } });
+  root.innerHTML = "<p>勉<a>強</a>する。</p>";
+  const tail = root.querySelector("p")!.lastChild as unknown as Node;
+  const restore = caretOn(tail, 1);
+  try {
+    let target!: NonNullable<ReturnType<typeof scanTargetAt>>;
+    const line = root.querySelector("p")!;
+    line.addEventListener("mousemove", (event) => {
+      target = scanTargetAt(event as unknown as MouseEvent, undefined, root as unknown as HTMLElement)!;
+    }, { once: true });
+    line.dispatchEvent(new window.MouseEvent("mousemove", { bubbles: true }));
+    assert.ok(target);
+    assert.equal(target?.targetStart, 3);
+    assert.equal(target?.at(2)?.node, tail);
+    assert.equal(target?.at(2)?.offset, 0);
+    assert.equal(target?.at(1)?.node, root.querySelector("a")!.firstChild);
+  } finally { restore(); }
+});
+
 test("sign-in from the previous side cannot parse the new contents of a reused root", async () => {
   let signedIn = false;
   let approve!: () => void;

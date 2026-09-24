@@ -3,14 +3,12 @@ import { isReadable, readableRunAt, sentenceAround } from "./wrap.js";
 export { sentenceAround } from "./wrap.js";
 
 /**
- * Turning a pointer over raw text into a lookup, Yomitan-style: no parsing, no
- * spans, no markup of the host's own.
+ * Turning a pointer over raw text into a lookup without adding page markup.
  *
  * This is how a surface with text but no tokenizer reads: an Anki card, a page
  * the extension has not parsed, anything that has Japanese on screen and nothing
- * that has cut it into words. The character under the cursor begins the query
- * and the dictionary picks the longest match from there, so hovering the middle
- * of a word still finds it.
+ * that has cut it into words. The character under the cursor begins the query.
+ * The surrounding sentence and caret offset let a host find the whole word.
  *
  * It lives here rather than in a host because every host needs the same three
  * awkward pieces: the caret at a point, the logical text that follows it across
@@ -74,10 +72,16 @@ export function scanTargetAt(event: MouseEvent, skip = OURS, root: HTMLElement |
   if (!rect.width && !rect.height) return null;
 
   const sentence = sentenceAround(run.text, offset);
-  return { ...caret, query, rect, sentence: sentence.text, targetStart: sentence.targetStart };
+  const at = (sentenceOffset: number) => {
+    const absolute = offset - sentence.targetStart + sentenceOffset;
+    const source = run.nodes.find((part) => part.start <= absolute && absolute < part.start + part.text.length);
+    return source ? { node: source.node, offset: absolute - source.start } : null;
+  };
+  return { ...caret, query, rect, sentence: sentence.text, targetStart: sentence.targetStart, at };
 }
 
-export function scanPointer(event: MouseEvent, skip = OURS, shouldScan?: (event: MouseEvent) => boolean, onScan?: () => void, root?: HTMLElement | Document): boolean {
+export function scanPointer(event: MouseEvent, skip = OURS, shouldScan?: (event: MouseEvent) => boolean, onScan?: () => void,
+  root?: HTMLElement | Document, mode: { immediate?: boolean; contextual?: boolean } = {}): boolean {
   if (shouldScan && !shouldScan(event)) return false;
   if ((event.target as Element | null)?.closest?.(skip)) return false;
   const target = scanTargetAt(event, skip, root);
@@ -86,7 +90,8 @@ export function scanPointer(event: MouseEvent, skip = OURS, shouldScan?: (event:
     return false;
   }
   onScan?.();
-  scheduleTextLookup(target.query, target.rect, target.sentence, target.targetStart, { node: target.node, offset: target.offset });
+  scheduleTextLookup(target.query, target.rect, target.sentence, target.targetStart,
+    { node: target.node, offset: target.offset, at: target.at }, "text", mode);
   return true;
 }
 

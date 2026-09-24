@@ -234,10 +234,6 @@ function element(): HTMLElement {
   box.tabIndex = -1;
   box.addEventListener("keydown", onPopupKeydown);
 
-  // Permanent chrome: one top-right row of back, forward, close. It survives
-  // content swaps, so every state (loading, error, definition) keeps an explicit
-  // close (not only hover-away / click-outside) and the history arrows never
-  // move as the content under them changes.
   const chromeRow = document.createElement("div");
   chromeRow.className = "sb-chrome";
 
@@ -249,17 +245,7 @@ function element(): HTMLElement {
   historyForward.setAttribute("aria-label", "Next lookup");
   refreshHistoryNav();
 
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "sb-btn sb-chrome-button sb-close";
-  close.textContent = "×";
-  close.title = "Close";
-  close.setAttribute("aria-label", "Close");
-  close.addEventListener("click", (event) => {
-    event.stopPropagation();
-    dismiss(true);
-  });
-  chromeRow.append(historyBack, historyForward, close);
+  chromeRow.append(historyBack, historyForward);
 
   content = document.createElement("div");
   content.className = "sb-popup-content";
@@ -368,6 +354,7 @@ function nodeInSafeZone(node: Node | null): boolean {
 export function scheduleShow(word: HTMLElement): void {
   window.clearTimeout(hideTimer);
   window.clearTimeout(showTimer);
+  scheduledScan = null;
   schedulePrefetch(word);
   showTimer = window.setTimeout(() => showWord(word), options.lookupDelay);
 }
@@ -395,17 +382,27 @@ export function showNow(word: HTMLElement): void {
   window.clearTimeout(hideTimer);
   window.clearTimeout(showTimer);
   window.clearTimeout(prefetchTimer);
+  scheduledScan = null;
   showWord(word);
 }
 
 // Yomitan-style lookup without rewriting the page first. The scanner gives us
-// the text window beginning at the caret and the first character's rectangle;
-// the local dictionary chooses the longest/deinflected match. A detached word
+// the text window beginning at the caret and the first character's rectangle. A detached word
 // element carries the same action data contract as parsed `.sb-word` spans.
-export function scheduleTextLookup(query: string, rect: DOMRect, sentence: string, targetStart = 0, anchor?: ScanAnchor, kind: "text" | "word" = "text"): void {
+let scheduledScan: { node?: Text; offset?: number; query: string; sentence: string } | null = null;
+
+export function scheduleTextLookup(query: string, rect: DOMRect, sentence: string, targetStart = 0, anchor?: ScanAnchor,
+  kind: "text" | "word" = "text", scan: { immediate?: boolean; contextual?: boolean } = {}): void {
   window.clearTimeout(hideTimer);
+  const key = `scan:${JSON.stringify([kind, scan.contextual, query, sentence, targetStart, Math.round(rect.left), Math.round(rect.top)])}`;
+  if (visible() && currentKey === key) return;
+  if (!scan.immediate && scheduledScan && showTimer !== undefined && scheduledScan.node === anchor?.node
+    && scheduledScan.offset === anchor?.offset && scheduledScan.query === query && scheduledScan.sentence === sentence) return;
   window.clearTimeout(showTimer);
+  scheduledScan = { node: anchor?.node, offset: anchor?.offset, query, sentence };
   showTimer = window.setTimeout(() => {
+    showTimer = undefined;
+    scheduledScan = null;
     const word = document.createElement("span");
     word.dataset.surface = query;
     word.dataset.lemma = query;
@@ -413,13 +410,16 @@ export function scheduleTextLookup(query: string, rect: DOMRect, sentence: strin
     word.dataset.sentence = sentence;
     word.dataset.targetStart = String(targetStart);
     optional().rememberOrigin?.(word, anchor?.node.parentElement); // the detached span's link back to the page
-    void showTarget({ key: `scan:${kind}:${query}:${Math.round(rect.left)}:${Math.round(rect.top)}`, query, rect, word, depth: 0, anchor, kind });
-  }, Math.min(options.lookupDelay, 120));
+    void showTarget({ key, query, rect, word, depth: 0,
+      anchor, kind, ...(scan.contextual && kind === "text" ? { context: { text: sentence, startOffset: targetStart } } : {}) });
+  }, scan.immediate ? 0 : Math.min(options.lookupDelay, 50));
 }
 
 export function scheduleHide(): void {
   if (pinned || root?.activeElement) return;
   window.clearTimeout(showTimer);
+  showTimer = undefined;
+  scheduledScan = null;
   window.clearTimeout(prefetchTimer);
   // Any countdown already running is replaced rather than joined. Two callers
   // asking to hide on the same pointer move is ordinary (the card's own guard
@@ -517,6 +517,8 @@ function dismiss(restoreFocus = false): void {
   const origin = returnFocus;
   const focused = !!root?.activeElement;
   window.clearTimeout(showTimer);
+  showTimer = undefined;
+  scheduledScan = null;
   window.clearTimeout(prefetchTimer);
   window.clearTimeout(hideTimer);
   hide();
@@ -559,10 +561,13 @@ function wordTarget(word: HTMLElement): PopupTarget {
   const pick = word.dataset.entry;
   const startOffset = Number(word.dataset.targetStart);
   const endOffset = Number(word.dataset.targetEnd);
+  const inflection = wrappedInflection(word);
   const context = {
     surface: word.dataset.surface,
     reading: word.dataset.reading,
     pos: word.dataset.lookupPos ?? word.dataset.pos,
+    ...(word.dataset.kind ? { kind: word.dataset.kind } : {}),
+    ...(inflection ? { inflection: inflection.labels } : {}),
     ...(word.dataset.sentence ? { text: word.dataset.sentence } : {}),
     ...(Number.isInteger(startOffset) && startOffset >= 0 ? { startOffset } : {}),
     ...(Number.isInteger(endOffset) && endOffset > startOffset ? { endOffset } : {}),
@@ -572,7 +577,7 @@ function wordTarget(word: HTMLElement): PopupTarget {
   const candidates = optional().candidatesFor?.(word) ?? (stored && stored.surface === context.surface
     && stored.candidates.some((candidate) => candidate.entry === pick) ? stored.candidates : undefined);
   return { key: `word:${JSON.stringify([query, pick, context])}`, query, pick, context, candidates,
-    inflection: wrappedInflection(word), rect: word.getBoundingClientRect(), word, depth: 0 };
+    inflection, rect: word.getBoundingClientRect(), word, depth: 0 };
 }
 
 function showWord(word: HTMLElement): void {
@@ -583,7 +588,7 @@ function showWord(word: HTMLElement): void {
 // the page once the dictionary tells us how long the match is (Yomitan's
 // `originalTextLength`). Absent for `.sb-word` hovers (already highlighted) and
 // nested/selection lookups.
-type ScanAnchor = { node: Text; offset: number };
+type ScanAnchor = { node: Text; offset: number; at?: (sentenceOffset: number) => ScanAnchor | null };
 type PopupTarget = {
   key: string; query: string; rect: DOMRect; word: HTMLElement; depth: number;
   kind?: LookupKind; anchor?: ScanAnchor;
@@ -741,6 +746,14 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
   const studyStatus = readOnly && res.definition ? block("sb-authoring-status", "") : undefined;
   if (studyStatus) studyStatus.hidden = true;
   if (res.definition) {
+    if (res.scanStart !== undefined && target.kind === "text") {
+      target.anchor = target.anchor?.at?.(res.scanStart) ?? target.anchor;
+      target.word.dataset.targetStart = String(res.scanStart);
+      target.context = { ...target.context, startOffset: res.scanStart };
+    }
+    if (target.pick && res.definition.entry === target.pick && target.word.dataset.entry !== target.pick) {
+      target.word.dataset.sbEntryPicked = "1";
+    }
     if (target.kind === "text" && res.definition.sourceForm) target.context = { ...target.context, surface: res.definition.sourceForm };
     if (res.candidates) target.candidates = res.candidates;
     const studyBase = res.definition.baseForm ?? res.definition.inflectionBase ?? res.definition.headword;
@@ -1163,6 +1176,7 @@ function definitionRows(
   const track = document.createElement("div");
   track.className = "sb-scroll-track";
   track.setAttribute("aria-hidden", "true");
+  track.hidden = true;
   const thumb = document.createElement("div");
   thumb.className = "sb-scroll-thumb";
   track.append(thumb);
@@ -1721,7 +1735,6 @@ function sensesList(def: Definition, pickable = false, covered: Set<string> | "a
       const arrow = document.createElement("span");
       arrow.className = "sb-dictionary-arrow";
       arrow.setAttribute("aria-hidden", "true");
-      arrow.textContent = "⌄";
       const name = document.createElement("span");
       name.textContent = run[0].dictionary;
       toggle.append(arrow, name);
@@ -2783,9 +2796,8 @@ ${ACCOUNT_CSS}
 
 .sb-popup {
   pointer-events: auto;
-  /* Width of the top-right chrome row (3 × 24px + 2 × 2px gap), so the first row
-     of any content state clears back, forward, and close in one number. */
-  --sb-chrome-gutter: 76px;
+  --sb-chrome-right: 6px;
+  --sb-chrome-gutter: 50px;
   position: relative;
   box-sizing: border-box;
   display: flex;
@@ -2811,6 +2823,10 @@ ${ACCOUNT_CSS}
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
 .sb-popup.sb-visible { opacity: 1; visibility: visible; transform: translateY(0); }
+.sb-popup:has(.sb-scroll-region:not([hidden]) > .sb-scroll-track:not([hidden])) {
+  --sb-chrome-right: 28px;
+  --sb-chrome-gutter: 72px;
+}
 
 .sb-popup-content {
   display: flex;
@@ -2821,12 +2837,10 @@ ${ACCOUNT_CSS}
 .sb-popup-footer { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; min-width: 0; min-height: 24px; margin-top: 6px; }
 .sb-popup-footer:empty { display: none; }
 
-/* Back, forward, close: one row in the top-right, outside content swaps. Its
-   width is the gutter every first content row keeps clear. */
 .sb-chrome {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 12px;
+  right: var(--sb-chrome-right);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -2844,7 +2858,6 @@ ${ACCOUNT_CSS}
 }
 .sb-btn.sb-chrome-button:hover:not(:disabled) { background: var(--sb-surface-muted); color: var(--sb-ink); }
 .sb-btn.sb-chrome-button:disabled { cursor: default; opacity: .35; }
-.sb-btn.sb-close { font-size: 18px; }
 
 .sb-popup-head {
   flex: 0 0 auto;
@@ -3040,12 +3053,12 @@ ${ACCOUNT_CSS}
 .sb-study-unavailable { flex: 0 0 auto; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--sb-outline); color: var(--sb-ink-subtle); font-size: 11px; }
 .sb-study-unavailable .sb-plans { font-size: 11px; }
 
-.sb-scroll-region { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
-.sb-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 10px; scrollbar-width: none; }
+.sb-scroll-region { position: relative; display: flex; flex: 1 1 auto; min-height: 0; padding-right: 10px; }
+.sb-body { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; scrollbar-width: none; }
 .sb-body::-webkit-scrollbar { display: none; }
 .sb-scroll-track { position: absolute; top: 0; right: 0; bottom: 0; width: 5px; border-radius: 999px; background: var(--sb-surface-muted); cursor: pointer; }
 .sb-scroll-thumb { position: absolute; top: 0; right: 0; width: 5px; border-radius: 999px; background: var(--sb-outline-strong); }
-.sb-results-overview { scrollbar-width: thin; scrollbar-color: var(--sb-outline-strong) transparent; }
+.sb-results-overview { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--sb-outline-strong) transparent; }
 .sb-results-overview::-webkit-scrollbar { width: 7px; }
 .sb-results-overview::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--sb-outline-strong); }
 .sb-results-overview::-webkit-scrollbar-track { background: transparent; }
@@ -3139,16 +3152,21 @@ ${ACCOUNT_CSS}
 .sb-source-tags-label { font-size: 10px; font-weight: 600; color: var(--sb-ink-muted); }
 .sb-source-tag { color: var(--sb-ink-muted); }
 
-.sb-dictionaries { display: flex; flex-direction: column; gap: 12px; }
+.sb-dictionaries { display: flex; flex-direction: column; gap: 4px; }
 .sb-dictionary-toggle {
-  display: inline-flex; align-items: center; gap: 5px; margin-left: -4px;
-  padding: 3px 4px; border: 0; border-radius: 5px; background: transparent;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 3px 0; border: 0; background: transparent;
   font: inherit; font-size: 12px; font-weight: 600; color: var(--sb-ink-muted); cursor: pointer;
 }
-.sb-dictionary-toggle:hover { color: var(--sb-ink); background: var(--sb-surface-muted); }
+.sb-dictionary-toggle:hover { color: var(--sb-ink); }
+.sb-dictionary-toggle:hover > span:last-child { text-decoration: underline; text-underline-offset: 2px; }
 .sb-dictionary-toggle:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
-.sb-dictionary-arrow { display: inline-block; width: 12px; transition: transform 120ms ease; }
-.sb-dictionary-toggle[aria-expanded="false"] .sb-dictionary-arrow { transform: rotate(-90deg); }
+.sb-dictionary-arrow {
+  box-sizing: border-box; flex: none; width: 7px; height: 7px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg); transition: transform 120ms ease;
+}
+.sb-dictionary-toggle[aria-expanded="false"] .sb-dictionary-arrow { transform: translateY(-1px) rotate(-45deg); }
 .sb-dictionary-content[hidden] { display: none; }
 .sb-senses { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 0; padding: 0; list-style: none; font-size: var(--sb-definition-size, 14px); }
 .sb-sense-row, .sb-sense-group { display: grid; grid-template-columns: minmax(16px, max-content) minmax(0, 1fr); align-items: baseline; gap: 6px; }
@@ -3397,7 +3415,7 @@ ${ACCOUNT_CSS}
 .sb-feedback.sb-upgrade { color: var(--sb-ink); }
 .sb-plans { color: var(--sb-accent); font-weight: 600; text-decoration: underline; cursor: pointer; }
 .sb-plans:hover { color: var(--sb-accent-hover); }
-.sb-btn:focus-visible, .sb-headword:focus-visible, .sb-btn.sb-close:focus-visible {
+.sb-btn:focus-visible, .sb-headword:focus-visible {
   outline: 3px solid var(--sb-accent); outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) { .sb-popup, .sb-dictionary-arrow { transition: none; } }

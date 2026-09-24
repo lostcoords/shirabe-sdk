@@ -863,9 +863,8 @@ try {
         "Click trigger opened on hover",
       );
       await open("#raw");
-      const close = dialog.getByRole("button", { name: "Close", exact: true });
-      if (mobile) await close.tap();
-      else await close.click();
+      await dialog.focus();
+      await dialog.press("Escape");
       await dialog.waitFor({ state: "hidden" });
       const beforeControl = await page.evaluate(
         () => window.fixture.lookupCalls,

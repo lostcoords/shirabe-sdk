@@ -65,6 +65,19 @@ test("parser morphemes do not appear as dictionary expression parts", async () =
   assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-parts"), null);
 });
 
+test("popup chrome keeps history navigation without a close button", async () => {
+  const { card, window } = await page();
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelectorAll(".sb-chrome-button").length, 2);
+  assert.equal(shadow.querySelector('[aria-label="Close"]'), null);
+  assert.ok(shadow.querySelector('[aria-label="Previous lookup"]'));
+  assert.ok(shadow.querySelector('[aria-label="Next lookup"]'));
+  card.dismissPopup();
+});
+
 test("a host can translate the explanation opened from a chip", async () => {
   const { card, window } = await page();
   card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS,
@@ -747,14 +760,14 @@ test("a sense with one language has no language tag, even when another sense use
   await settle();
   const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
   assert.equal(shadow.querySelectorAll(".sb-gloss-lang").length, 0);
-  assert.deepEqual([...shadow.querySelectorAll(".sb-dictionary-toggle")].map((tag) => tag.textContent?.trim()), ["⌄JMdict"]);
+  assert.deepEqual([...shadow.querySelectorAll(".sb-dictionary-toggle")].map((tag) => tag.textContent?.trim()), ["JMdict"]);
 
   card.setCardHost(fakeHost({ study: false, definitions: { "食べる": { ...taberu, senses: senses.slice(0, 1) } } }));
   card.showNow(await word("食べる"));
   await settle();
   const single = window.document.querySelector(".sb-host")!.shadowRoot!;
   assert.equal(single.querySelectorAll(".sb-gloss-lang").length, 0);
-  assert.equal(single.querySelector(".sb-dictionary-toggle")?.textContent?.trim(), "⌄JMdict");
+  assert.equal(single.querySelector(".sb-dictionary-toggle")?.textContent?.trim(), "JMdict");
 });
 
 test("the popup opens with a loading state, then replaces it with the definition", async () => {
@@ -1167,6 +1180,7 @@ test("candidate choices survive a pick and reopening without leaking to another 
   (shadow.querySelectorAll(".sb-candidate")[1] as unknown as HTMLElement).click();
   await settle();
   assert.equal(target.dataset.entry, taberu.entry);
+  assert.equal(target.dataset.sbEntryPicked, "1");
   assert.equal(shadow.querySelectorAll(".sb-candidate:not(.sb-candidate-more)").length, 2);
   card.dismissPopup();
   card.showNow(target);

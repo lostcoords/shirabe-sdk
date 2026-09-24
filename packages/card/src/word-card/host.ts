@@ -79,6 +79,8 @@ export type LookupContext = {
   surface?: string;
   reading?: string;
   pos?: string;
+  kind?: string;
+  inflection?: string[];
   /** Surrounding source text for position-based lookup APIs. */
   text?: string;
   /** UTF-16 source offset where the lookup begins. */
@@ -92,6 +94,7 @@ export type LookupFailed = { status: "failed"; message: string };
 export type LookupFound = {
   status: "found";
   definition: Definition | null;
+  scanStart?: number;
   candidates?: TokenCandidate[];
   /** Complete ranked alternatives for hosts that can show one Yomitan-style result stack. */
   alternatives?: Definition[];
