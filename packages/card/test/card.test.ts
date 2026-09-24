@@ -3,6 +3,7 @@ import test from "node:test";
 import { fakeHost } from "./fake-host.js";
 import { kimi, studied, taberu } from "./fixtures.js";
 import { snapshotHash, snapshotHost, type PreparedSnapshot } from "../src/word-card/snapshot-host.js";
+import { legendTerm } from "../src/word-card/legend.js";
 
 // The card renders into a shadow root it builds once and caches, so the whole
 // file shares one window: the same constraint the extension's popup suite has,
@@ -22,6 +23,106 @@ async function build() {
 }
 
 const settle = async () => { for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+
+test("a host can show parts and lookup links, reveal hidden glosses, and handle the headword", async () => {
+  const { card, window } = await page();
+  const definition = { ...taberu, headword: "良い天気", reading: "いいてんき", hiddenGlossLanguages: ["eng" as const], parts: [
+    { text: "いい", lemma: "良い", reading: "いい", entry: "jmdict:good" },
+    { text: "天気", lemma: "天気", reading: "てんき", entry: "jmdict:weather" },
+  ] };
+  const host = fakeHost({ study: false, definitions: { "いい天気": definition } });
+  const opened: string[] = [];
+  const events: string[] = [];
+  host.openHeadword = (_definition, spelling) => opened.push(spelling);
+  host.lookupLinks = () => [{ id: "jisho", label: "Jisho", url: "https://jisho.org/search/いい天気" }];
+  host.report = (event) => events.push(event);
+  card.setCardHost(host);
+  const target = await word("いい天気");
+  card.showNow(target);
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.deepEqual([...shadow.querySelectorAll(".sb-part")].map((part) => part.textContent), ["いい", "天気"]);
+  assert.equal(shadow.querySelector(".sb-gloss-row")?.hasAttribute("hidden"), true);
+  (shadow.querySelector(".sb-reveal-definitions") as unknown as HTMLElement).click();
+  assert.equal(shadow.querySelector(".sb-gloss-row")?.hasAttribute("hidden"), false);
+  (shadow.querySelector(".sb-headword") as unknown as HTMLElement).click();
+  assert.deepEqual(opened, ["良い天気"]);
+  (shadow.querySelector(".sb-lookup-link") as unknown as HTMLElement).click();
+  assert.ok(events.includes("lookup_link_opened"));
+  (shadow.querySelectorAll(".sb-part")[0] as unknown as HTMLElement).click();
+  await settle();
+  assert.ok(host.journal.lookups.includes("良い"));
+  card.dismissPopup();
+});
+
+test("parser morphemes do not appear as dictionary expression parts", async () => {
+  const { card, window } = await page();
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+  const target = await word("食べる");
+  target.dataset.parts = JSON.stringify(["食べ", "る"]);
+  card.showNow(target);
+  await settle();
+  assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-parts"), null);
+});
+
+test("a host can translate the explanation opened from a chip", async () => {
+  const { card, window } = await page();
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS,
+    legendForTag: (code, _kind, original) => code === "v1"
+      ? { label: "一段動詞", body: "一段活用の動詞です。" }
+      : original,
+  });
+  try {
+    card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+    card.showNow(await word("食べる"));
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    shadow.querySelector(".sb-sense-chip-open")!.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    assert.match(shadow.querySelector(".sb-legend")?.textContent ?? "", /一段活用の動詞です。/);
+  } finally {
+    card.setPopupOptions(card.DEFAULT_CARD_OPTIONS);
+  }
+});
+
+test("the popup opens the presentation supplied with a definition", async () => {
+  const { card, window } = await page();
+  const definition = { ...taberu, senses: [{ ...taberu.senses[0]!, partsOfSpeech: [{
+    label: "Verbo", code: "v1", category: "pos" as const,
+    presentation: { shortLabel: "Verbo", fullLabel: "Verbo especial", explanation: "Explicación propia." },
+  }] }] };
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": definition } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  shadow.querySelector(".sb-sense-chip-open")!.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  assert.match(shadow.querySelector(".sb-legend")?.textContent ?? "", /Verbo especialExplicación propia\./);
+});
+
+test("a host without presentations can set tag display locale apart from glosses", async () => {
+  const { card, window } = await page();
+  card.setWriteState({ canWrite: false, connected: false, languages: ["eng"], displayLocale: "es" });
+  try {
+    card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+    card.showNow(await word("食べる"));
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    shadow.querySelector(".sb-sense-chip-open")!.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    assert.ok(shadow.querySelector(".sb-legend")?.textContent?.includes(legendTerm("v1", "pos", ["spa"])!.body));
+  } finally {
+    card.setWriteState({ canWrite: false, connected: false, languages: ["eng"] });
+  }
+});
+
+test("a name type does not open a usage explanation for the same code", async () => {
+  const { card, window } = await page();
+  const definition = { ...taberu, senses: [{ ...taberu.senses[0]!, tags: [{ label: "Name", code: "fem", category: "nameType" as const }] }] };
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": definition } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelector(".sb-sense-chip-nameType")?.textContent, "Name");
+  assert.equal(shadow.querySelector(".sb-sense-chip-nameType")?.tagName, "SPAN");
+});
 
 test("the same spelling at another position or reading performs its own lookup", async () => {
   const { card } = await page();
@@ -76,17 +177,20 @@ test("pitch uses compact mora overlines instead of a graph", async () => {
   assert.equal(shadow.querySelector(".sb-pitch-num")?.textContent, "[2]");
 });
 
-test("a host with complete alternatives renders one scrollable result stack", async () => {
+test("a host with complete alternatives shows only the selected result", async () => {
   const { card, window } = await page();
   const alternative = {
     ...taberu,
     headword: "他べる",
     reading: "ほかべる",
     entry: "jmdict:alternative",
+    url: "https://shirabe.org/en/word/alternative",
     pitch: [],
     senses: [{ ...taberu.senses[0]!, glosses: [{ lang: "eng" as const, tag: "EN", text: "an alternative match" }] }],
   };
   const host = fakeHost({ study: false, definitions: { "食べる": taberu, "jmdict:alternative": alternative } });
+  const visible = [] as string[];
+  host.onVisibleDefinition = (definition) => visible.push(definition.headword);
   host.lookup = async () => ({
     status: "found",
     definition: taberu,
@@ -102,9 +206,413 @@ test("a host with complete alternatives renders one scrollable result stack", as
 
   const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
   assert.equal(shadow.querySelector(".sb-candidates"), null);
-  assert.equal(shadow.querySelector(".sb-alternatives-label")?.textContent, "Other matches");
-  assert.match(shadow.querySelector(".sb-alternative")?.textContent ?? "", /an alternative match/);
-  assert.equal(shadow.querySelector(".sb-alternative-headword")?.textContent, "他べるほかべる");
+  assert.equal(shadow.querySelector(".sb-alternatives-label"), null);
+  assert.equal(shadow.querySelector(".sb-alternative-headword ruby rt")?.textContent, "ほか");
+  assert.equal(shadow.querySelector(".sb-alternative-reading"), null);
+
+  const body = shadow.querySelector(".sb-body") as unknown as HTMLElement;
+  const article = shadow.querySelector(".sb-alternative") as unknown as HTMLElement;
+  assert.equal(article.hidden, true);
+  (shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement).click();
+  (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
+  assert.equal(article.hidden, false);
+  assert.equal((body.querySelector(".sb-result-panel") as unknown as HTMLElement).hidden, true);
+  assert.equal(shadow.querySelector(".sb-headword")?.getAttribute("href"), alternative.url);
+  assert.deepEqual(visible, ["他べる"]);
+
+  (shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement).click();
+  (shadow.querySelectorAll(".sb-result-link")[0] as unknown as HTMLButtonElement).click();
+  assert.equal(shadow.querySelector(".sb-headword")?.getAttribute("href"), taberu.url);
+  assert.deepEqual(visible, ["他べる", "食べる"]);
+});
+
+test("the result overview opens on demand and returns to the chosen definition", async () => {
+  const { card, window } = await page();
+  const alternative = { ...taberu, headword: "他べる", reading: "ほかべる", entry: "jmdict:other", url: "https://shirabe.org/en/word/other",
+    senses: [{ ...taberu.senses[0]!, glosses: [{ lang: "eng" as const, tag: "EN", text: "another match" }] }] };
+  const host = fakeHost({ study: false });
+  host.lookup = async () => ({ status: "found", definition: taberu, alternatives: [taberu, alternative] });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const body = shadow.querySelector(".sb-body") as unknown as HTMLElement;
+  const toggle = shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement;
+  const overview = shadow.querySelector(".sb-results-overview") as unknown as HTMLElement;
+  assert.equal(toggle.textContent?.trim(), "1 of 2 results");
+  assert.equal(toggle.getAttribute("aria-expanded"), "false");
+  assert.equal(overview.hidden, true);
+  assert.equal(body.hidden, false);
+
+  toggle.click();
+  assert.equal(overview.hidden, false);
+  assert.equal(body.hidden, true);
+  assert.equal(shadow.activeElement, overview.querySelector(".sb-result-link"));
+  assert.deepEqual([...overview.querySelectorAll(".sb-result-preview")].map((item) => item.textContent), ["to eat", "another match"]);
+  assert.deepEqual([...overview.querySelectorAll(".sb-result-reading")].map((item) => item.textContent), ["たべる", "ほかべる"]);
+  (overview.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
+  assert.equal(overview.hidden, true);
+  assert.equal(body.hidden, false);
+  assert.equal(toggle.textContent?.trim(), "2 of 2 results");
+  assert.equal(shadow.querySelector(".sb-headword")?.getAttribute("href"), alternative.url);
+  assert.equal((body.querySelector(".sb-alternative") as HTMLElement).hidden, false);
+  assert.equal((body.querySelector(".sb-result-panel") as HTMLElement).hidden, true);
+  assert.equal(toggle.textContent?.trim(), "2 of 2 results");
+
+  toggle.click();
+  (overview.querySelectorAll(".sb-result-link")[0] as unknown as HTMLButtonElement).click();
+  assert.equal(body.scrollTop, 0);
+  assert.equal(toggle.textContent?.trim(), "1 of 2 results");
+
+  const track = shadow.querySelector(".sb-scroll-track") as unknown as HTMLElement;
+  track.getBoundingClientRect = () => ({ top: 0, height: 100 } as DOMRect);
+  const railClick = new window.Event("pointerdown") as unknown as PointerEvent;
+  Object.defineProperty(railClick, "clientY", { value: 75 });
+  track.dispatchEvent(railClick);
+  assert.equal(toggle.textContent?.trim(), "2 of 2 results");
+  assert.equal((body.querySelector(".sb-result-panel") as unknown as HTMLElement).hidden, true);
+});
+
+test("arrow keys move focus through the open result overview", async () => {
+  const { card, window } = await page();
+  const second = { ...taberu, headword: "他べる", entry: "jmdict:other" };
+  const third = { ...taberu, headword: "多べる", entry: "jmdict:third" };
+  const host = fakeHost({ study: false });
+  host.lookup = async () => ({ status: "found", definition: taberu, alternatives: [taberu, second, third] });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  (shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement).click();
+  const rows = [...shadow.querySelectorAll(".sb-result-link")] as unknown as HTMLButtonElement[];
+  const press = (key: string) => shadow.activeElement!.dispatchEvent(
+    new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+  );
+  assert.equal(shadow.activeElement, rows[0]);
+  press("ArrowDown");
+  assert.equal(shadow.activeElement, rows[1]);
+  press("ArrowDown");
+  assert.equal(shadow.activeElement, rows[2]);
+  press("ArrowDown");
+  assert.equal(shadow.activeElement, rows[2]);
+  press("ArrowUp");
+  assert.equal(shadow.activeElement, rows[1]);
+
+  rows[1]!.click();
+  const body = shadow.querySelector(".sb-body") as unknown as HTMLElement;
+  const scrolls: number[] = [];
+  Object.defineProperty(body, "scrollBy", { value: ({ top }: { top: number }) => scrolls.push(top) });
+  press("ArrowDown");
+  press("ArrowUp");
+  assert.deepEqual(scrolls, [80, -80]);
+});
+
+test("the whole selected entry scrolls while result navigation stays in the footer", async () => {
+  const { card, window } = await page();
+  const alternative = { ...taberu, entry: "jmdict:other", headword: "他べる", reading: "ほかべる",
+    inflection: ["potential"], common: false, pitch: [{ downstep: 0, audioUrl: null }] };
+  const host = fakeHost({ study: false });
+  host.lookup = async () => ({ status: "found", definition: taberu, alternatives: [taberu, alternative] });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const metadata = [...shadow.querySelectorAll(".sb-popup-meta")];
+  assert.equal(metadata.length, 2);
+  assert.equal(metadata[0]?.querySelector(".sb-inflection")?.textContent, "past");
+  assert.ok(metadata[0]?.querySelector(".sb-badge-common"));
+  assert.equal(metadata[0]?.querySelector(".sb-pitch-num")?.textContent, "[2]");
+  const body = shadow.querySelector(".sb-body")!;
+  assert.ok(body.contains(shadow.querySelector(".sb-headword")!));
+  assert.ok(body.contains(metadata[0]!));
+  assert.equal(shadow.querySelector(".sb-results-toggle")?.parentElement?.className, "sb-popup-footer");
+
+  (shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement).click();
+  (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
+  assert.equal((metadata[0] as unknown as HTMLElement).hidden, true);
+  assert.equal((metadata[1] as unknown as HTMLElement).hidden, false);
+  assert.equal(metadata[1]?.querySelector(".sb-inflection")?.textContent, "potential");
+  assert.equal(metadata[1]?.querySelector(".sb-pitch-num")?.textContent, "[0]");
+});
+
+test("a host action and the result switcher share the bottom row", async () => {
+  const { card, window } = await page();
+  const footer = document.createElement("div");
+  footer.textContent = "More sentences";
+  const alternative = { ...taberu, entry: "jmdict:other" };
+  const host = fakeHost({ study: false });
+  host.lookup = async () => ({ status: "found", definition: taberu, alternatives: [taberu, alternative] });
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, footer });
+  try {
+    card.setCardHost(host);
+    card.showNow(await word("食べる"));
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    const row = shadow.querySelector(".sb-popup-footer")!;
+    assert.equal(row.firstElementChild, footer);
+    assert.equal(row.lastElementChild?.classList.contains("sb-results-toggle"), true);
+    assert.equal(shadow.querySelector(".sb-popup-content .sb-results-toggle"), null);
+  } finally {
+    card.setPopupOptions(card.DEFAULT_CARD_OPTIONS);
+  }
+});
+
+test("the overview marks words, articles, and names like Shirabe search", async () => {
+  const { card, window } = await page();
+  const article = { ...taberu, headword: "天気", entry: "encyclopedia:1", kind: "encyclopedia" as const };
+  const name = { ...taberu, headword: "天気", entry: "names:1", name: true };
+  const host = fakeHost({ study: false });
+  host.lookup = async () => ({ status: "found", definition: taberu, alternatives: [taberu, article, name] });
+  card.setCardHost(host);
+  try {
+    card.setWriteState({ canWrite: false, connected: false, displayLocale: "en" });
+    card.showNow(await word("食べる"));
+    await settle();
+    let shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    assert.deepEqual([...shadow.querySelectorAll(".sb-result-kind")].map((tag) => tag.textContent), ["Word", "Article", "Name"]);
+
+    card.setWriteState({ canWrite: false, connected: false, displayLocale: "es" });
+    card.showNow(await word("食べる"));
+    await settle();
+    shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    assert.deepEqual([...shadow.querySelectorAll(".sb-result-kind")].map((tag) => tag.textContent), ["Palabra", "Artículo", "Nombre"]);
+  } finally {
+    card.setWriteState({ canWrite: false, connected: false });
+  }
+});
+
+test("a differing kana reading appears above the headword instead of beside it", async () => {
+  const { card, window } = await page();
+  const definition = { ...taberu, headword: "あなた", reading: "かなた" };
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": definition } }));
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelector(".sb-headword ruby rt")?.textContent, "かなた");
+  assert.equal(shadow.querySelector(".sb-popup-reading"), null);
+});
+
+test("name candidates share one compact result with readings, pitch and meanings", async () => {
+  const { card, window } = await page();
+  const nameA = { ...taberu, name: true, headword: "君", reading: "きみ", entry: "jmnedict:1",
+    pitch: [{ downstep: 1, audioUrl: null }],
+    senses: [{ ...taberu.senses[0]!, tags: [{ label: "Given name", code: "given", category: "nameType" as const }],
+      glosses: [{ lang: "eng" as const, tag: "EN", text: "Kimi" }] }] };
+  const nameB = { ...nameA, headword: "キミ", entry: "jmnedict:2",
+    senses: [{ ...nameA.senses[0]!, glosses: [{ lang: "eng" as const, tag: "EN", text: "Kimi" }] }] };
+  const nameC = { ...nameA, headword: "公", reading: "こう", entry: "jmnedict:3",
+    senses: [{ ...nameA.senses[0]!, glosses: [{ lang: "eng" as const, tag: "EN", text: "Kō" }] }] };
+  const host = fakeHost({ study: false, definitions: { "食べる": taberu } });
+  host.lookup = async () => ({ status: "found", definition: taberu,
+    alternatives: [taberu, nameA, nameB, nameC] });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelectorAll(".sb-alternative").length, 1);
+  assert.equal(shadow.querySelectorAll(".sb-name-result").length, 2);
+  assert.equal(shadow.querySelectorAll(".sb-name-headword").length, 3);
+  assert.equal(shadow.querySelector(".sb-name-headword ruby rt")?.textContent, "きみ");
+  assert.equal(shadow.querySelector(".sb-name-reading"), null);
+  assert.match(shadow.querySelector(".sb-name-result")?.textContent ?? "", /Kimi/);
+  assert.match(shadow.querySelector(".sb-name-result")?.textContent ?? "", /Given name/);
+  assert.ok(shadow.querySelector(".sb-name-result .sb-pitch"));
+});
+
+test("an all-name lookup renders one name group without duplicate alternatives", async () => {
+  const { card, window } = await page();
+  const first = { ...taberu, name: true, headword: "明日香", reading: "あすか", entry: "jmnedict:1",
+    senses: [{ ...taberu.senses[0]!, glosses: [{ lang: "eng" as const, tag: "EN", text: "Asuka" }] }] };
+  const second = { ...first, headword: "飛鳥", entry: "jmnedict:2",
+    senses: [{ ...first.senses[0]!, glosses: [{ lang: "eng" as const, tag: "EN", text: "Asuka (place)" }] }] };
+  const host = fakeHost({ study: false, definitions: { "食べる": first } });
+  host.lookup = async () => ({ status: "found", definition: first, alternatives: [first, second] });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelectorAll(".sb-name-results").length, 1);
+  assert.equal(shadow.querySelectorAll(".sb-name-headword").length, 2);
+  assert.match(shadow.querySelector(".sb-name-meanings")?.textContent ?? "", /Asuka/);
+});
+
+test("also-written spellings swap the headword in place without another lookup", async () => {
+  const { card, window } = await page();
+  const host = fakeHost({ study: false, definitions: { "食べる": taberu } });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const spelling = shadow.querySelector(".sb-word-form") as unknown as HTMLElement;
+  const body = shadow.querySelector(".sb-body");
+  const originalUrl = shadow.querySelector(".sb-headword")?.getAttribute("href");
+  assert.equal(spelling.tagName, "BUTTON");
+  spelling.click();
+  await settle();
+  assert.deepEqual(host.journal.lookups, ["食べる"]);
+  assert.equal(shadow.querySelector(".sb-body"), body);
+  assert.equal(shadow.querySelector(".sb-headword")?.getAttribute("href"), originalUrl);
+  assert.match(shadow.querySelector(".sb-headword")?.textContent ?? "", /喰/);
+  assert.equal(spelling.getAttribute("aria-pressed"), "true");
+  assert.match(body?.textContent ?? "", /to eat/);
+});
+
+test("the headword action receives the spelling currently shown", async () => {
+  const { card, window } = await page();
+  const host = fakeHost({ study: false, definitions: { "食べる": taberu } });
+  const opened: string[] = [];
+  host.openHeadword = (_definition, spelling) => opened.push(spelling);
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  (shadow.querySelector(".sb-word-form") as unknown as HTMLElement).click();
+  (shadow.querySelector(".sb-headword") as unknown as HTMLElement).click();
+  assert.deepEqual(opened, ["喰べる"]);
+});
+
+test("a late lookup cannot replace the host's visible definition", async () => {
+  const { card } = await page();
+  const host = fakeHost({ study: false });
+  const pending = new Map<string, (definition: typeof taberu) => void>();
+  const shown: string[] = [];
+  host.lookup = (query) => new Promise((resolve) => {
+    pending.set(query, (definition) => resolve({ status: "found", definition }));
+  });
+  host.onDefinitionRendered = (definition) => shown.push(definition?.headword ?? "");
+  card.setCardHost(host);
+
+  card.showNow(await word("食べる"));
+  await settle();
+  card.showNow(await word("君"));
+  await settle();
+  pending.get("君")!({ ...taberu, headword: "君" });
+  await settle();
+  pending.get("食べる")!(taberu);
+  await settle();
+
+  assert.deepEqual(shown, ["君"]);
+});
+
+test("an alternative match keeps its chosen spelling when switching results", async () => {
+  const { card, window } = await page();
+  const alternative = { ...taberu, headword: "他べる", reading: "ほかべる", entry: "jmdict:other" };
+  const host = fakeHost({ study: false, definitions: { "食べる": taberu } });
+  let lookups = 0;
+  host.lookup = async () => {
+    lookups += 1;
+    return { status: "found", definition: taberu, alternatives: [taberu, alternative] };
+  };
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const article = shadow.querySelector(".sb-alternative") as unknown as HTMLElement;
+  const toggle = shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement;
+  toggle.click();
+  (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
+  (article.querySelector(".sb-word-form") as unknown as HTMLElement).click();
+  assert.match(shadow.querySelector(".sb-headword")?.textContent ?? "", /喰/);
+
+  toggle.click();
+  (shadow.querySelectorAll(".sb-result-link")[0] as unknown as HTMLButtonElement).click();
+  assert.match(shadow.querySelector(".sb-headword")?.textContent ?? "", /食/);
+  toggle.click();
+  (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
+  assert.match(shadow.querySelector(".sb-headword")?.textContent ?? "", /喰/);
+  assert.equal(lookups, 1);
+});
+
+test("a host can link headword kanji to Shirabe instead of opening a kanji lookup", async () => {
+  const { card, window } = await page();
+  const host = fakeHost({ study: false, definitions: { "食べる": taberu } });
+  host.kanjiUrl = (character) => `https://shirabe.org/en/kanji/${character}`;
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const link = window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-kanji-button") as unknown as HTMLAnchorElement;
+  assert.equal(link.tagName, "A");
+  assert.equal(link.href, "https://shirabe.org/en/kanji/%E9%A3%9F");
+  assert.equal(link.target, "_blank");
+});
+
+test("a complete single-result lookup does not show candidate pills", async () => {
+  const { card, window } = await page();
+  const host = fakeHost({ study: false, definitions: { "食べる": taberu } });
+  host.lookup = async () => ({
+    status: "found",
+    definition: taberu,
+    alternatives: [taberu],
+    candidates: [{ entry: taberu.entry!, headword: taberu.headword, reading: taberu.reading, common: true }],
+  });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  await settle();
+
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelector(".sb-candidates"), null);
+  assert.match(shadow.querySelector(".sb-body")?.textContent ?? "", /to eat/);
+});
+
+test("host footer stays mounted through redraws and can be replaced", async () => {
+  const { card, window } = await page();
+  const first = document.createElement("div");
+  first.textContent = "Host actions";
+  const second = document.createElement("div");
+  second.textContent = "New actions";
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, footer: first,
+    themeVariables: { "--sb-accent": "#df9aa1", "--sb-popup-width": "520px" } });
+  try {
+    card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu, "君": kimi } }));
+    card.showNow(await word("食べる"));
+    await settle();
+    const popup = window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-popup")!;
+    assert.equal(popup.querySelector(".sb-popup-footer")?.lastElementChild, first);
+    const shadowHost = window.document.querySelector(".sb-host") as unknown as HTMLElement;
+    assert.equal(shadowHost.style.getPropertyValue("--sb-accent"), "#df9aa1");
+    assert.equal(shadowHost.style.getPropertyValue("--sb-popup-width"), "520px");
+
+    card.showNow(await word("君"));
+    await settle();
+    assert.equal(popup.querySelector(".sb-popup-footer")?.lastElementChild, first);
+    assert.match(popup.querySelector(".sb-popup-content")?.textContent ?? "", /君/);
+
+    card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, footer: second });
+    assert.equal(first.isConnected, false);
+    assert.equal(popup.querySelector(".sb-popup-footer")?.lastElementChild, second);
+  } finally {
+    card.setPopupOptions(card.DEFAULT_CARD_OPTIONS);
+  }
+  assert.equal(second.isConnected, false);
+  assert.equal((window.document.querySelector(".sb-host") as unknown as HTMLElement).style.getPropertyValue("--sb-accent"), "");
+});
+
+test("a host can omit SDK authoring while keeping its own footer", async () => {
+  const { card, window } = await page();
+  const footer = document.createElement("div");
+  footer.textContent = "Host Anki actions";
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, showAuthoring: false, footer });
+  try {
+    card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+    card.showNow(await word("食べる"));
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    assert.equal(shadow.querySelector(".sb-body .sb-authoring"), null);
+    assert.match(shadow.querySelector(".sb-body")?.textContent ?? "", /to eat/);
+    assert.equal(shadow.querySelector(".sb-popup-footer")?.lastElementChild, footer);
+  } finally {
+    card.setPopupOptions(card.DEFAULT_CARD_OPTIONS);
+  }
 });
 
 test("the popup keeps matching source pairs separated by dictionary", async () => {
@@ -139,7 +647,7 @@ test("the popup keeps matching source pairs separated by dictionary", async () =
   assert.match(shadow.textContent ?? "", /くう/);
 });
 
-test("covered dictionary senses do not reveal their source tags", async () => {
+test("covered dictionaries collapse their senses while keeping publisher headwords visible", async () => {
   const { card, window } = await page();
   const sourceTag = { name: "private", category: "register", notes: "hidden", order: 1, score: 1 };
   const definition = {
@@ -160,14 +668,20 @@ test("covered dictionary senses do not reveal their source tags", async () => {
   await settle();
 
   const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
-  const covered = shadow.querySelector(".sb-sense-covered")!;
+  const sections = [...shadow.querySelectorAll(".sb-dictionary")];
+  const covered = sections[1]!;
   assert.equal(shadow.querySelectorAll(".sb-source-tag").length, 1);
   assert.equal(covered.querySelectorAll(".sb-source-tag").length, 1);
   assert.equal(shadow.querySelectorAll(".sb-entry-chips").length, 2);
   assert.equal(covered.querySelectorAll(".sb-entry-chips").length, 1);
   assert.match(shadow.textContent ?? "", /Public noun/);
   assert.match(covered.textContent ?? "", /Private noun/);
-  assert.match(shadow.querySelector(".sb-sense-covered")?.getAttribute("aria-label") ?? "", /Focus or hover to reveal/);
+  const toggle = covered.querySelector(".sb-dictionary-toggle")!;
+  assert.equal(toggle.getAttribute("aria-expanded"), "false");
+  assert.equal(covered.querySelector(".sb-dictionary-content")?.hasAttribute("hidden"), true);
+  toggle.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  assert.equal(toggle.getAttribute("aria-expanded"), "true");
+  assert.equal(covered.querySelector(".sb-dictionary-content")?.hasAttribute("hidden"), false);
 });
 
 test("the popup keeps publisher titles and usage examples separate", async () => {
@@ -194,6 +708,117 @@ test("the popup keeps publisher titles and usage examples separate", async () =>
   ]);
 });
 
+test("the popup groups synonyms and styles Japanese prose without parsing API text as HTML", async () => {
+  const { card, window } = await page();
+  const definition = {
+    ...taberu,
+    senses: [{
+      ...taberu.senses[0]!,
+      glosses: [
+        { lang: "eng" as const, tag: "EN", text: "to eat" },
+        { lang: "eng" as const, tag: "EN", text: "to consume 日本語 <img src=x>" },
+        { lang: "jpn" as const, tag: "JA", text: "食べる" },
+        { lang: "jpn" as const, tag: "JA", text: "口にする" },
+      ],
+      notes: ["Used for 日本語; <script>alert(1)</script>"],
+    }],
+  } as typeof taberu;
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": definition } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const rows = [...shadow.querySelectorAll(".sb-gloss-row")];
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0]?.querySelectorAll(".sb-gloss-lang").length, 1);
+  assert.match(rows[0]?.textContent ?? "", /to eat; to consume 日本語 <img src=x>/);
+  assert.equal(rows[1]?.querySelectorAll(".sb-gloss-item").length, 2);
+  assert.equal(shadow.querySelector(".sb-sense-note .sb-japanese-run")?.textContent, "日本語");
+  assert.equal(shadow.querySelectorAll("img, script").length, 0);
+});
+
+test("a sense with one language has no language tag, even when another sense uses a different language", async () => {
+  const { card, window } = await page();
+  const senses = [
+    { ...taberu.senses[0]!, sourceEntry: "jmdict:1", dictionary: "JMdict", glosses: [{ lang: "jpn" as const, tag: "JA", text: "食べること" }] },
+    { ...taberu.senses[0]!, position: 1, sourceEntry: "jmdict:1", dictionary: "JMdict", glosses: [{ lang: "eng" as const, tag: "EN", text: "to eat" }] },
+  ];
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": { ...taberu, senses } } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelectorAll(".sb-gloss-lang").length, 0);
+  assert.deepEqual([...shadow.querySelectorAll(".sb-dictionary-toggle")].map((tag) => tag.textContent?.trim()), ["⌄JMdict"]);
+
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": { ...taberu, senses: senses.slice(0, 1) } } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const single = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(single.querySelectorAll(".sb-gloss-lang").length, 0);
+  assert.equal(single.querySelector(".sb-dictionary-toggle")?.textContent?.trim(), "⌄JMdict");
+});
+
+test("the popup opens with a loading state, then replaces it with the definition", async () => {
+  const { card, window } = await page();
+  let finish!: (result: { status: "found"; definition: typeof taberu }) => void;
+  const host = fakeHost({ study: false });
+  host.lookup = () => new Promise((resolve) => { finish = resolve; });
+  card.setCardHost(host);
+  card.showNow(await word("食べる"));
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.equal(shadow.querySelector(".sb-popup.sb-visible .sb-loading-body")?.textContent, "Loading definitions…");
+  assert.equal(shadow.querySelector(".sb-loading")?.getAttribute("aria-busy"), "true");
+  finish({ status: "found", definition: taberu });
+  await settle();
+  assert.equal(shadow.querySelector(".sb-loading"), null);
+  assert.match(shadow.querySelector(".sb-popup-content")?.textContent ?? "", /to eat/);
+});
+
+test("the popup uses Shirabe's exact furigana segments for the selected headword", async () => {
+  const { card, window } = await page();
+  const definition = { ...taberu, headword: "今日", reading: "きょう",
+    furigana: [{ text: "今", ruby: "きょ" }, { text: "日", ruby: "う" }] };
+  card.setCardHost(fakeHost({ study: false, definitions: { "今日": definition } }));
+  card.showNow(await word("今日"));
+  await settle();
+  const head = window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-headword")!;
+  assert.deepEqual([...head.querySelectorAll("ruby")].map((ruby) => ruby.querySelector("rt")?.textContent), ["きょ", "う"]);
+});
+
+test("the open word stays inside the popup safe zone without sb-word page styling", async () => {
+  const { card, window } = await page();
+  const closed: HTMLElement[] = [];
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, onClose: (word) => { if (word) closed.push(word); } });
+  try {
+    const target = await word("食べる");
+    card.showNow(target);
+    await settle();
+    target.classList.remove("sb-word");
+    target.dispatchEvent(new window.MouseEvent("mousedown", { bubbles: true }) as unknown as Event);
+    assert.ok(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-popup.sb-visible"));
+    window.document.body.dispatchEvent(new window.MouseEvent("mousedown", { bubbles: true }));
+    assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-popup.sb-visible"), null);
+    assert.deepEqual(closed, [target]);
+    card.dismissPopup();
+    assert.deepEqual(closed, [target], "closing an already closed popup does not notify twice");
+  } finally {
+    card.setPopupOptions(card.DEFAULT_CARD_OPTIONS);
+  }
+});
+
+test("SDK hover prefetch shares its answer with the popup lookup", async () => {
+  const { card } = await page();
+  const host = fakeHost({ study: false, definitions: { "食べる": taberu } });
+  const target = await word("食べる");
+  card.setCardHost(host);
+  await card.prefetchWord(target);
+  assert.deepEqual(host.journal.lookups, ["食べる"]);
+  card.showNow(target);
+  await settle();
+  assert.deepEqual(host.journal.lookups, ["食べる"]);
+  assert.match(await shown(), /to eat/);
+});
+
 test("the popup renders hierarchy labels and scoped grammar at one level", async () => {
   const { card, window } = await page();
   const sensePos = { label: "Noun", code: "n", category: "pos" as const, scope: "sense" as const };
@@ -215,8 +840,23 @@ test("the popup renders hierarchy labels and scoped grammar at one level", async
   assert.equal(shadow.querySelectorAll(".sb-entry-chips .sb-sense-chip").length, 1);
   assert.equal(shadow.querySelectorAll(".sb-group-chips .sb-sense-chip").length, 1);
   assert.equal(shadow.querySelectorAll(".sb-sense-chips .sb-sense-chip").length, 2);
-  assert.match(shadow.textContent ?? "", /一①/);
-  assert.match(shadow.textContent ?? "", /一㋐/);
+  assert.deepEqual([...shadow.querySelectorAll(".sb-sense-marker")].map((marker) => marker.textContent), ["一", "①", "㋐"]);
+});
+
+test("a bare ① before ㊀ aligns with the section, while ㊀① stays indented", async () => {
+  const { card, window } = await page();
+  const senses = [
+    { ...taberu.senses[0]!, position: 0, label: "①", depth: 1 },
+    { ...taberu.senses[0]!, position: 1, label: "㊀", depth: 0 },
+    { ...taberu.senses[0]!, position: 2, label: "㊀①", depth: 1 },
+    { ...taberu.senses[0]!, position: 3, label: "㊁", depth: 0 },
+    { ...taberu.senses[0]!, position: 4, label: "㊁①", depth: 1 },
+  ];
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": { ...taberu, senses } } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const rows = [...window.document.querySelector(".sb-host")!.shadowRoot!.querySelectorAll(".sb-sense-row")];
+  assert.deepEqual(rows.map((row) => row.classList.contains("sb-sense-depth-1")), [false, false, true, false, true]);
 });
 
 test("group grammar follows cumulative publisher labels and source boundaries", async () => {
@@ -442,8 +1082,8 @@ test("parsed entries survive opening and reopening with their original inflected
   card.showNow(target);
   await settle();
   assert.deepEqual(calls, [[taberu.entry, "食べた"], [taberu.entry, "食べた"]]);
-  assert.match(await shown(), /食べた → 食べる/);
   const { window } = await page();
+  assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-inflection")?.textContent, "past");
   assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelectorAll(".sb-candidate").length, 2);
 });
 
@@ -586,12 +1226,26 @@ test("a card renders a definition from a host with no dictionary behind it", asy
   assert.deepEqual(host.journal.lookups, ["食べる"], "and it asked its host exactly once");
 });
 
-test("the inflection path is shown as the host reported it", async () => {
-  const { card } = await page();
+test("the inflection is shown as the host reported it", async () => {
+  const { card, window } = await page();
   card.setCardHost(fakeHost({ definitions: { "食べた": taberu } }));
   card.showNow(await word("食べた"));
   await settle();
-  assert.match(await shown(), /食べた.*食べる.*past/s);
+  assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-inflection")?.textContent, "past");
+});
+
+test("the host's resolved inflection takes precedence over a parsed span's clue", async () => {
+  const { card, window } = await page();
+  const resolved = { ...taberu, sourceForm: "見れなかった", inflection: ["past", "negative", "potential (ら抜き)"], inflectionBase: "見る" };
+  card.setCardHost(fakeHost({ definitions: { "見れなかった": resolved } }));
+  const target = await word("見れなかった");
+  target.dataset.entry = resolved.entry;
+  target.dataset.inflection = JSON.stringify(["past", "negative", "potential"]);
+  target.dataset.inflectionBase = "見る";
+  card.showNow(target);
+  await settle();
+  assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-inflection")?.textContent,
+    "past, negative, potential (ら抜き)");
 });
 
 test("a lexical copula form explains its grammatical base without replacing its entry", async () => {
@@ -603,9 +1257,23 @@ test("a lexical copula form explains its grammatical base without replacing its 
   card.showNow(target);
   await settle();
   const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
-  assert.equal(shadow.querySelector(".sb-inflection")?.textContent, "なら → だ · conditional (〜なら)");
+  assert.equal(shadow.querySelector(".sb-inflection")?.textContent, "conditional (〜なら)");
   assert.equal(shadow.querySelector(".sb-headword")?.textContent, "なら");
   assert.equal(target.dataset.entry, "jmdict:1009470");
+});
+
+test("a parsed form keeps the resolved grammatical base for study identity", async () => {
+  const { card } = await page();
+  const resolved = { ...taberu, headword: "なら", reading: "なら", entry: "jmdict:1009470",
+    sourceForm: "なら", inflection: ["conditional (〜なら)"], inflectionBase: "だ" };
+  card.setCardHost(fakeHost({ definitions: { "なら": resolved } }));
+  const target = await word("なら");
+  target.dataset.entry = resolved.entry;
+  target.dataset.inflection = JSON.stringify(["conditional (〜なら)"]);
+  target.dataset.inflectionBase = "だ";
+  card.showNow(target);
+  await settle();
+  assert.equal(target.dataset.lemma, "だ");
 });
 
 test("choosing a noun homophone replaces the copula study base and explanation", async () => {

@@ -29,7 +29,7 @@ export type LinkOptions = {
   now?: () => number;
 };
 
-type Stored = { access: string; refresh?: string; expiresAt: number };
+type Stored = { access: string; refresh?: string; expiresAt: number; refreshAt?: number };
 type Progress = (message: string | Node) => void;
 type SignInAttempt = { promise: Promise<void>; listeners: Set<Progress>; message?: string | Node };
 
@@ -53,15 +53,15 @@ const KEY = "shirabe.link";
 // them to approve all over again.
 const PENDING = "shirabe.pending";
 
-// Renew a little before the hour is up: a token that expires between the check
-// and the request is a lookup that fails for no reason the reader can see.
+// Older stored sessions have no refresh deadline; retain their previous margin.
 const RENEW_MARGIN_MS = 120_000;
+const RENEW_RETRY_MS = 5 * 60_000;
 
 const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 
 export type Link = {
-  /** Wraps `fetch` so every request carries the reader, renewing the token when
-      it has run out. Give this to `apiHost` instead of a `token`. */
+  /** Wraps `fetch` so every request carries the reader, renewing the token
+      before it runs out. Give this to `apiHost` instead of a `token`. */
   fetch: typeof globalThis.fetch;
   linked(): boolean;
   /** Runs the whole flow and resolves once the reader is signed in. Shaped to be
@@ -81,6 +81,7 @@ export function createLink(options: LinkOptions): Link {
 
   let held: Stored | null = read();
   let renewing: Promise<boolean> | null = null;
+  let retryAt = 0;
   let session = new AbortController();
   let signing: SignInAttempt | null = null;
 
@@ -187,21 +188,33 @@ export function createLink(options: LinkOptions): Link {
   }
 
   function keep(answer: OauthTokenResponse2): void {
+    const issuedAt = now();
+    const lifetimeMs = Number(answer.expires_in ?? 3600) * 1000;
+    retryAt = 0;
     write({
       access: answer.access_token,
       refresh: answer.refresh_token ?? held?.refresh,
-      expiresAt: now() + Number(answer.expires_in ?? 3600) * 1000,
+      expiresAt: issuedAt + lifetimeMs,
+      refreshAt: issuedAt + lifetimeMs * 0.7,
     });
   }
 
   const authorized: typeof globalThis.fetch = async (input, init) => {
     const signal = session.signal;
-    if (held && held.expiresAt - RENEW_MARGIN_MS < now()) await renew();
+    if (held && (held.refreshAt ?? held.expiresAt - RENEW_MARGIN_MS) <= now() && retryAt <= now()) {
+      try {
+        await renew();
+      } catch (error) {
+        if (!held || held.expiresAt <= now()) throw error;
+        retryAt = now() + RENEW_RETRY_MS;
+      }
+    }
     signal.throwIfAborted();
-    const send = (): Promise<Response> => http(input, {
-      ...init,
-      headers: { ...init?.headers, ...(held ? { Authorization: `Bearer ${held.access}` } : {}) },
-    });
+    const send = (): Promise<Response> => {
+      const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+      if (held) headers.set("Authorization", `Bearer ${held.access}`);
+      return http(input, { ...init, headers });
+    };
 
     const access = held?.access;
     const response = await send();
@@ -224,6 +237,7 @@ export function createLink(options: LinkOptions): Link {
       session = new AbortController();
       signing = null;
       renewing = null;
+      retryAt = 0;
       write(null);
       remember(null);
     },

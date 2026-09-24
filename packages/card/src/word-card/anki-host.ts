@@ -1,6 +1,7 @@
 import { apiHost } from "./api-host.js";
 import { createCardApiClient } from "./api-client.js";
 import { glossLanguagesFrom } from "./languages.js";
+import { applyDictionaryReveal } from "./dictionary-reveal.js";
 import type { Link } from "./link.js";
 import type { LookupResult, WordCardHost } from "./host.js";
 import { getDictionaryStack } from "@shirabe-org/api";
@@ -84,12 +85,7 @@ export function createAnkiHost(options: { apiBase: string; link: Link; now?: () 
 
   function reveal(result: LookupResult, preferences: Preferences): LookupResult {
     if (result.status !== "found" || !result.definition) return result;
-    return { ...result, definition: { ...result.definition, senses: result.definition.senses.map((sense) => {
-      const slug = sense.ref?.split("#")[0];
-      const covered = slug && Object.entries(preferences.dictionaryReveal ?? {}).some(([source, mode]) =>
-        source.split(":")[0] === slug && mode === "hover");
-      return { ...sense, covered: !!covered };
-    }) } };
+    return { ...result, definition: applyDictionaryReveal(result.definition, preferences.dictionaryReveal) };
   }
 
   return {

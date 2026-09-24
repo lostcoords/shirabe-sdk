@@ -40,6 +40,23 @@ export type CardToken = {
   content?: boolean;
 };
 
+/** The data contract read by showNow and schedulePrefetch. Hosts only need to
+    map their parsed token to CardToken; the SDK owns its DOM attribute names. */
+export function cardTokenAttributes(token: CardToken, sentence?: string, targetStart = token.start, targetEnd = targetStart + token.length): Record<string, string> {
+  return {
+    "data-lemma": token.lemma ?? token.surface,
+    "data-surface": token.surface,
+    ...(token.entry ? { "data-entry": token.entry } : {}),
+    ...(token.reading ? { "data-reading": token.reading } : {}),
+    ...(token.pos ? { "data-pos": token.pos, "data-lookup-pos": token.pos } : {}),
+    ...(token.inflection?.length ? { "data-inflection": JSON.stringify(token.inflection) } : {}),
+    ...(token.inflectionBase ? { "data-inflection-base": token.inflectionBase } : {}),
+    "data-target-start": String(targetStart),
+    "data-target-end": String(targetEnd),
+    ...(sentence ? { "data-sentence": sentence } : {}),
+  };
+}
+
 /** What the reader was actually looking at, beyond the string.
  *
  * A bare spelling is ambiguous in a way a token is not: 開いた read ヒライタ is
@@ -52,6 +69,8 @@ export type CardEvent =
   | "card_opened"       // a definition was rendered
   | "card_missing"      // the host answered, and had no word
   | "lookup_failed"     // the host could not answer at all
+  | "candidate_selected"
+  | "lookup_link_opened"
   | "word_saved"
   | "word_known"
   | "save_refused";     // the write came back refused, `reason` says which
@@ -181,7 +200,21 @@ export type LookupKind = "word" | "kanji" | "text";
 
 export type WordCardHost = {
   lookup(query: string, kind: LookupKind, context?: LookupContext): Promise<LookupResult>;
-  lookupEntry(entry: string, surface: string): Promise<LookupResult>;
+  lookupEntry(entry: string, surface: string, word?: HTMLElement): Promise<LookupResult>;
+  /** Optional cheaper hover warmup. Its own lookup cache should serve the later
+      lookup call; the card does not render or report this answer. */
+  prefetch?(query: string, kind: LookupKind, context?: LookupContext): Promise<void>;
+
+  /** Called when scrolling makes another complete match the visible result. */
+  onVisibleDefinition?(definition: Definition): void;
+  /** Called after the current lookup has rendered or failed, never for a stale response. */
+  onDefinitionRendered?(definition: Definition | null): void;
+  /** Link kanji outside the card when this host has no kanji lookup. */
+  kanjiUrl?(character: string): string | null;
+  /** Optional destinations shown below the definition, including on a miss. */
+  lookupLinks?(definition: Definition | null, word: HTMLElement): Array<{ id: string; label: string; url: string }>;
+  /** Replaces the default link to the dictionary page. */
+  openHeadword?(definition: Definition, spelling: string): void;
 
   study?: StudyPort;
   account?: {

@@ -1,4 +1,4 @@
-import type { CardToken, WordCardHost } from "./host.js";
+import { cardTokenAttributes, type CardToken, type WordCardHost } from "./host.js";
 
 const JAPANESE = /[぀-ヿ㐀-䶿一-鿿々〆〇〻ー]/;
 
@@ -227,17 +227,10 @@ function wordSpan(token: CardToken, marker: string, fragment: string, sentence: 
   const span = document.createElement("span");
   const context = sentenceAround(sentence, token.start);
   span.className = marker;
-  span.dataset.surface = token.surface;
-  span.dataset.sentence = context.text;
-  span.dataset.targetStart = String(context.targetStart);
-  span.dataset.targetEnd = String(context.targetStart + token.length);
-  if (token.entry) span.dataset.entry = token.entry;
-  span.dataset.lemma = token.lemma ?? token.surface;
+  for (const [name, value] of Object.entries(cardTokenAttributes(token, context.text, context.targetStart))) {
+    span.setAttribute(name, value);
+  }
   span.dataset.state = "none";
-  if (token.reading) span.dataset.reading = token.reading;
-  if (token.pos) span.dataset.pos = token.pos;
-  if (token.inflection?.length) span.dataset.inflection = JSON.stringify(token.inflection);
-  if (token.inflectionBase) span.dataset.inflectionBase = token.inflectionBase;
   span.textContent = fragment;
   return span;
 }

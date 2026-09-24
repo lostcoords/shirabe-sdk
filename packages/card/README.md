@@ -25,6 +25,20 @@ Two methods are required and the rest are capabilities. A host that cannot do
 something omits it, and the card draws no control for it rather than a control
 that refuses.
 
+For a host that returns complete `alternatives`, the card shows one result at a
+time. The headword, metadata, and definition scroll together. A result count in
+the bottom row opens an overview for switching results. `onVisibleDefinition`
+tells the host when the selected result changes, so host-specific actions can
+follow it. `onDefinitionRendered` reports the initial result after the card
+accepts it, so a late lookup cannot replace those actions. `kanjiUrl` turns the headword's kanji controls into links to a host's
+kanji pages; without it they open the host's in-card kanji lookup.
+The current open word stays in the card's pointer-safe area even if the page
+does not give it `.sb-word` styling. `Definition.furigana` carries Shirabe's
+exact aligned segments for the displayed spelling, so hosts can reuse the same
+reading in exports and mining fields. `PopupOptions.onClose` lets a host unmount
+its own controls when the card closes through Escape, a click outside, or its
+normal hide behavior.
+
 ## Mount it over your own lookup
 
 The card does not find words. You mark them, and you tell it when to open.
@@ -64,6 +78,21 @@ A word is any element with class `sb-word` and a `data-lemma`. Add
 `data-surface` where the text on the page differs from the dictionary form, and
 `data-entry` where you already know which dictionary word it is: the card calls
 `lookupEntry` for those and `lookup` for the rest.
+`cardTokenAttributes(token, sentence, targetStart, targetEnd)` from
+`word-card/host` writes these attributes from a `CardToken`. The last two
+arguments are sentence-relative offsets when they differ from the token's own
+offsets, as they can when a word crosses inline markup.
+Set `CardToken.parts` for a grouped expression such as いい天気. The card shows each
+part as an in-card lookup.
+
+The popup opens immediately with a loading message and replaces it with the
+definition or a retryable error. `scheduleShow` also starts a speculative lookup
+after `prefetchDelay` (60 ms by default), before the popup's `lookupDelay` (180 ms).
+Set `prefetchOnHover: false` to disable this. A click-only host can call
+`schedulePrefetch(word, host)` on hover and `showNow(word)` on click. The SDK
+shares its speculative lookup with the popup; hosts with their own request cache
+can implement `host.prefetch(query, kind, context)` to warm it without selecting
+or reporting a result.
 
 [`playground/main.ts`](playground/main.ts) is this snippet as a page you can
 open, and [`test/fake-host.ts`](test/fake-host.ts) is a whole host in 40 lines.
@@ -72,6 +101,24 @@ open, and [`test/fake-host.ts`](test/fake-host.ts) is a whole host in 40 lines.
 
 `apiHost` is the mapping from our API onto the card, so a second consumer does
 not write it again.
+
+If your app already performs identify lookups through its own server, use
+`candidateHost({ lookupCandidates, site, languages, displayLocale })`. It maps
+ranked candidates, reuses them for entry selection, and exposes the visible
+definition to host controls. Resolved candidate parts become clickable expression
+parts. Supply `filterDefinitions` for a local language policy and `wordUrl` when
+your word route differs. The transport stays in your
+app, so its credentials and cache policy remain there.
+Supply `lookupLinks` for a configurable row of external dictionaries, including
+when the lookup misses. `openHeadword` replaces the default link to Shirabe.
+`hiddenGlossLanguages` keeps glosses available behind a reveal control. The
+`report` callback receives card, candidate, and lookup-link events without
+choosing an analytics provider for the host.
+
+`candidateToDefinition(candidate, apiBase, languages, options)` remains available
+when a host needs only the mapping. `renderDefinitionHtml` and `renderPitchHtml`
+export escaped, class-prefixed markup for a host that stores definitions in
+HTML fields; its own CSS and field mapping stay outside the card package.
 
 ```ts
 import { apiHost, withFallback } from "@shirabe-org/card/word-card";
@@ -83,6 +130,17 @@ const online = apiHost({
   apiBase: "https://shirabe.org",
   token: readerToken,
   languages: ["eng"],
+  displayLocale: "es", // Optional: UI language for tags, separate from glosses.
+  // Optional: supply another language for the chip and its explanation.
+  presentationForTag: (tag, defaults) =>
+    tag.category === "misc" && tag.code === "uk"
+      ? {
+          ...defaults,
+          shortLabel: "仮名書き",
+          fullLabel: "仮名で書く語",
+          explanation: "ふつう仮名で書きます。",
+        }
+      : defaults,
 });
 
 declare const pack: WordCardHost;
@@ -93,6 +151,24 @@ const host = withFallback(pack, online);
 no answer, and takes everything except lookups from the first: a save never goes
 somewhere else because a lookup missed.
 
+The API host uses English or Spanish tag presentations selected by `displayLocale`.
+When omitted, it follows the first supported language in `languages`. This lets a
+Spanish interface show English dictionary glosses with Spanish tag text. Each
+presentation has a `shortLabel` (at most ten characters in the
+built-in translations), `fullLabel`, and, where the SDK has one, an `explanation`,
+`example`, and Japanese grammar term (`jp`). `tagPresentation(code, category,
+sourceLabel, languages, displayLocale?)` exposes the same defaults directly.
+`toDefinition` accepts `{ displayLocale }` as its fourth argument, and
+`setWriteState` accepts it for cards made by other hosts. Unknown tags retain
+their source label and have no invented explanation.
+
+`presentationForTag` receives the original API tag and the complete default
+presentation. A host can supply another language or its own wording for all of
+these fields; the card opens the supplied explanation from the same presentation.
+The older `labelForTag` and `legendForTag` hooks remain available for changing
+only the chip or popup text. A custom `WordCardHost` can place a `presentation`
+on each `SenseChip` in its `Definition`.
+
 Three things about this API cost real bugs before they were written down, and
 `apiHost` already does all three:
 
@@ -100,8 +176,7 @@ Three things about this API cost real bugs before they were written down, and
   lookup resolves a spelling against headwords and ignores the reading, so 開いた
   read ヒライタ comes back as あく. It answers confidently and nothing alerts.
 - **`pos` must be the server's own short tag** (`noun`, `verb`, `prt`). A tag
-  from another vocabulary does not skip a ranking rung, it returns no candidates
-  at all. That was live in Nadeshiko until 2.4.1.
+  from another vocabulary does not skip a ranking rung; it returns no candidates.
 - **Identify returns a ranked list, not a verdict.** Rendering
   `candidates.first` is what made 宿主 offer しゅくしゅ and never やどぬし.
 
@@ -163,6 +238,40 @@ Set them on the element the card mounts under. `data-sb-theme` takes `light` or
 `dark` and overrides the reader's OS setting; without it the card follows
 `prefers-color-scheme`. `--sb-definition-size` is set from
 `setPopupOptions({ definitionSize })` rather than by hand.
+
+Pass `theme`, `definitionSize`, and `themeVariables` to `setPopupOptions` to
+style a mounted card. Variables are set on the shadow host, so they win over
+the SDK's light and dark defaults. `--sb-popup-width` and
+`--sb-popup-max-height` control the shell's dimensions. Use `customCss` for
+selected details inside the shadow root.
+
+For host-specific controls, pass a DOM element as `footer`. The card mounts it
+in the bottom row beside the result count and keeps it connected while
+definitions redraw. The host owns that element and its contents; replacing or
+clearing `footer` through `setPopupOptions` removes the previous one. This suits
+a framework mount point such as a Vue Teleport target:
+
+```ts
+import {
+  DEFAULT_CARD_OPTIONS,
+  setPopupOptions,
+} from "@shirabe-org/card/word-card";
+
+const footer = document.createElement("div");
+setPopupOptions({
+  ...DEFAULT_CARD_OPTIONS,
+  theme: "dark",
+  definitionSize: "large",
+  themeVariables: {
+    "--sb-accent": "#df9aa1",
+    "--sb-popup-width": "min(520px, calc(100vw - 24px))",
+  },
+  footer,
+});
+```
+
+Set `showAuthoring: false` when the host's footer handles copying or note
+creation. The SDK then omits its "Copy and choose fields" section.
 
 **The oldest browser that renders this card decides what CSS it may use.** Anki
 25.09 draws cards in Qt WebEngine 6.9, which is Chromium 122, so the palette is

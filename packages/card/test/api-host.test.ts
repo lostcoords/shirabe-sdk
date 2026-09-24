@@ -1,8 +1,120 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiHost, toDefinition } from "../src/word-card/api-host.js";
+import { apiHost, candidateToDefinition, toDefinition } from "../src/word-card/api-host.js";
 import { createLink, type Link } from "../src/word-card/link.js";
 import type { ApiWordDetail } from "../src/word-card/api-types.js";
+import book from "../src/word-card/resources/legend.json" with { type: "json" };
+import { chipLabel, tagPresentation } from "../src/word-card/legend.js";
+import { applyDictionaryReveal } from "../src/word-card/dictionary-reveal.js";
+
+test("every known Legend chip fits ten characters in English and Spanish", () => {
+  for (const [kind, codes] of Object.entries(book.codes)) {
+    for (const [code, slug] of Object.entries(codes)) {
+      for (const language of ["eng", "spa"] as const) {
+        const label = chipLabel(code, kind === "pos" ? "partOfSpeech" : "misc", "source wording", [language]);
+        assert.ok([...label].length <= 10, `${language} ${code} (${slug}): ${label}`);
+      }
+    }
+  }
+  assert.equal(chipLabel("num", "partOfSpeech", "numeric", ["eng"]), "Numeric");
+  assert.equal(chipLabel("ctr", "partOfSpeech", "counter", ["eng"]), "Counter");
+  assert.equal(chipLabel("unc", "partOfSpeech", "unclassified", ["eng"]), "Unclass.");
+  assert.equal(chipLabel("v2a-s", "partOfSpeech", "classical verb", ["eng"]), "Classical");
+  assert.equal(chipLabel("comp", "field", "computing", ["eng"]), "Computing");
+  assert.equal(chipLabel("ksb", "dialect", "Kansai-ben - Kansai dialect", ["eng"]), "Kansai-ben");
+});
+
+test("the card shortens the API's long kana label in both languages", () => {
+  const source = payload.entries[0]!;
+  const entry = { ...source, senses: source.senses.map((sense) => ({
+    ...sense,
+    tags: [{ category: "misc", code: "uk", label: "word usually written in kana", scope: "sense" as const }],
+  })) };
+  const word = { ...payload, entries: [entry] };
+  assert.equal(toDefinition(word, "https://shirabe.org", ["eng"]).senses[0]?.tags[0]?.label, "Kana only");
+  assert.equal(toDefinition(word, "https://shirabe.org", ["spa"]).senses[0]?.tags[0]?.label, "Solo kana");
+  const english = toDefinition(word, "https://shirabe.org", ["eng"]).senses[0]?.tags[0]?.presentation;
+  const spanish = toDefinition(word, "https://shirabe.org", ["spa"]).senses[0]?.tags[0]?.presentation;
+  assert.equal(english?.fullLabel, "Usually kana");
+  assert.equal(spanish?.fullLabel, "Normalmente en kana");
+  assert.ok(english?.explanation);
+  assert.ok(spanish?.explanation);
+  assert.notEqual(english?.explanation, spanish?.explanation);
+});
+
+test("display locale chooses tag text independently of gloss language", () => {
+  const spanish = toDefinition(payload, "https://shirabe.org", ["eng"], { displayLocale: "es" });
+  const english = toDefinition(payload, "https://shirabe.org", ["spa"], { displayLocale: "en" });
+  assert.equal(spanish.senses[0]?.glosses[0]?.text, "to open");
+  assert.equal(spanish.senses[0]?.tags[0]?.label, "Solo kana");
+  assert.equal(spanish.senses[0]?.tags[0]?.presentation?.fullLabel, "Normalmente en kana");
+  assert.equal(english.senses[0]?.tags[0]?.label, "Kana only");
+  assert.equal(english.senses[0]?.tags[0]?.presentation?.fullLabel, "Usually kana");
+});
+
+test("the API host passes its display locale into tag presentations", async () => {
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", languages: ["eng"], displayLocale: "es",
+    fetch: async () => Response.json({ words: [{ candidates: [payload] }] }),
+  });
+  const result = await host.lookup("開く", "word");
+  assert.equal(result.status, "found");
+  if (result.status !== "found") return;
+  assert.equal(result.definition?.senses[0]?.tags[0]?.label, "Solo kana");
+  assert.equal(result.definition?.senses[0]?.glosses[0]?.text, "to open");
+});
+
+test("presentation does not borrow an unrelated explanation for name types or unknown tags", () => {
+  assert.equal(tagPresentation("fem", "nameType", "female given name", ["eng"]).explanation, undefined);
+  assert.equal(tagPresentation("custom", "field", "my custom domain", ["spa"]).fullLabel, "my custom domain");
+});
+
+test("name types stay distinct from usage tags with the same code", () => {
+  const source = payload.entries[0]!;
+  const entry = { ...source, senses: source.senses.map((sense) => ({
+    ...sense,
+    tags: [
+      { category: "nameType", code: "fem", label: "female given name", scope: "sense" as const },
+      { category: "misc", code: "fem", label: "feminine language", scope: "sense" as const },
+    ],
+  })) };
+  const definition = toDefinition({ ...payload, entries: [entry] }, "https://shirabe.org", ["eng"]);
+  assert.deepEqual(definition.senses[0]?.tags.map(({ category, label }) => [category, label]),
+    [["nameType", "Name"], ["misc", "Feminine"]]);
+});
+
+test("a host can translate a tag without replacing the SDK's code mapping", () => {
+  const seen: Array<[string, string]> = [];
+  const definition = toDefinition(payload, "https://shirabe.org", ["eng"], (tag, short) => {
+    seen.push([tag.code, short]);
+    return tag.code === "uk" ? "仮名書き" : short;
+  });
+  assert.deepEqual(seen, [["v5k", "Godan verb"], ["uk", "Kana only"]]);
+  assert.equal(definition.senses[0]?.tags[0]?.label, "仮名書き");
+});
+
+test("the API host applies a caller's tag labels to lookups", async () => {
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", languages: ["eng"],
+    labelForTag: (tag, short) => tag.code === "uk" ? "仮名書き" : short,
+    fetch: async () => Response.json({ words: [{ candidates: [payload] }] }),
+  });
+  const result = await host.lookup("開く", "word");
+  assert.equal(result.status, "found");
+  if (result.status === "found") assert.equal(result.definition?.senses[0]?.tags[0]?.label, "仮名書き");
+});
+
+test("a host can replace the full presentation for its own language", async () => {
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", languages: ["eng"],
+    presentationForTag: (tag, defaults) => tag.code === "uk"
+      ? { ...defaults, shortLabel: "仮名書き", fullLabel: "仮名で書く語", explanation: "ふつう仮名で書きます。" }
+      : defaults,
+    fetch: async () => Response.json({ words: [{ candidates: [payload] }] }),
+  });
+  const result = await host.lookup("開く", "word");
+  assert.equal(result.status, "found");
+  if (result.status !== "found") return;
+  assert.equal(result.definition?.senses[0]?.tags[0]?.label, "仮名書き");
+  assert.equal(result.definition?.senses[0]?.tags[0]?.presentation?.explanation, "ふつう仮名で書きます。");
+});
 
 test("the full-entry link uses the selected word handle without an entry query", () => {
   const definition = toDefinition({ ...payload, id: "猫-ねこ-cat:1", dictionary: "personal-review", sourceId: "cat:1" }, "https://shirabe.org", ["eng"]);
@@ -129,11 +241,40 @@ const payload: ApiWordDetail = {
 
 const built = () => toDefinition(payload, "https://shirabe.org", ["eng"]);
 
+test("the API entry kind reaches the card result", () => {
+  assert.equal(built().kind, "definition");
+  assert.equal(toDefinition({ ...payload, entries: [{ ...payload.entries[0]!, type: "encyclopedia" }] }, "https://shirabe.org", ["eng"]).kind, "encyclopedia");
+  assert.equal(toDefinition({ ...payload, name: true }, "https://shirabe.org", ["eng"]).kind, "name");
+});
+
 test("entries are flattened in the server-provided dictionary order", () => {
   const def = built();
   assert.equal(def.senses[0]?.glosses[0]?.text, "to open");
   assert.equal(def.senses.at(-1)?.glosses[0]?.text, "とじていたものをあける");
   assert.equal(def.entry, "jmdict:1202650");
+});
+
+test("candidate mapping preserves the aligned furigana for the matched spelling", async () => {
+  const candidate = {
+    ...payload,
+    headword: "きょう",
+    matchedHeadword: "今日",
+    reading: "キョウ",
+    furigana: [{ text: "今", ruby: "きょ" }, { text: "日", ruby: "う" }],
+  };
+  const definition = candidateToDefinition(candidate, "https://shirabe.org", ["eng"]);
+  assert.equal(definition.headword, "今日");
+  assert.deepEqual(definition.furigana, [{ text: "今", ruby: "きょ" }, { text: "日", ruby: "う" }]);
+  const unrelated = candidateToDefinition({ ...candidate, furigana: [{ text: "きょう" }] }, "https://shirabe.org", ["eng"]);
+  assert.equal(unrelated.furigana, undefined, "ruby for another spelling must not be applied to the matched headword");
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", languages: ["eng"],
+    fetch: async () => Response.json({ words: [{ candidates: [candidate] }] }) });
+  const result = await host.lookup("今日", "word");
+  assert.equal(result.status, "found");
+  if (result.status === "found") {
+    assert.equal(result.definition?.headword, "今日");
+    assert.deepEqual(result.definition?.furigana, definition.furigana);
+  }
 });
 
 test("display order cannot replace the resolved dictionary identity", () => {
@@ -147,12 +288,20 @@ test("a sense keeps the position the API gave it, so a save scopes correctly", (
   assert.deepEqual(positions, [0, 3, 0], "not renumbered by array index");
 });
 
-test("each dictionary is named only when the card is mixing more than one", () => {
+test("each dictionary is named even when it is the only one", () => {
   const mixed = built();
   assert.equal(mixed.senses[0]?.dictionary, "JMdict");
 
   const single = toDefinition({ ...payload, entries: [payload.entries[1]!] }, "https://shirabe.org", ["eng"]);
-  assert.equal(single.senses[0]?.dictionary, undefined, "one dictionary needs no label on every sense");
+  assert.equal(single.senses[0]?.dictionary, "大辞林");
+});
+
+test("dictionary reveal follows the matching source without changing the stored definition", () => {
+  const original = built();
+  const result = applyDictionaryReveal(original, { "daijirin:ja": "hover", jmdict: "show" });
+  assert.equal(result.senses[0]?.covered, false);
+  assert.equal(result.senses.at(-1)?.covered, true);
+  assert.equal(original.senses.at(-1)?.covered, undefined);
 });
 
 test("glosses come back in the reader's languages, in their order", () => {
@@ -247,6 +396,20 @@ test("an empty API sense is excluded while a relation-only sense keeps its posit
   assert.deepEqual(definition.senses[0]?.xrefs, [{ kind: "related", text: "充実", reading: "じゅうじつ" }]);
 });
 
+test("a numbered dictionary division survives even without definition text", () => {
+  const entry = {
+    ...payload.entries[0]!,
+    senses: [{ position: 0, depth: 0, label: "一", definitions: [], usages: [], tags: [
+      { category: "partOfSpeech", code: "n", label: "Noun", scope: "group" } as const,
+    ] }],
+  };
+  const definition = toDefinition({ ...payload, entries: [entry] }, "https://shirabe.org", ["eng"]);
+
+  assert.equal(definition.senses[0]?.label, "一");
+  assert.deepEqual(definition.senses[0]?.glosses, []);
+  assert.equal(definition.senses[0]?.groupTags?.[0]?.label, "Noun");
+});
+
 test("sense hierarchy keeps labels, depth, and annotation scope", () => {
   const entryTag = { category: "partOfSpeech", code: "n", label: "Noun", scope: "entry" } as const;
   const groupTag = { category: "partOfSpeech", code: "v1", label: "Ichidan verb", scope: "group" } as const;
@@ -257,13 +420,16 @@ test("sense hierarchy keeps labels, depth, and annotation scope", () => {
   };
   const definition = toDefinition({ ...payload, entries: [entry] }, "https://shirabe.org", ["eng"]);
 
-  assert.deepEqual(definition.entryTagsByEntry, {
+  assert.deepEqual(Object.fromEntries(Object.entries(definition.entryTagsByEntry ?? {}).map(([entry, chips]) =>
+    [entry, chips.map(({ presentation: _presentation, ...chip }) => chip)])), {
     "jmdict:1202650": [{ label: "Noun", code: "n", category: "pos", scope: "entry" }],
   });
   assert.equal(definition.senses[0]?.label, "一㋐");
   assert.equal(definition.senses[0]?.depth, 2);
-  assert.deepEqual(definition.senses[0]?.groupTags, [{ label: "Ichidan verb", code: "v1", category: "pos", scope: "group" }]);
-  assert.deepEqual(definition.senses[0]?.tags, [{ label: "Archaic", code: "arch", category: "misc", scope: "sense" }]);
+  assert.deepEqual(definition.senses[0]?.groupTags?.map(({ presentation: _presentation, ...chip }) => chip),
+    [{ label: "Ichidan", code: "v1", category: "pos", scope: "group" }]);
+  assert.deepEqual(definition.senses[0]?.tags.map(({ presentation: _presentation, ...chip }) => chip),
+    [{ label: "Archaic", code: "arch", category: "misc", scope: "sense" }]);
 });
 
 test("API POS codes retain every scoped raw code behind display chips", () => {
@@ -311,7 +477,7 @@ test("tags split into parts of speech and everything else, with codes kept", () 
   const sense = built().senses[0]!;
   assert.deepEqual(sense.partsOfSpeech.map((c) => c.label), ["Godan verb"]);
   assert.deepEqual(sense.posCodes, ["v5k"]);
-  assert.deepEqual(sense.tags.map((c) => c.label), ["Usually kana"]);
+  assert.deepEqual(sense.tags.map((c) => c.label), ["Kana only"]);
 });
 
 test("source tags retain publisher metadata and headword association", () => {
@@ -394,7 +560,7 @@ test("the reading and part of speech are sent, because a spelling alone is ambig
   assert.deepEqual(body.include, ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"]);
 });
 
-test("a name is dropped while there is a real word, and kept when there is not", async () => {
+test("names remain available after ranked words and carry their classification", async () => {
   const word = { ...payload, headword: "一" };
   const name = { ...payload, headword: "ハジメ", name: true } as typeof payload & { name: boolean };
 
@@ -404,6 +570,8 @@ test("a name is dropped while there is a real word, and kept when there is not",
   });
   const chosen = await both.lookup("一", "word");
   assert.equal(chosen.status === "found" && chosen.definition?.headword, "一", "the word wins over the person");
+  assert.equal(chosen.status === "found" && chosen.alternatives?.length, 2);
+  assert.equal(chosen.status === "found" && chosen.alternatives?.[1]?.name, true);
 
   const onlyName = apiHost({
     apiBase: "https://shirabe.org",

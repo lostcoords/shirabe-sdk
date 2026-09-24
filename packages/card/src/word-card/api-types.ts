@@ -11,6 +11,7 @@ import type { Sentence, WordCard } from "@shirabe-org/api";
 export type ApiWordDetail = WordCard & {
   dictionary: string;
   sourceId: string;
+  name?: boolean;
   examples?: Sentence[];
 };
 

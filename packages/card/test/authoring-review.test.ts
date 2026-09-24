@@ -61,7 +61,7 @@ test("raw API lookup highlights and proposes only the parsed surface, not the sc
     assert.equal(proposals[0].lemma, "食べる");
     assert.equal(origin.dataset.targetStart, "3");
     assert.equal(origin.dataset.targetEnd, "8");
-    assert.match(shadow().querySelector(".sb-inflection")!.textContent!, /食べました → 食べる · past · polite/);
+    assert.equal(shadow().querySelector(".sb-inflection")!.textContent, "past, polite");
     assert.equal([...highlights.get("sb-scan") ?? []][0]?.toString(), "食べました");
     const cached = await host.lookup("食べる", "word", { surface: "食べました" });
     assert.equal(cached.status === "found" && cached.definition?.sourceForm, undefined);
@@ -85,7 +85,7 @@ test("wrapped inflection belongs to its original entry, survives return, and nev
   target.dataset.inflectionBase = "食べる";
   card.showNow(target);
   await settle();
-  assert.equal(shadow().querySelector(".sb-inflection")?.textContent, "食べました → 食べる · past · polite");
+  assert.equal(shadow().querySelector(".sb-inflection")?.textContent, "past, polite");
   (shadow().querySelectorAll<HTMLButtonElement>(".sb-candidate")[1]).click();
   await settle();
   assert.equal(shadow().querySelector(".sb-inflection"), null);
@@ -95,7 +95,7 @@ test("wrapped inflection belongs to its original entry, survives return, and nev
   assert.equal(shadow().querySelector(".sb-inflection"), null, "reopening an alternate identity cannot acquire the original explanation");
   (shadow().querySelectorAll<HTMLButtonElement>(".sb-candidate")[0]).click();
   await settle();
-  assert.equal(shadow().querySelector(".sb-inflection")?.textContent, "食べました → 食べる · past · polite");
+  assert.equal(shadow().querySelector(".sb-inflection")?.textContent, "past, polite");
   assert.deepEqual(definition, original);
   card.dismissPopup();
 });
@@ -136,7 +136,7 @@ test("a wrapped lexical adverb explains its adjective base without changing note
   await settle();
   button(shadow(), "Add Anki note").click();
   await settle();
-  assert.equal(shadow().querySelector(".sb-inflection")?.textContent, "確かに → 確か · adverbial");
+  assert.equal(shadow().querySelector(".sb-inflection")?.textContent, "adverbial");
   assert.equal(proposals[0].lemma, "確かに");
   assert.equal(proposals[0].entry, definition.entry);
   card.dismissPopup();
@@ -222,7 +222,7 @@ test("a late Retry result cannot replace a newer word or reopen a dismissed popu
   }
 });
 
-test("a rejected host lookup exposes a recoverable error instead of an unhandled rejection", async () => {
+test("a rejected host lookup shows a safe, recoverable error instead of an unhandled rejection", async () => {
   const host = fakeHost({ study: false });
   let attempts = 0;
   host.lookup = async () => {
@@ -232,7 +232,7 @@ test("a rejected host lookup exposes a recoverable error instead of an unhandled
   card.setCardHost(host);
   card.showNow(word());
   await settle();
-  assert.equal(shadow().querySelector('[role="status"]')?.textContent, "Connection interrupted.");
+  assert.equal(shadow().querySelector('[role="status"]')?.textContent, "Definitions are unavailable. Please try again later.");
   button(shadow(), "Retry lookup").click();
   await settle();
   assert.ok(shadow().querySelector(".sb-headword"));

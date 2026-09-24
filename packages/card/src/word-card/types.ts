@@ -3,9 +3,14 @@
 // (a parsed token, a pack manifest) and no transport (a message, a response).
 
 import type { GlossLanguage } from "./languages.js";
+import type { TagPresentation } from "./legend.js";
 export type { GlossLanguage };
 
-export type WordState = "none" | "new" | "learning" | "due" | "retired";
+export type WordState = "none" | "new" | "learning" | "due" | "suspended" | "retired";
+
+export function cardWordState(raw: string | undefined): WordState {
+  return raw === "new" || raw === "learning" || raw === "due" || raw === "suspended" || raw === "retired" ? raw : "none";
+}
 
 // One token as the content script needs it: where it sits in the source text
 // (UTF-16 offsets, matching the DOM), how to render furigana, and its state.
@@ -27,7 +32,7 @@ export type PitchPattern = { downstep: number; audioUrl: string | null };
     the word IS and the other how it is USED, and a single grey run of text made
     them look like the same kind of claim. */
 export type SenseScope = "entry" | "group" | "sense";
-export type SenseChip = { label: string; code: string; category: "pos" | "field" | "misc" | "dialect"; scope?: SenseScope };
+export type SenseChip = { label: string; code: string; category: "pos" | "nameType" | "field" | "misc" | "dialect"; scope?: SenseScope; presentation?: TagPresentation };
 
 export type SourceTag = { name: string; category: string; notes?: string; order: number; score: number };
 export type SourceHeadword = { text: string; reading: string; tags: SourceTag[]; rules: string[]; score: number };
@@ -52,8 +57,7 @@ export type Sense = {
   label?: string;
   /** 0 group, 1 sense, 2 sub-sense, matching SenseTier on the server. */
   depth?: number;
-  /** Named only when it adds something. Every ordinary word is JMdict, and a
-      dictionary line on every sense of every card is a label nobody reads. */
+  /** Publisher name shown once at the beginning of its entry's senses. */
   dictionary?: string;
   /** A dictionary the reader chose to reveal only on hover or keyboard focus. */
   covered?: boolean;
@@ -121,10 +125,18 @@ export type KanjiDetail = { on: string[]; kun: string[]; strokes?: number; grade
 export type Definition = {
   headword: string;
   reading: string | null;
+  /** Publisher-aligned furigana for this exact headword, when supplied. */
+  furigana?: import("./furigana.js").FuriganaSegment[];
+  /** Shirabe classified this candidate as a proper name. */
+  name?: boolean;
+  /** Shirabe's search result category for this entry. */
+  kind?: "definition" | "name" | "encyclopedia";
   /** Every other spelling this word is written with, headword and displayed
       reading excluded (they are already at the top of the card). Absent for a
       word written exactly one way, which is most of them. */
   forms?: WordForm[];
+  /** Linked dictionary entries that make up this expression. */
+  parts?: Array<{ text: string; lemma: string; reading?: string; entry: string }>;
   kanji?: KanjiDetail;
   /** The dictionary entry this hit came from, as the pack's stable
       `slug:sourceId` handle ("jmdict:2517580"). Sent back when the word is saved
@@ -140,6 +152,8 @@ export type Definition = {
   /** Grammar stated for each source entry, rendered inside that entry's first visible sense. */
   entryTagsByEntry?: Record<string, SenseChip[]>;
   senses: Sense[];
+  /** Gloss languages present in the answer but initially folded away. */
+  hiddenGlossLanguages?: GlossLanguage[];
   /** Source headword pairs grouped by the dictionary entry that supplied them.
       Kept separate from the wire shape so mixed dictionary cards never merge
       publisher tags from unrelated entries. */

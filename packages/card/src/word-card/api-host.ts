@@ -2,8 +2,10 @@ import type { ApiEntry, ApiSense, ApiTag, ApiWordDetail } from "./api-types.js";
 import type { CardToken, LookupResult, Outcome, WordCardHost } from "./host.js";
 import type { Link } from "./link.js";
 import type { Definition, GlossLanguage, GlossRow, Sense, SenseChip, SenseScope, SenseXref, StudyDetails, WordForm } from "./types.js";
+import { cardWordState } from "./types.js";
 import { GLOSS_TAGS } from "./languages.js";
 import { kataToHira } from "./furigana.js";
+import { tagPresentation, type TagDisplayLocale, type TagPresentation } from "./legend.js";
 import { apiExampleSearch } from "./api-example-search.js";
 import { cardApiResult, createCardApiClient, ApiError } from "./api-client.js";
 import {
@@ -25,7 +27,18 @@ import type {
 } from "@shirabe-org/api";
 
 type IdentifyToken = IdentifyWordsData["body"]["tokens"][number];
-type IdentifiedCandidate = NonNullable<NonNullable<IdentifyWordsResponse["words"][number]>["candidates"]>[number];
+export type IdentifiedCandidate = NonNullable<NonNullable<IdentifyWordsResponse["words"][number]>["candidates"]>[number];
+
+/** Override the SDK's short chip label, for a host's own language or wording. */
+export type TagLabeler = (tag: ApiTag, defaultLabel: string) => string;
+/** Replace any part of a tag's label and explanation, including for another language. */
+export type TagPresenter = (tag: ApiTag, defaultPresentation: TagPresentation) => TagPresentation;
+export type TagPresentationOptions = {
+  /** Language of chip labels and explanations, independent of dictionary glosses. */
+  displayLocale?: TagDisplayLocale;
+  labelForTag?: TagLabeler;
+  presentationForTag?: TagPresenter;
+};
 
 /**
  * A host backed by Shirabe's public API, for anything that is not the browser
@@ -58,6 +71,12 @@ export type ApiHostOptions = {
   signInPrompt?: string;
   /** Gloss languages in the reader's own order. */
   languages?: GlossLanguage[];
+  /** English or Spanish tag text, independent of the gloss languages. */
+  displayLocale?: TagDisplayLocale;
+  /** Replace a chip's default short label. The original API tag is available for translations. */
+  labelForTag?: TagLabeler;
+  /** Replace the SDK's English or Spanish presentation for a tag. */
+  presentationForTag?: TagPresenter;
   /** Alternate transport, such as a host-authenticated fetch or test fixture. */
   fetch?: typeof globalThis.fetch;
 };
@@ -114,7 +133,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
     if (error instanceof ApiError && error.status === 401 && signInPrompt) {
       return { status: "pending", message: signInPrompt };
     }
-    return { status: "failed", message: error instanceof Error ? error.message : "Lookup failed" };
+    return { status: "failed", message: "Definitions are unavailable. Please try again later." };
   }
 
   // Which word a token is, asked the way the server wants it asked.
@@ -145,22 +164,16 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       // A token that resolves to nothing answers 200 with `words: [null]`, so
       // "no entry" arrives in the body rather than as a status. A name, a
       // coinage or a typo the corpus kept is an ordinary case, not a failure.
-      const all = (answer.words[0]?.candidates ?? []).map(completeCandidate);
-      // Names rank below real words and never outrank one, so they arrive as a
-      // tail: きみ answers with six people called Kimi behind the pronoun. Drop
-      // them while there is a word to show, and keep them when there is not,
-      // because then being a name IS the answer.
-      const words = all.filter((candidate) => !isName(candidate));
-      const candidates = words.length ? words : all;
+      const candidates = (answer.words[0]?.candidates ?? []).map(completeCandidate);
 
-      const selected = selectedEntry ? all.find((candidate) => entryIdentity(candidate) === selectedEntry) : candidates[0];
+      const selected = selectedEntry ? candidates.find((candidate) => entryIdentity(candidate) === selectedEntry) : candidates[0];
       const found: LookupResult = {
         status: "found",
-        definition: selected ? toDefinition(selected, base, languages) : null,
+        definition: selected ? toDefinition(selected, base, languages, options) : null,
         // `identifyWords` already returned the complete ranked entries. Keep
         // them as definitions so capable Card renderers can show one scrollable
         // result stack instead of asking again just to fill candidate pills.
-        ...(candidates.length ? { alternatives: candidates.map((candidate) => toDefinition(candidate, base, languages)) } : {}),
+        ...(candidates.length ? { alternatives: candidates.map((candidate) => toDefinition(candidate, base, languages, options)) } : {}),
         candidates: candidates.map((candidate) => ({
           entry: entryIdentity(candidate),
           headword: candidate.headword,
@@ -293,7 +306,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
           const out: Record<string, StudyDetails> = {};
           for (const value of payload.states) {
             if (!value.lemma) continue;
-            out[value.lemma] = { state: wordState(value.state), decks: [], cardId: value.cardId };
+            out[value.lemma] = { state: cardWordState(value.state), decks: [], cardId: value.cardId };
           }
           return out;
         } catch {
@@ -339,18 +352,71 @@ async function write(save: (body: SaveCardData["body"]) => Promise<unknown>, bod
 
 export { ApiError } from "./api-client.js";
 
-// The server files people under JMnedict, and now says so itself rather than
-// leaving a client to test the slug: JMdict carries thousands of name rows under
-// its own slug, so the slug alone keeps every one of them and never tells you.
-const isName = (candidate: ApiWordDetail & { name?: boolean }): boolean =>
-  candidate.name === true;
-
 function completeCandidate(candidate: IdentifiedCandidate): ApiWordDetail {
   if (!candidate.dictionary || !candidate.sourceId || candidate.common === undefined
     || !candidate.pitch || !candidate.forms || !candidate.entries) {
     throw new Error("The API returned an incomplete word candidate.");
   }
-  return { ...candidate, furigana: candidate.furigana ?? [] } as ApiWordDetail;
+  return { ...candidate, headword: candidate.matchedHeadword ?? candidate.headword,
+    furigana: candidate.furigana ?? [] } as ApiWordDetail;
+}
+
+/** Map an identify candidate directly to a card, including optional includes. */
+export function candidateToDefinition(
+  candidate: IdentifiedCandidate,
+  base: string,
+  languages: readonly GlossLanguage[],
+  options: TagPresentationOptions & {
+    headword?: string;
+    filterDefinitions?: (definitions: ApiSense["definitions"], dictionary: string) => ApiSense["definitions"];
+  } = {},
+): Definition {
+  const dictionary = candidate.dictionary ?? candidate.entries?.[0]?.dictionary ?? "jmdict";
+  const headword = options.headword ?? candidate.matchedHeadword ?? candidate.headword;
+  const sourceId = candidate.sourceId ?? (candidate.id.startsWith(`${dictionary}:`)
+    ? candidate.id.slice(dictionary.length + 1) : candidate.id);
+  const payload: ApiWordDetail = {
+    id: candidate.id,
+    headword,
+    name: candidate.name,
+    reading: candidate.reading,
+    common: candidate.common === true,
+    jlpt: candidate.jlpt,
+    frequency: candidate.frequency,
+    furigana: (candidate.furigana ?? []).map((part) => ({ text: part.text, ...(part.ruby ? { ruby: part.ruby } : {}) })),
+    pitch: (candidate.pitch ?? []).map((pitch) => ({
+      downstep: pitch.downstep,
+      pattern: (pitch.pattern ?? "heiban") as ApiWordDetail["pitch"][number]["pattern"],
+      audioUrl: pitch.audioUrl,
+      audioDownloadUrl: pitch.audioDownloadUrl,
+      autogenerated: pitch.autogenerated,
+    })),
+    forms: (candidate.forms ?? []).map((form) => ({
+      text: form.text,
+      script: (form.script || "other") as ApiWordDetail["forms"][number]["script"],
+      common: form.common === true,
+      ...(form.tags ? { tags: form.tags.filter((tag): tag is ApiTag =>
+        !!tag.category && !!tag.code && !!tag.label) } : {}),
+    })),
+    entries: (candidate.entries ?? []).map((entry) => ({
+      ...entry,
+      type: entry.type ?? "",
+      sourceId: entry.sourceId ?? sourceId,
+      senses: (entry.senses ?? []).map((sense, index) => ({
+        ...sense,
+        position: sense.position ?? index,
+        definitions: options.filterDefinitions?.(sense.definitions ?? [], entry.dictionary) ?? sense.definitions ?? [],
+        tags: sense.tags ?? [],
+      })),
+    })),
+    dictionary,
+    sourceId,
+  };
+  const definition = toDefinition(payload, base, languages, options);
+  const parts = candidate.parts?.filter((part) => part.id).map((part) => ({
+    text: part.text, lemma: part.lemma, ...(part.reading ? { reading: part.reading } : {}), entry: part.id!,
+  }));
+  return parts?.length ? { ...definition, parts } : definition;
 }
 
 // Which language the server should resolve its LABELS into. The definitions come
@@ -366,9 +432,6 @@ function readingOf(payload: ApiWordDetail): string | null {
   return payload.reading ? kataToHira(payload.reading) : null;
 }
 
-const wordState = (raw: string | undefined): StudyDetails["state"] =>
-  raw === "new" || raw === "learning" || raw === "due" || raw === "retired" ? raw : "none";
-
 // ── The mapping ──────────────────────────────────────────────────────────────
 
 /**
@@ -380,7 +443,7 @@ const wordState = (raw: string | undefined): StudyDetails["state"] =>
  * - The API groups senses under `entries`, one per dictionary. The card shows
  *   one list, so entries are flattened in their server-given order (which is the
  *   reader's own dictionary stack) and each sense carries which dictionary wrote
- *   it, named only when the card is mixing more than one.
+ *   it. The renderer shows the name once at the start of each entry.
  * - The API returns every language it has; the card shows the reader's, in their
  *   order, and a sense with nothing left to say in those languages is dropped
  *   rather than rendered empty.
@@ -392,12 +455,16 @@ function entryIdentity(payload: ApiWordDetail): string {
   return `${payload.dictionary}:${payload.sourceId}`;
 }
 
-export function toDefinition(payload: ApiWordDetail, base: string, languages: readonly GlossLanguage[]): Definition {
+export function toDefinition(payload: ApiWordDetail, base: string, languages: readonly GlossLanguage[], tagOptions?: TagPresentationOptions | TagLabeler, legacyPresenter?: TagPresenter): Definition {
+  const presentationOptions: TagPresentationOptions = typeof tagOptions === "function" || legacyPresenter
+    ? { ...(typeof tagOptions === "function" ? { labelForTag: tagOptions } : tagOptions), presentationForTag: legacyPresenter }
+    : tagOptions ?? {};
   const entries = payload.entries;
-  const mixed = new Set(entries.map((e) => e.dictionary)).size > 1;
-  const senses = entries.flatMap((entry) => sensesOf(entry, languages, mixed));
+  const primaryEntry = entries.find((entry) => entry.dictionary === payload.dictionary && entry.sourceId === payload.sourceId) ?? entries[0];
+  const kind: Definition["kind"] = payload.name || primaryEntry?.type === "name" ? "name" : primaryEntry?.type === "encyclopedia" ? "encyclopedia" : "definition";
+  const senses = entries.flatMap((entry) => sensesOf(entry, languages, presentationOptions));
   const entryTagsByEntry = Object.fromEntries(entries.flatMap((entry) => {
-    const tags = uniqueChips(entry.senses.flatMap((sense) => chips(sense.tags, (tag) => tagScope(tag.scope) === "entry")));
+    const tags = uniqueChips(entry.senses.flatMap((sense) => chips(sense.tags, (tag) => tagScope(tag.scope) === "entry", languages, presentationOptions)));
     return tags.length ? [[`${entry.dictionary}:${entry.sourceId}`, tags] as const] : [];
   }));
   const sourceHeadwordsByEntry = Object.fromEntries(entries.flatMap((entry) =>
@@ -405,6 +472,11 @@ export function toDefinition(payload: ApiWordDetail, base: string, languages: re
 
   return {
     headword: payload.headword,
+    ...(payload.furigana?.length && payload.furigana.map((part) => part.text).join("") === payload.headword
+      ? { furigana: payload.furigana.map((part) => ({ text: part.text, ...(part.ruby ? { ruby: part.ruby } : {}) })) }
+      : {}),
+    ...(payload.name === true ? { name: true } : {}),
+    kind,
     // Hiragana, because this is what gets drawn over the headword. The server's
     // `reading` is the entry's canonical katakana (ネコ), and its `furigana`
     // carries the ruby a reader expects (ねこ); prefer the second and fold the
@@ -441,26 +513,28 @@ function pickTranslation(
   return null;
 }
 
-function sensesOf(entry: ApiEntry, languages: readonly GlossLanguage[], mixed: boolean): Sense[] {
+function sensesOf(entry: ApiEntry, languages: readonly GlossLanguage[], presentationOptions: TagPresentationOptions = {}): Sense[] {
   const out: Sense[] = [];
   for (const sense of entry.senses) {
     const glosses = glossRows(sense, languages);
     const usages = usageRows(sense, languages);
     const notes = sense.notes?.length ? sense.notes : undefined;
     const xrefs = crossReferences(sense);
-    if (!glosses.length && !usages.length && !notes?.length && !xrefs.length) continue;
-    const groupTags = uniqueChips(chips(sense.tags, (t) => tagScope(t.scope) === "group"));
+    const groupTags = uniqueChips(chips(sense.tags, (t) => tagScope(t.scope) === "group", languages, presentationOptions));
+    // A dictionary division can carry only a marker and grammar. Its child
+    // senses still need that row to preserve the publisher's hierarchy.
+    if (!glosses.length && !usages.length && !notes?.length && !xrefs.length && !groupTags.length && !sense.label) continue;
     out.push({
       ref: `${entry.dictionary}#${sense.position}`,
       position: sense.position,
       ...(sense.label ? { label: sense.label } : {}),
       ...(sense.depth != null ? { depth: sense.depth } : {}),
       sourceEntry: `${entry.dictionary}:${entry.sourceId}`,
-      dictionary: mixed ? (entry.dictionaryName ?? entry.dictionary) : undefined,
-      partsOfSpeech: chips(sense.tags, (t) => t.category === "partOfSpeech" && tagScope(t.scope) === "sense"),
+      dictionary: entry.dictionaryName ?? entry.dictionary,
+      partsOfSpeech: chips(sense.tags, (t) => t.category === "partOfSpeech" && tagScope(t.scope) === "sense", languages, presentationOptions),
       posCodes: sense.tags.filter((t) => t.category === "partOfSpeech").map((t) => t.code),
       ...(groupTags.length ? { groupTags } : {}),
-      tags: chips(sense.tags, (t) => t.category !== "partOfSpeech" && tagScope(t.scope) === "sense"),
+      tags: chips(sense.tags, (t) => t.category !== "partOfSpeech" && tagScope(t.scope) === "sense", languages, presentationOptions),
       ...(sense.sourceTags?.length
         ? { sourceTags: sense.sourceTags }
         : {}),
@@ -533,8 +607,14 @@ function usageRows(sense: ApiSense, languages: readonly GlossLanguage[]): GlossR
   });
 }
 
-const chips = (tags: ApiTag[], keep: (tag: ApiTag) => boolean): SenseChip[] =>
-  tags.filter(keep).map((tag) => ({ label: tag.label, code: tag.code, category: category(tag.category), ...(tag.scope ? { scope: tag.scope } : {}) }));
+const chips = (tags: ApiTag[], keep: (tag: ApiTag) => boolean, languages: readonly GlossLanguage[], options: TagPresentationOptions): SenseChip[] =>
+  tags.filter(keep).map((tag) => {
+    const defaults = tagPresentation(tag.code, tag.category, tag.label, languages, options.displayLocale);
+    const presented = options.presentationForTag?.(tag, defaults) ?? defaults;
+    const label = options.labelForTag?.(tag, presented.shortLabel) ?? presented.shortLabel;
+    return { label, code: tag.code, presentation: { ...presented, shortLabel: label },
+      category: category(tag.category), ...(tag.scope ? { scope: tag.scope } : {}) };
+  });
 
 const tagScope = (scope: ApiTag["scope"]): SenseScope => scope ?? "sense";
 
@@ -544,7 +624,7 @@ function uniqueChips(chips: SenseChip[]): SenseChip[] {
 }
 
 const category = (raw: string): SenseChip["category"] =>
-  raw === "partOfSpeech" ? "pos" : raw === "field" ? "field" : raw === "dialect" ? "dialect" : "misc";
+  raw === "partOfSpeech" ? "pos" : raw === "nameType" ? "nameType" : raw === "field" ? "field" : raw === "dialect" ? "dialect" : "misc";
 
 // The card shows spellings OTHER than the headword, and says which are rare.
 // The API marks rarity as a writing tag rather than a boolean.

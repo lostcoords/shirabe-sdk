@@ -74,7 +74,7 @@ try {
     if (mobile) await retry.tap();
     else { await retry.focus(); await retry.press("Enter"); }
     await dialog.locator(".sb-inflection").waitFor();
-    assert.equal(await dialog.locator(".sb-inflection").textContent(), "食べました → 食べる · past · polite");
+    assert.equal(await dialog.locator(".sb-inflection").textContent(), "past, polite");
     assert.equal(await page.evaluate(() => window.parses), 2);
     assert.equal(await dialog.getByRole("button", { name: "Previous lookup", exact: true }).isDisabled(), true);
     assert.equal(await dialog.evaluate(box => box.getRootNode().activeElement === box), true);

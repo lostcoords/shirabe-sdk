@@ -4,6 +4,7 @@ import type { CardToken, LookupContext, LookupFound, LookupResult, WordCardHost 
 import type { GlossLanguage } from "./types.js";
 import { glossLanguagesFrom, uiLanguagesFrom } from "./languages.js";
 import { isR2AudioUrl, isSnapshotRecordingFilename } from "./audio.js";
+import { applyDictionaryReveal } from "./dictionary-reveal.js";
 
 export const MAX_SNAPSHOT_BYTES = 128 * 1024;
 export const SNAPSHOT_FORMAT_VERSION = 1;
@@ -426,11 +427,7 @@ export function snapshotHost(fallback: WordCardHost | undefined, snapshot: unkno
         definition.inflection = [...token.inflection];
         definition.inflectionBase = token.inflectionBase;
       }
-      definition.senses = definition.senses.map((sense) => {
-        const slug = sense.ref?.split("#")[0];
-        const covered = !!slug && Object.entries(parsed?.preferences?.dictionaryReveal ?? {}).some(([source, mode]) => source.split(":")[0] === slug && mode === "hover");
-        return { ...sense, covered };
-      });
+      definition.senses = applyDictionaryReveal(definition, parsed?.preferences?.dictionaryReveal ?? {}).senses;
       return definition;
     };
     const alternatives = candidates.map(define);

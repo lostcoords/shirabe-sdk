@@ -198,6 +198,26 @@ test("every request carries the reader, and a spent token is renewed once", asyn
   assert.deepEqual(sent, ["Bearer fresh"], "the expired token went out anyway");
 });
 
+test("the linked client keeps headers on a generated Request", async () => {
+  const store = memory();
+  store.setItem("shirabe.link", JSON.stringify({ access: "reader", expiresAt: Date.now() + 3600_000 }));
+  let sent: Request | undefined;
+  const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    sent = new Request(input, init);
+    return Response.json({ words: [] });
+  }) as typeof globalThis.fetch;
+  const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: store, fetch });
+  const request = new Request("https://shirabe.org/api/v1/words/identify", {
+    method: "POST", headers: { "Content-Type": "application/json", "Accept-Language": "ja" }, body: "{}",
+  });
+
+  await link.fetch(request);
+
+  assert.equal(sent?.headers.get("Authorization"), "Bearer reader");
+  assert.equal(sent?.headers.get("Content-Type"), "application/json");
+  assert.equal(sent?.headers.get("Accept-Language"), "ja");
+});
+
 test("a refresh token the server no longer honours is forgotten, not retried forever", async () => {
   const store = memory();
   store.setItem("shirabe.link", JSON.stringify({ access: "old", refresh: "revoked", expiresAt: 0 }));
@@ -218,6 +238,36 @@ test("temporary renewal errors preserve the session for retry", async () => {
   await assert.rejects(link.fetch("https://shirabe.org/api/v1/parse"), /try again/i);
   assert.equal(link.linked(), true);
   assert.match(store.getItem("shirabe.link")!, /live/);
+});
+
+test("a still-valid reader token renews early and remains usable through a temporary failure", async () => {
+  const store = memory();
+  let now = 1_000_000;
+  store.setItem("shirabe.link", JSON.stringify({ access: "old", refresh: "live", expiresAt: now + 900_000, refreshAt: now }));
+  let renewals = 0;
+  const sent: string[] = [];
+  const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: store, now: () => now,
+    fetch: async (input, init) => {
+      const request = input instanceof Request && init === undefined ? input : new Request(input, init);
+      if (request.url.endsWith("/oauth/token")) {
+        renewals++;
+        return renewals === 1
+          ? Response.json({ error: "server_error" }, { status: 503 })
+          : Response.json({ access_token: "new", refresh_token: "next", expires_in: 1000 });
+      }
+      sent.push(request.headers.get("authorization") ?? "");
+      return Response.json({});
+    } });
+
+  await link.fetch("https://shirabe.org/api/v1/parse");
+  await link.fetch("https://shirabe.org/api/v1/parse");
+  assert.equal(renewals, 1);
+  assert.deepEqual(sent, ["Bearer old", "Bearer old"]);
+  now += 5 * 60_000;
+  await link.fetch("https://shirabe.org/api/v1/parse");
+  assert.equal(renewals, 2);
+  assert.equal(sent[2], "Bearer new");
+  assert.equal(JSON.parse(store.getItem("shirabe.link")!).refreshAt, now + 700_000);
 });
 
 test("concurrent requests share one token renewal", async () => {

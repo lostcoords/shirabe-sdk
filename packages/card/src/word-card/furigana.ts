@@ -80,7 +80,12 @@ export const hiraToKata = (text: string): string =>
 // reading sits where it belongs instead of floating over the whole word (食べる
 // → 食[た]べる, not たべる over 食べる). Shared with the popup's headword furigana.
 export function appendFurigana(target: HTMLElement, surface: string, reading: string): void {
-  for (const segment of furiganaSegments(surface, reading)) {
+  appendFuriganaSegments(target, furiganaSegments(surface, reading));
+}
+
+/** Render segments aligned by Shirabe itself, preserving irregular readings. */
+export function appendFuriganaSegments(target: HTMLElement, segments: readonly FuriganaSegment[]): void {
+  for (const segment of segments) {
     if (!segment.ruby) {
       target.append(segment.text);
       continue;

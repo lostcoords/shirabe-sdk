@@ -1,11 +1,11 @@
 import type { CardEvent, LookupContext, LookupKind, LookupResult, Outcome, Rating, WordCardHost } from "./host.js";
-import type { Definition, Example, GlossLanguage, GlossRow, KanjiDetail, Sense, SenseChip, StudyDetails, TokenCandidate } from "./types.js";
+import type { Definition, Example, GlossLanguage, KanjiDetail, Sense, SenseChip, StudyDetails, TokenCandidate } from "./types.js";
 import { rangeFromCaret, selectionText } from "./dom-text.js";
 import { placeCard } from "./placement.js";
-import { appendFurigana, hasKanji, hiraToKata, kataToHira } from "./furigana.js";
+import { appendFurigana, appendFuriganaSegments, hiraToKata, kataToHira, type FuriganaSegment } from "./furigana.js";
 import { isR2AudioUrl, isSnapshotRecordingFilename } from "./audio.js";
 import { senseText } from "./senses.js";
-import { legendTerm, type LegendTerm } from "./legend.js";
+import { legendTerm, type LegendTerm, type TagDisplayLocale } from "./legend.js";
 import { authoringActions, AUTHORING_CSS } from "./authoring.js";
 import { accountActions, ACCOUNT_CSS } from "./account-actions.js";
 
@@ -26,12 +26,15 @@ let host: HTMLElement | null = null;
 let root: ShadowRoot | null = null;
 let box: HTMLElement | null = null; // outer dialog shell (visibility + max-height)
 let content: HTMLElement | null = null; // replaced on each lookup; close lives outside it
+let footerRow: HTMLElement | null = null;
+let resultToggle: HTMLElement | null = null;
 let currentKey: string | null = null;
 let currentTarget: PopupTarget | null = null; // what an open card is anchored to
 let returnFocus: HTMLElement | null = null;
 let accountPort: WordCardHost["account"];
 let accountControls: HTMLElement | null = null;
 let showTimer: number | undefined;
+let prefetchTimer: number | undefined;
 let hideTimer: number | undefined;
 let token = 0; // guards against a slow lookup landing after we've moved on
 let activeAudio: HTMLAudioElement | null = null;
@@ -57,6 +60,7 @@ let currentDepth = 0;
 // The reader's gloss stack, for the legend text on a sense chip. English until
 // the config lands, which is also what an unconnected reader keeps.
 let readerLanguages: GlossLanguage[] = [ "eng" ];
+let tagDisplayLocale: TagDisplayLocale | undefined;
 
 // What the popup needs to know about the READER, as opposed to the word: what
 // they may save, and which languages they read in. Pushed in whenever the
@@ -70,11 +74,12 @@ function canMine(): boolean {
   return !readOnly && canWrite && !!optional().study;
 }
 
-export function setWriteState(state: { canWrite: boolean; connected: boolean; languages?: GlossLanguage[]; readOnly?: boolean }): void {
+export function setWriteState(state: { canWrite: boolean; connected: boolean; languages?: GlossLanguage[]; displayLocale?: TagDisplayLocale; readOnly?: boolean }): void {
   canWrite = state.canWrite;
   readOnly = state.readOnly ?? false;
   connected = state.connected;
   if (state.languages?.length) readerLanguages = state.languages;
+  tagDisplayLocale = state.displayLocale;
 }
 
 // Timing, theme, autoplay and the reader's own CSS. Same reason as the state
@@ -87,15 +92,32 @@ const DEFINITION_SIZES: Record<DefinitionSize, string> = { small: "13px", medium
 export type PopupOptions = {
   definitionSize: DefinitionSize;
   lookupDelay: number;
+  /** Start a lookup while a word is hovered, before its popup delay ends. */
+  prefetchOnHover?: boolean;
+  /** Hover time before prefetching; shorter than lookupDelay by default. */
+  prefetchDelay?: number;
   hideDelay: number;
   hideAutomatically: boolean;
   theme: Theme;
   audioAutoplay: boolean;
   customCss: string;
+  labels?: { parts?: string; lookupIn?: string; showDefinitions?: string };
+  /** Override card CSS variables on the shadow host, including popup dimensions. */
+  themeVariables?: Partial<Record<`--sb-${string}`, string>>;
+  /** Host-owned content below the lookup body. Kept mounted across lookup redraws. */
+  footer?: HTMLElement | null;
+  /** Omit the SDK's copy and field-selection controls when the host supplies its own actions. */
+  showAuthoring?: boolean;
+  /** Called when a visible popup closes, including Escape and outside clicks. */
+  onClose?: (word: HTMLElement | null) => void;
+  /** Translate or replace the explanation opened from a tag chip. */
+  legendForTag?: (code: string, category: SenseChip["category"], defaultTerm: LegendTerm | null) => LegendTerm | null;
 };
 export const DEFAULT_CARD_OPTIONS: PopupOptions = {
   definitionSize: "medium",
   lookupDelay: 180,
+  prefetchOnHover: true,
+  prefetchDelay: 60,
   hideDelay: 250,
   hideAutomatically: true,
   theme: "system",
@@ -141,10 +163,20 @@ function optional(): Partial<WordCardHost> {
 }
 
 export function setPopupOptions(next: PopupOptions): void {
+  const previousFooter = options.footer;
+  const previousVariables = options.themeVariables;
   options = next;
   if (host) {
     host.dataset.sbTheme = next.theme;
+    for (const name of Object.keys(previousVariables ?? {})) host.style.removeProperty(name);
     host.style.setProperty("--sb-definition-size", DEFINITION_SIZES[next.definitionSize]);
+    for (const [name, value] of Object.entries(next.themeVariables ?? {})) {
+      if (value !== undefined) host.style.setProperty(name, value);
+    }
+  }
+  if (footerRow) {
+    if (previousFooter && previousFooter !== next.footer && previousFooter.parentElement === footerRow) previousFooter.remove();
+    if (next.footer && next.footer.parentElement !== footerRow) footerRow.insertBefore(next.footer, resultToggle);
   }
   applyCustomCss(next.customCss);
 }
@@ -231,7 +263,9 @@ function element(): HTMLElement {
 
   content = document.createElement("div");
   content.className = "sb-popup-content";
-  box.append(chromeRow, content);
+  footerRow = document.createElement("div");
+  footerRow.className = "sb-popup-footer";
+  box.append(chromeRow, content, footerRow);
   root.append(style, box);
   content.addEventListener("dblclick", (event) => {
     // Firefox exposes a selection inside an open shadow root on the root itself,
@@ -261,6 +295,7 @@ function installHoverGuards(): void {
   guardsInstalled = true;
 
   window.addEventListener("resize", scheduleReposition);
+  window.addEventListener("keydown", onPopupKeydown);
   // Capture phase so scrolling inside the page's own containers counts, and only
   // for captions: see `scheduleReposition`.
   window.addEventListener(
@@ -317,7 +352,7 @@ const visible = (): boolean => !!box?.classList.contains("sb-visible");
 // inside the popup's shadow DOM counts.
 function inSafeZone(e: Event): boolean {
   if (host && e.composedPath().includes(host)) return true;
-  return !!(e.target as Element | null)?.closest?.(".sb-word");
+  return nodeInSafeZone(e.target as Node | null);
 }
 
 // Same test for a bare node (a mouseout's relatedTarget), retargeted to the host
@@ -325,6 +360,7 @@ function inSafeZone(e: Event): boolean {
 function nodeInSafeZone(node: Node | null): boolean {
   if (!node) return false;
   if (host && (node === host || host.contains(node))) return true;
+  if (markedWord && (node === markedWord || markedWord.contains(node))) return true;
   const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
   return !!el?.closest?.(".sb-word");
 }
@@ -332,13 +368,33 @@ function nodeInSafeZone(node: Node | null): boolean {
 export function scheduleShow(word: HTMLElement): void {
   window.clearTimeout(hideTimer);
   window.clearTimeout(showTimer);
+  schedulePrefetch(word);
   showTimer = window.setTimeout(() => showWord(word), options.lookupDelay);
+}
+
+/** Prefetch a token without opening the popup. Hosts may supply a cheaper
+    prefetch method; otherwise the SDK shares the lookup result with showNow. */
+export function schedulePrefetch(word: HTMLElement, lookupHost: WordCardHost = backend()): void {
+  window.clearTimeout(prefetchTimer);
+  if (options.prefetchOnHover === false) return;
+  prefetchTimer = window.setTimeout(() => { void prefetchWord(word, lookupHost); }, options.prefetchDelay ?? 60);
+}
+
+export async function prefetchWord(word: HTMLElement, lookupHost: WordCardHost = backend()): Promise<void> {
+  if (!word.isConnected) return;
+  const target = wordTarget(word);
+  if (lookupHost.prefetch && !target.pick) {
+    try { await lookupHost.prefetch(target.query, target.kind ?? "word", target.context); } catch { /* Opening the card can retry. */ }
+    return;
+  }
+  try { await lookupTarget(target, lookupHost); } catch { /* Opening the card can retry. */ }
 }
 
 // Show immediately (e.g. the modifier key was pressed while already hovering).
 export function showNow(word: HTMLElement): void {
   window.clearTimeout(hideTimer);
   window.clearTimeout(showTimer);
+  window.clearTimeout(prefetchTimer);
   showWord(word);
 }
 
@@ -364,6 +420,7 @@ export function scheduleTextLookup(query: string, rect: DOMRect, sentence: strin
 export function scheduleHide(): void {
   if (pinned || root?.activeElement) return;
   window.clearTimeout(showTimer);
+  window.clearTimeout(prefetchTimer);
   // Any countdown already running is replaced rather than joined. Two callers
   // asking to hide on the same pointer move is ordinary (the card's own guard
   // and a host's), and without this the first timer is orphaned: the id is
@@ -413,6 +470,7 @@ function highlightScan(range: Range | null): void {
 }
 
 function hide(): void {
+  const closedWord = visible() ? currentTarget?.word ?? null : null;
   stopAudio();
   box?.classList.remove("sb-visible");
   currentKey = null;
@@ -423,6 +481,7 @@ function hide(): void {
   // scan highlight: a highlighted span on the page with no card above it.
   token++;
   highlightScan(null);
+  if (closedWord) options.onClose?.(closedWord);
 }
 
 // Re-anchor when the viewport changes under an open card. Ordinary page scrolling
@@ -432,6 +491,7 @@ function hide(): void {
 // placement decision, caption or not. Coalesced onto one frame so a scroll burst
 // costs a single measure.
 let repositionFrame = 0;
+let scrollIndicatorObserver: ResizeObserver | undefined;
 function scheduleReposition(): void {
   if (repositionFrame || !visible() || !currentTarget) return;
   repositionFrame = requestAnimationFrame(() => {
@@ -457,6 +517,7 @@ function dismiss(restoreFocus = false): void {
   const origin = returnFocus;
   const focused = !!root?.activeElement;
   window.clearTimeout(showTimer);
+  window.clearTimeout(prefetchTimer);
   window.clearTimeout(hideTimer);
   hide();
   returnFocus = null;
@@ -493,7 +554,7 @@ function wrappedInflection(word: HTMLElement): WordInflection | undefined {
   } catch { return; }
 }
 
-function showWord(word: HTMLElement): void {
+function wordTarget(word: HTMLElement): PopupTarget {
   const lemma = word.dataset.lemma ?? word.dataset.surface ?? "";
   const pick = word.dataset.entry;
   const startOffset = Number(word.dataset.targetStart);
@@ -510,8 +571,12 @@ function showWord(word: HTMLElement): void {
   const stored = wordCandidates.get(word);
   const candidates = optional().candidatesFor?.(word) ?? (stored && stored.surface === context.surface
     && stored.candidates.some((candidate) => candidate.entry === pick) ? stored.candidates : undefined);
-  void showTarget({ key: `word:${JSON.stringify([query, pick, context])}`, query, pick, context, candidates,
-    inflection: wrappedInflection(word), rect: word.getBoundingClientRect(), word, depth: 0 });
+  return { key: `word:${JSON.stringify([query, pick, context])}`, query, pick, context, candidates,
+    inflection: wrappedInflection(word), rect: word.getBoundingClientRect(), word, depth: 0 };
+}
+
+function showWord(word: HTMLElement): void {
+  void showTarget(wordTarget(word));
 }
 
 // Where a raw-text scan started, so we can highlight exactly the matched span on
@@ -527,6 +592,40 @@ type PopupTarget = {
   candidates?: TokenCandidate[];
   inflection?: WordInflection;
 };
+
+// A speculative answer belongs to the host and the exact lookup context. It is
+// consumed when the card opens, so retries and later preference changes can ask
+// again. The small expiry also bounds results from words never clicked.
+const prefetched = new WeakMap<WordCardHost, Map<string, { result: Promise<LookupResult>; expires: number }>>();
+function prefetchKey(target: PopupTarget): string {
+  return JSON.stringify([target.query, target.kind ?? "word", target.pick, target.context]);
+}
+function requestLookup(target: PopupTarget, lookupHost: WordCardHost): Promise<LookupResult> {
+  return target.pick
+    ? lookupHost.lookupEntry(target.pick, target.query, target.word)
+    : lookupHost.lookup(target.query, target.kind ?? "word", target.context ?? {
+      surface: target.word.dataset.surface,
+      reading: target.word.dataset.reading,
+      pos: target.word.dataset.lookupPos ?? target.word.dataset.pos,
+    });
+}
+function lookupTarget(target: PopupTarget, lookupHost: WordCardHost, speculative = true): Promise<LookupResult> {
+  let entries = prefetched.get(lookupHost);
+  const key = prefetchKey(target);
+  const cached = entries?.get(key);
+  if (cached && cached.expires > Date.now()) {
+    if (!speculative) entries?.delete(key);
+    return cached.result;
+  }
+  entries?.delete(key);
+  const result = requestLookup(target, lookupHost);
+  if (speculative) {
+    if (!entries) { entries = new Map(); prefetched.set(lookupHost, entries); }
+    if (entries.size >= 32) entries.delete(entries.keys().next().value!);
+    entries.set(key, { result, expires: Date.now() + 10_000 });
+  }
+  return result;
+}
 
 async function showTarget(target: PopupTarget, retrying = false): Promise<void> {
   if (!retrying && target.word === currentTarget?.word && target.key === currentKey && box?.classList.contains("sb-visible")) return;
@@ -549,6 +648,9 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
   highlightScan(null); // drop any previous scan highlight until this match resolves
 
   const el = element();
+  if (box) box.style.height = "";
+  resultToggle?.remove();
+  resultToggle = null;
   const nextAccount = optional().account;
   const showAccount = !!nextAccount && nextAccount.connected?.() !== false;
   if (accountPort !== nextAccount || !!accountControls !== showAccount) {
@@ -558,7 +660,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     if (accountControls) box?.append(accountControls);
   }
   if (focused && (el.contains(focused) || (focused as HTMLButtonElement).disabled)) box?.focus({ preventScroll: true });
-  el.replaceChildren(loadingRow(target.query));
+  el.replaceChildren(loadingRow(target.context?.surface ?? target.query));
   position(target);
   // The visibility class belongs on the dialog shell, not the content wrapper
   // `element()` returns: `.sb-popup.sb-visible` is what the stylesheet, `hide`,
@@ -570,15 +672,9 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
   // the definition it lands on is a definition like any other.
   let res: LookupResult;
   try {
-    res = target.pick
-      ? await backend().lookupEntry(target.pick, target.query)
-      : await backend().lookup(target.query, target.kind ?? "word", target.context ?? {
-        surface: target.word.dataset.surface,
-        reading: target.word.dataset.reading,
-        pos: target.word.dataset.lookupPos ?? target.word.dataset.pos,
-      });
-  } catch (error) {
-    res = { status: "failed", message: error instanceof Error && error.message.trim() ? error.message : "Couldn't look up this word. Try again." };
+    res = retrying ? await requestLookup(target, backend()) : await lookupTarget(target, backend(), false);
+  } catch {
+    res = { status: "failed", message: "Definitions are unavailable. Please try again later." };
   }
   if (mine !== token) return; // user moved to another word meanwhile
 
@@ -592,6 +688,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     link.className = "sb-headword";
     el.replaceChildren(messageRow(res.message), messageRow(link));
     position(target);
+    optional().onDefinitionRendered?.(null);
     return;
   }
 
@@ -617,11 +714,12 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     body.append(message, actions);
     el.replaceChildren(body);
     position(target);
+    optional().onDefinitionRendered?.(null);
     optional().report?.("lookup_failed", { kind: target.kind ?? "word" });
     return;
   }
   if (res.status === "pending") {
-    el.replaceChildren(loadingRow(target.query), messageRow(res.message));
+    el.replaceChildren(loadingRow(target.context?.surface ?? target.query), messageRow(res.message));
     position(target);
     // Only a host that can unblock itself gets asked to. Retrying against one
     // that cannot would ask the same question forever, and the reader would
@@ -633,9 +731,11 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     const inflection = target.inflection;
     if (!inflection.entry && !target.pick) inflection.entry = res.definition.entry;
     if (inflection.entry && inflection.entry === res.definition.entry) {
-      res = { ...res, definition: { ...res.definition, sourceForm: inflection.surface,
-        baseForm: res.definition.baseForm ?? res.definition.headword,
-        inflection: [...inflection.labels], inflectionBase: inflection.base } };
+      const definition = res.definition;
+      res = { ...res, definition: { ...definition, sourceForm: definition.sourceForm ?? inflection.surface,
+        baseForm: definition.baseForm ?? definition.inflectionBase ?? definition.headword,
+        inflection: definition.inflection ?? [...inflection.labels],
+        inflectionBase: definition.inflectionBase ?? (definition.inflection === undefined ? inflection.base : undefined) } };
     }
   }
   const studyStatus = readOnly && res.definition ? block("sb-authoring-status", "") : undefined;
@@ -677,6 +777,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
   if (root?.activeElement && el.contains(root.activeElement)) box?.focus({ preventScroll: true });
   el.replaceChildren(...definitionRows(res.definition, target.query, target.word, studyStatus, res.alternatives));
   position(target);
+  optional().onDefinitionRendered?.(res.definition);
   if (studyStatus) void refreshReadOnlyStudy(target, mine, studyStatus);
   // Which of the two happened matters: a card that renders and a card that says
   // "no entry" look the same in a count of openings, and they are opposite
@@ -684,6 +785,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
   optional().report?.(res.definition ? "card_opened" : "card_missing", {
     kind: target.kind ?? "word",
     senses: res.definition?.senses.length ?? 0,
+    candidate_count: res.alternatives?.length ?? res.candidates?.length ?? (res.definition ? 1 : 0),
   });
 }
 
@@ -701,7 +803,7 @@ async function refreshReadOnlyStudy(target: PopupTarget, mine: number, status: H
     }
     study.apply(target.word, details);
     const labels: Record<StudyDetails["state"], string> = {
-      none: "Not saved", new: "New", learning: "Learning", due: "Due", retired: "Retired",
+      none: "Not saved", new: "New", learning: "Learning", due: "Due", suspended: "Suspended", retired: "Retired",
     };
     status.textContent = `${study.source ?? "Shirabe"} · ${labels[details.state]}`;
     status.setAttribute("aria-label", "Study status");
@@ -722,7 +824,7 @@ async function waitForHost(target: PopupTarget, mine: number): Promise<void> {
       if (!stillHere()) return;
       const progress = messageRow(message);
       progress.classList.add("sb-body");
-      element().replaceChildren(loadingRow(target.query), progress);
+      element().replaceChildren(loadingRow(target.context?.surface ?? target.query), progress);
       position(target);
     });
   } catch (error) {
@@ -802,10 +904,21 @@ function captionRect(word?: Element | null): DOMRect | null {
 }
 
 function loadingRow(lemma: string): Node {
-  const div = document.createElement("div");
-  div.className = "sb-popup-head";
-  div.textContent = lemma;
-  return div;
+  const wrap = document.createElement("div");
+  wrap.className = "sb-loading";
+  wrap.setAttribute("aria-busy", "true");
+  const head = document.createElement("div");
+  head.className = "sb-popup-head";
+  head.textContent = lemma.length > 32 ? `${lemma.slice(0, 32)}…` : lemma;
+  const body = document.createElement("div");
+  body.className = "sb-loading-body";
+  body.setAttribute("role", "status");
+  const spinner = document.createElement("span");
+  spinner.className = "sb-loading-spinner";
+  spinner.setAttribute("aria-hidden", "true");
+  body.append(spinner, "Loading definitions…");
+  wrap.append(head, body);
+  return wrap;
 }
 
 function messageRow(text: string | Node): HTMLElement {
@@ -822,6 +935,7 @@ function definitionRows(
   studyStatus?: HTMLElement,
   alternatives?: readonly Definition[],
 ): Node[] {
+  scrollIndicatorObserver?.disconnect();
   sensePicks = []; // rebuilt by sensesList for this render
   sensePickWord = null;
   if (!def) {
@@ -829,9 +943,22 @@ function definitionRows(
     body.className = "sb-body";
     body.setAttribute("aria-live", "polite");
     body.append(messageRow(`No entry for 「${lemma}」`));
+    const links = lookupLinks(null, word);
+    if (links) body.append(links);
     const rows: Node[] = [body];
     if (canMine()) rows.push(actions(word));
     return rows;
+  }
+
+  const displayedSpellings = new Map<Definition, string>();
+  let visibleDefinition = def;
+  let head = headRow(def);
+  function selectForm(definition: Definition, spelling: string): void {
+    displayedSpellings.set(definition, spelling);
+    if (visibleDefinition === definition) {
+      const link = head.querySelector<HTMLElement>(".sb-headword");
+      if (link) setHeadwordSpelling(link, spelling, definition.reading);
+    }
   }
 
   // A scrollable body (pinned head + actions) mirroring the shirabe.org card.
@@ -841,39 +968,235 @@ function definitionRows(
   // was dropped into the dialog would otherwise sit on "Looking up…" in silence.
   // It changes once per card, so polite is not chatty.
   body.setAttribute("aria-live", "polite");
-  if (def.inflection?.length) body.append(block("sb-inflection", `${def.sourceForm ?? lemma} → ${def.inflectionBase ?? def.headword} · ${def.inflection.join(" · ")}`));
-  const otherMatches = alternatives?.filter((alternative) => alternative.entry !== def.entry) ?? [];
-  // A host that supplied complete alternatives can show their actual definitions
-  // in one scroll. Metadata-only hosts retain the compact picker below.
-  const picker = otherMatches.length ? null : candidateRow(word, def);
+  const metadataRows = [resultMetadata(def)];
+  const otherMatches = alternatives?.filter((alternative) => alternative.entry !== def.entry && !alternative.name) ?? [];
+  const rankedNames = alternatives?.filter((alternative) => alternative.name) ?? [];
+  const nameMatches = def.name && !rankedNames.some((alternative) => alternative.entry === def.entry)
+    ? [def, ...rankedNames] : rankedNames;
+  // Complete alternatives own the result presentation, even for one match.
+  // Metadata-only hosts retain the compact picker.
+  const picker = alternatives ? null : candidateRow(word, def);
   if (picker) body.append(picker);
-  const badges = badgeRow(def);
-  if (badges) body.append(badges);
   if (studyStatus) body.append(studyStatus);
-  if (def.kanji) body.append(kanjiReadings(def.kanji));
-  if (def.pitch.length && def.reading) body.append(pitchRows(def.pitch, def.reading, def.offline === true));
-  // A picker only when the user can save and every sense is shown (2–8): so
-  // "all ticked" unambiguously means the whole word.
-  const pickable = canWrite && def.senses.length > 1 && def.senses.length <= 8;
-  if (pickable) sensePickWord = word;
-  body.append(sensesList(def, pickable, coveredSenses(word)));
-  const forms = formsRow(def.forms);
-  if (forms) body.append(forms);
-  // Not on a card that IS a character: its own chip would reopen the card it is
-  // already on.
-  const kanji = def.kanji ? null : kanjiStrip(def.headword);
-  if (kanji) body.append(kanji);
-  const examples = examplesBlock(def.examples, def);
-  if (examples) body.append(examples);
-  if (otherMatches.length) body.append(alternativeResults(otherMatches, word));
+  if (def.name) {
+    body.append(nameResults(nameMatches, word));
+  } else {
+    if (def.kanji) body.append(kanjiReadings(def.kanji));
+    const parts = partsRow(def);
+    if (parts) body.append(parts);
+    // A picker only when the user can save and every sense is shown (2–8).
+    const pickable = canWrite && def.senses.length > 1 && def.senses.length <= 8;
+    if (pickable) sensePickWord = word;
+    body.append(sensesList(def, pickable, coveredSenses(word)));
+    const forms = formsRow(def.forms, (spelling) => selectForm(def, spelling));
+    if (forms) body.append(forms);
+    const kanji = def.kanji ? null : kanjiStrip(def.headword);
+    if (kanji) body.append(kanji);
+    const examples = examplesBlock(def.examples, def);
+    if (examples) body.append(examples);
+  }
+  const groupedNames = def.name ? [] : nameMatches;
+  const alternativesSection = otherMatches.length || groupedNames.length
+    ? alternativeResults(otherMatches, groupedNames, word, selectForm) : null;
+  const firstPanel = alternativesSection ? document.createElement("section") : null;
+  if (firstPanel) {
+    firstPanel.className = "sb-result-panel";
+    firstPanel.append(...body.childNodes);
+    body.append(firstPanel);
+  }
+  const links = lookupLinks(def, word);
+  if (links) (firstPanel ?? body).append(links);
   const lookupHost = backend();
-  body.append(authoringActions(def, word, lookupHost.authoring, def.entry ? async () => {
-    const result = await lookupHost.lookupEntry(def.entry!, def.headword);
-    if (result.status !== "found") throw new Error(result.message);
-    return result.definition?.examples ?? [];
-  } : undefined, lookupHost.exampleSearch?.bind(lookupHost)));
+  if (options.showAuthoring !== false) {
+    (firstPanel ?? body).append(authoringActions(def, word, lookupHost.authoring, def.entry ? async () => {
+      const result = await lookupHost.lookupEntry(def.entry!, def.headword);
+      if (result.status !== "found") throw new Error(result.message);
+      return result.definition?.examples ?? [];
+    } : undefined, lookupHost.exampleSearch?.bind(lookupHost)));
+  }
 
-  const rows: Node[] = [headRow(def), body];
+  const navigationRows: HTMLElement[] = [];
+  let resultPanels: HTMLElement[] = [];
+  let visibleIndex = 0;
+  let showResult = (_index: number) => {};
+  let heldHeight = 0;
+  const keepPopupHeight = (change: () => void) => {
+    const popup = box;
+    if (!popup) return change();
+    const before = popup.getBoundingClientRect().height;
+    popup.style.height = "";
+    change();
+    heldHeight = Math.max(heldHeight, before, popup.getBoundingClientRect().height);
+    if (heldHeight) popup.style.height = `${heldHeight}px`;
+    if (currentTarget) position(currentTarget);
+  };
+  if (alternativesSection) {
+    const articles = [...alternativesSection.querySelectorAll<HTMLElement>(".sb-alternative")];
+    metadataRows.push(...otherMatches.map(resultMetadata));
+    if (groupedNames.length) metadataRows.push(resultMetadata(null));
+    for (const row of metadataRows.slice(1)) row.hidden = true;
+    resultPanels = [firstPanel!, ...articles];
+    for (const article of articles) {
+      article.hidden = true;
+      body.append(article);
+    }
+    const results = [def, ...otherMatches, ...groupedNames.slice(0, 1)];
+    const overview = document.createElement("nav");
+    overview.className = "sb-results-overview";
+    overview.id = "sb-results-overview";
+    overview.setAttribute("aria-label", "All results");
+    overview.hidden = true;
+    const list = document.createElement("ol");
+    list.className = "sb-results-list";
+    const resultButtons = results.map((result, index) => {
+      const nameGroup = groupedNames.length > 0 && index === results.length - 1;
+      const item = document.createElement("li");
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "sb-result-link";
+      const number = document.createElement("span");
+      number.className = "sb-result-number";
+      number.textContent = String(index + 1);
+      const details = document.createElement("span");
+      details.className = "sb-result-details";
+      const title = document.createElement("span");
+      title.className = "sb-result-title";
+      title.textContent = nameGroup ? "Names" : result.headword;
+      if (!nameGroup) title.lang = "ja";
+      const heading = document.createElement("span");
+      heading.className = "sb-result-heading";
+      heading.append(title);
+      const readingText = nameGroup
+        ? [...new Set(groupedNames.map((name) => name.reading).filter((reading): reading is string => !!reading))].join(" · ")
+        : result.reading;
+      if (readingText && (nameGroup || readingText !== result.headword)) {
+        const reading = document.createElement("span");
+        reading.className = "sb-result-reading";
+        reading.lang = "ja";
+        reading.textContent = readingText;
+        heading.append(reading);
+      }
+      const summary = document.createElement("span");
+      summary.className = "sb-result-summary";
+      const kind = nameGroup || result.name ? "name" : result.kind ?? "definition";
+      const kindTag = document.createElement("span");
+      kindTag.className = `sb-result-kind sb-result-kind-${kind}`;
+      kindTag.textContent = tagDisplayLocale === "es"
+        ? { definition: "Palabra", name: "Nombre", encyclopedia: "Artículo" }[kind]
+        : { definition: "Word", name: "Name", encyclopedia: "Article" }[kind];
+      const preview = document.createElement("span");
+      preview.className = "sb-result-preview";
+      preview.textContent = nameGroup
+        ? tagDisplayLocale === "es" ? `${groupedNames.length} ${groupedNames.length === 1 ? "nombre" : "nombres"}`
+          : `${groupedNames.length} ${groupedNames.length === 1 ? "name" : "names"}`
+        : result.senses[0] ? senseText(result.senses[0]) : "";
+      summary.append(kindTag, preview);
+      details.append(heading, summary);
+      link.append(number, details);
+      item.append(link);
+      list.append(item);
+      return link;
+    });
+    overview.append(list);
+    const toggle = button(`1 of ${results.length} results`, "sb-results-toggle", "", () => {
+      const open = overview.hidden;
+      keepPopupHeight(() => {
+        overview.hidden = !open;
+        body.hidden = open;
+        scrollRegion.hidden = open;
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.setAttribute("aria-label", open ? "Hide all results" : `Show all ${results.length} results`);
+      });
+      if (open) resultButtons[visibleIndex]?.focus();
+      else window.requestAnimationFrame(updateScrollIndicator);
+    });
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", overview.id);
+    toggle.setAttribute("aria-label", `Show all ${results.length} results`);
+    resultToggle = toggle;
+    footerRow?.append(toggle);
+    const count = toggle.querySelector("span")!;
+    resultButtons[0]?.setAttribute("aria-current", "true");
+    showResult = (index: number) => {
+      if (index === visibleIndex) return;
+      const from = visibleIndex;
+      resultPanels[visibleIndex]!.hidden = true;
+      metadataRows[visibleIndex]!.hidden = true;
+      visibleIndex = index;
+      resultPanels[index]!.hidden = false;
+      metadataRows[index]!.hidden = false;
+      body.scrollTop = 0;
+      visibleDefinition = results[index]!;
+      const replacement = headRow(visibleDefinition, displayedSpellings.get(visibleDefinition));
+      head.replaceWith(replacement);
+      head = replacement;
+      count.textContent = `${index + 1} of ${results.length} results`;
+      for (const [position, link] of resultButtons.entries()) {
+        if (position === index) link.setAttribute("aria-current", "true");
+        else link.removeAttribute("aria-current");
+      }
+      optional().onVisibleDefinition?.(visibleDefinition);
+      optional().report?.("candidate_selected", { from_index: from, to_index: index, candidate_count: results.length });
+    };
+    for (const [index, link] of resultButtons.entries()) {
+      link.addEventListener("click", () => {
+        keepPopupHeight(() => {
+          overview.hidden = true;
+          body.hidden = false;
+          scrollRegion.hidden = false;
+          toggle.setAttribute("aria-expanded", "false");
+          toggle.setAttribute("aria-label", `Show all ${results.length} results`);
+          showResult(index);
+        });
+        window.requestAnimationFrame(updateScrollIndicator);
+        toggle.focus();
+      });
+    }
+    navigationRows.push(overview);
+  }
+  const scrollContent = document.createElement("div");
+  scrollContent.append(head, ...metadataRows, ...body.childNodes);
+  body.append(scrollContent);
+  const scrollRegion = document.createElement("div");
+  scrollRegion.className = "sb-scroll-region";
+  const track = document.createElement("div");
+  track.className = "sb-scroll-track";
+  track.setAttribute("aria-hidden", "true");
+  const thumb = document.createElement("div");
+  thumb.className = "sb-scroll-thumb";
+  track.append(thumb);
+  scrollRegion.append(body, track);
+  const updateScrollIndicator = () => {
+    if (!body.isConnected || body.hidden) return;
+    const remaining = body.scrollHeight - body.clientHeight;
+    track.hidden = resultPanels.length <= 1 && remaining <= 1;
+    if (track.hidden) return;
+    const segment = body.clientHeight / Math.max(1, resultPanels.length);
+    const height = Math.min(segment, Math.max(14, segment * body.clientHeight / Math.max(body.scrollHeight, body.clientHeight)));
+    thumb.style.height = `${height}px`;
+    const offset = remaining > 0 ? body.scrollTop / remaining * (segment - height) : 0;
+    thumb.style.transform = `translateY(${visibleIndex * segment + offset}px)`;
+  };
+  body.addEventListener("scroll", updateScrollIndicator);
+  track.addEventListener("pointerdown", (event) => {
+    const rect = track.getBoundingClientRect();
+    if (resultPanels.length > 1) {
+      keepPopupHeight(() => showResult(Math.max(0, Math.min(resultPanels.length - 1,
+        Math.floor((event.clientY - rect.top) / rect.height * resultPanels.length)))));
+      updateScrollIndicator();
+      return;
+    }
+    const remaining = body.scrollHeight - body.clientHeight;
+    body.scrollTop = Math.max(0, Math.min(remaining, (event.clientY - rect.top) / rect.height * remaining));
+  });
+  if (typeof ResizeObserver !== "undefined") {
+    scrollIndicatorObserver = new ResizeObserver(updateScrollIndicator);
+    scrollIndicatorObserver.observe(body);
+    scrollIndicatorObserver.observe(scrollContent);
+  }
+  window.requestAnimationFrame(updateScrollIndicator);
+  const rows: Node[] = [...navigationRows, scrollRegion];
   if (canMine()) rows.push(actions(word, def));
   else {
     const offer = studyUnavailable();
@@ -883,11 +1206,13 @@ function definitionRows(
 }
 
 /** Complete alternative definitions, rather than a row of opaque homograph pills. */
-function alternativeResults(alternatives: readonly Definition[], word: HTMLElement): HTMLElement {
+function alternativeResults(
+  alternatives: readonly Definition[], names: readonly Definition[], word: HTMLElement,
+  selectForm: (definition: Definition, spelling: string) => void,
+): HTMLElement {
   const section = document.createElement("section");
   section.className = "sb-alternatives";
   section.setAttribute("aria-label", "Other dictionary matches");
-  section.append(chip("sb-alternatives-label", "Other matches"));
 
   for (const alternative of alternatives) {
     const result = document.createElement("article");
@@ -895,24 +1220,84 @@ function alternativeResults(alternatives: readonly Definition[], word: HTMLEleme
     const heading = document.createElement("button");
     heading.type = "button";
     heading.className = "sb-alternative-headword";
-    heading.append(japanese("", alternative.headword));
-    if (alternative.reading && alternative.reading !== alternative.headword) heading.append(japanese("sb-alternative-reading", alternative.reading));
+    setHeadwordSpelling(heading, alternative.headword, alternative.reading, alternative.furigana);
+    heading.lang = "ja";
     heading.setAttribute("aria-label", `Use ${alternative.headword} as this word`);
     if (alternative.entry) heading.addEventListener("click", () => pickCandidate(word, alternative.entry!));
     else heading.disabled = true;
     result.append(heading);
-    const badges = badgeRow(alternative);
-    if (badges) result.append(badges);
-    if (alternative.pitch.length && alternative.reading) result.append(pitchRows(alternative.pitch, alternative.reading, alternative.offline === true));
     result.append(sensesList(alternative));
-    const forms = formsRow(alternative.forms);
+    const forms = formsRow(alternative.forms, (spelling) => {
+      setHeadwordSpelling(heading, spelling, alternative.reading);
+      heading.setAttribute("aria-label", `Use ${spelling} as this word`);
+      selectForm(alternative, spelling);
+    });
     if (forms) result.append(forms);
+    const kanji = alternative.kanji ? null : kanjiStrip(alternative.headword);
+    if (kanji) result.append(kanji);
+    section.append(result);
+  }
+  if (names.length) {
+    const result = document.createElement("article");
+    result.className = "sb-alternative sb-name-alternative";
+    result.append(block("sb-name-group-label", "Names"));
+    result.append(nameResults(names, word));
     section.append(result);
   }
   return section;
 }
 
-// The word's kanji, each opening its own card HERE rather than a tab.
+/** Keep every name candidate, while combining repeated readings and meanings. */
+function nameResults(names: readonly Definition[], word: HTMLElement): HTMLElement {
+  const list = document.createElement("ol");
+  list.className = "sb-name-results";
+  const byReading = new Map<string, Definition[]>();
+  for (const name of names) {
+    const reading = name.reading ?? name.headword;
+    const group = byReading.get(reading) ?? [];
+    group.push(name);
+    byReading.set(reading, group);
+  }
+  for (const [reading, group] of byReading) {
+    const row = document.createElement("li");
+    row.className = "sb-name-result";
+    const spellings = document.createElement("div");
+    spellings.className = "sb-name-spellings";
+    const seen = new Set<string>();
+    for (const name of group) {
+      if (seen.has(name.headword)) continue;
+      seen.add(name.headword);
+      const headword = document.createElement("button");
+      headword.type = "button";
+      headword.className = "sb-name-headword";
+      setHeadwordSpelling(headword, name.headword, name.reading, name.furigana);
+      headword.lang = "ja";
+      headword.setAttribute("aria-label", `Use ${name.headword} as this word`);
+      if (name.entry) headword.addEventListener("click", () => pickCandidate(word, name.entry!));
+      else headword.disabled = true;
+      spellings.append(headword);
+    }
+    row.append(spellings);
+    const pitch = [...new Map(group.flatMap((name) => name.pitch).map((pattern) =>
+      [pattern.downstep, pattern])).values()];
+    if (pitch.length) row.append(pitchRows(pitch, reading, group[0]!.offline === true));
+    const types = [...new Map(group.flatMap((name) => name.senses.flatMap((sense) => sense.tags))
+      .filter((tag) => tag.category === "nameType").map((tag) => [tag.code, tag])).values()];
+    if (types.length) {
+      const tags = document.createElement("div");
+      tags.className = "sb-name-types";
+      for (const type of types) tags.append(chip("sb-sense-chip sb-sense-chip-nameType", type.label));
+      row.append(tags);
+    }
+    const meanings = [...new Set(group.flatMap((name) => name.senses.flatMap((sense) =>
+      sense.glosses.map((gloss) => gloss.text))))];
+    if (meanings.length) row.append(block("sb-name-meanings", meanings.join(" · ")));
+    list.append(row);
+  }
+  return list;
+}
+
+// The word's kanji, each opening an in-card lookup where the host supports it.
 //
 // The pack has carried KANJIDIC all along and the popup could already draw a
 // kanji card (`showTarget` takes `kind: "kanji"`, the worker answers it, the
@@ -920,9 +1305,7 @@ function alternativeResults(alternatives: readonly Definition[], word: HTMLEleme
 // instead, so the offline half of the feature was unreachable and the price of
 // asking "what is this character" was leaving the page you were reading.
 //
-// The site is still one step away, not gone: the kanji card that opens is headed
-// by a link to its full page, which is where strokes order, components and
-// example words live.
+// A host without kanji lookup can supply a direct link to the full kanji page.
 function kanjiStrip(headword: string): HTMLElement | null {
   const characters = [...new Set([...headword].filter((character) => /\p{Script=Han}/u.test(character)))];
   if (!characters.length) return null;
@@ -931,6 +1314,20 @@ function kanjiStrip(headword: string): HTMLElement | null {
   strip.className = "sb-kanji-strip";
   strip.setAttribute("aria-label", "Kanji details");
   for (const character of characters) {
+    const url = optional().kanjiUrl?.(character);
+    if (url) {
+      const link = document.createElement("a");
+      link.className = "sb-btn sb-kanji-button";
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = character;
+      link.lang = "ja";
+      link.title = `Open ${character} on Shirabe`;
+      link.setAttribute("aria-label", `Open the kanji ${character} on Shirabe`);
+      strip.append(link);
+      continue;
+    }
     const button = document.createElement("button");
     button.type = "button";
     button.className = "sb-btn sb-kanji-button";
@@ -973,19 +1370,28 @@ const KANJI_READINGS_SHOWN = 6;
 
 // "Also written": the other spellings of the same word.
 //
-// The question a reader asks the moment the headword is not what they tapped.
-// 開く leads its entry and 空く does not, so somebody who met 空く was shown a
-// card about a word they appear never to have seen. A rare spelling is dimmed
-// rather than dropped: it is exactly the one a reader cannot place, and the
-// dictionary's judgement of it is part of the answer.
-function formsRow(forms: Definition["forms"]): HTMLElement | null {
+// Choosing a form changes only the displayed writing of this entry. The
+// reading, pitch, meanings, and selected dictionary identity stay in place.
+function formsRow(forms: Definition["forms"], onSelect: (spelling: string) => void): HTMLElement | null {
   if (!forms?.length) return null;
 
   const row = document.createElement("div");
   row.className = "sb-forms";
   row.append(chip("sb-forms-label", "Also written"));
   for (const form of forms.slice(0, FORMS_SHOWN)) {
-    const spelling = japanese(form.rare ? "sb-form sb-form-rare" : "sb-form", form.text);
+    const spelling = document.createElement("button");
+    spelling.type = "button";
+    spelling.className = form.rare ? "sb-word-form sb-word-form-rare" : "sb-word-form";
+    spelling.textContent = form.text;
+    spelling.lang = "ja";
+    spelling.setAttribute("aria-label", `Show ${form.text} as the headword`);
+    spelling.setAttribute("aria-pressed", "false");
+    spelling.addEventListener("click", () => {
+      onSelect(form.text);
+      for (const button of row.querySelectorAll<HTMLElement>(".sb-word-form")) {
+        button.setAttribute("aria-pressed", String(button === spelling));
+      }
+    });
     if (form.rare) spelling.title = "Rarely written this way";
     row.append(spelling);
   }
@@ -1017,40 +1423,84 @@ export function studyUnavailable(): HTMLElement | null {
   return row;
 }
 
-// Headword (links to its shirabe.org page) + reading. Audio sits next to pitch;
+// Headword (links to its shirabe.org page) with furigana. Audio sits next to pitch;
 // the shell owns the history arrows and close button in the top-right corner.
-function headRow(def: Definition): Node {
+function headRow(def: Definition, displayedSpelling = def.headword): HTMLElement {
   const head = document.createElement("div");
   head.className = "sb-popup-head";
 
-  const link = document.createElement("a");
+  const action = optional().openHeadword;
+  const link = document.createElement(action ? "button" : "a");
   link.className = "sb-headword";
-  link.href = def.url;
-  link.target = "_blank";
-  link.rel = "noopener";
-
-  // Furigana sits over the headword when it carries kanji: the reading then
-  // reads in place, so the separate reading chip beside it would be redundant.
-  // A kana-only headword keeps the plain text, and shows the reading chip only
-  // when it actually adds something: for この the reading IS この, so drop it.
-  if (def.reading && hasKanji(def.headword)) {
-    // Furigana sits over each kanji run only; okurigana/kana render plain. The
-    // headword is always the dictionary form, so its reading needs no inflection
-    // adjustment (unlike a token surface): pass it straight through.
-    appendFurigana(link, def.headword, def.reading);
-    head.append(link);
+  if (action) {
+    (link as HTMLButtonElement).type = "button";
+    link.addEventListener("click", () => action?.(def, link.dataset.spelling ?? displayedSpelling));
   } else {
-    link.textContent = def.headword;
-    head.append(link);
-    if (def.reading && def.reading !== def.headword) {
-      const reading = document.createElement("span");
-      reading.className = "sb-popup-reading";
-      reading.textContent = def.reading;
-      head.append(reading);
-    }
+    (link as HTMLAnchorElement).href = def.url;
+    (link as HTMLAnchorElement).target = "_blank";
+    (link as HTMLAnchorElement).rel = "noopener";
   }
 
+  setHeadwordSpelling(link, displayedSpelling, def.reading, displayedSpelling === def.headword ? def.furigana : undefined);
+  head.append(link);
+
   return head;
+}
+
+function resultMetadata(def: Definition | null): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "sb-popup-meta";
+  if (!def) return row;
+  if (def.inflection?.length) row.append(block("sb-inflection", def.inflection.join(", ")));
+  if (!def.name) {
+    const badges = badgeRow(def);
+    if (badges) row.append(badges);
+    if (def.pitch.length && def.reading) row.append(pitchRows(def.pitch, def.reading, def.offline === true));
+  }
+  return row;
+}
+
+function partsRow(definition: Definition): HTMLElement | null {
+  const parts = definition.parts?.filter((part) => part.entry) ?? [];
+  if (!parts.length) return null;
+  const row = document.createElement("div");
+  row.className = "sb-parts";
+  row.append(chip("sb-parts-label", options.labels?.parts ?? "Parts"));
+  for (const part of parts) {
+    const open = button(part.text, "sb-part", "", () => nestedLookup(part.lemma, open.getBoundingClientRect(), currentDepth, "word", part.reading, part.text));
+    open.lang = "ja";
+    row.append(open);
+  }
+  return row;
+}
+
+function lookupLinks(definition: Definition | null, word: HTMLElement): HTMLElement | null {
+  const links = optional().lookupLinks?.(definition, word) ?? [];
+  if (!links.length) return null;
+  const row = document.createElement("div");
+  row.className = "sb-lookup-links";
+  row.append(chip("sb-lookup-label", options.labels?.lookupIn ?? "Look up in"));
+  for (const [index, item] of links.entries()) {
+    const link = document.createElement("a");
+    link.className = "sb-lookup-link";
+    link.href = item.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = item.label;
+    link.addEventListener("click", () => optional().report?.("lookup_link_opened", { dictionary: item.id, position: index }));
+    row.append(link);
+  }
+  return row;
+}
+
+function setHeadwordSpelling(target: HTMLElement, spelling: string, reading: string | null, aligned?: readonly FuriganaSegment[]): void {
+  target.replaceChildren();
+  target.dataset.spelling = spelling;
+  // The same reading belongs to every writing of this entry. Align it over
+  // kanji runs and use whole-word ruby only when it cannot be split.
+  if (aligned?.length && aligned.map((part) => part.text).join("") === spelling) appendFuriganaSegments(target, aligned);
+  else if (reading) appendFurigana(target, spelling, reading);
+  else target.textContent = spelling;
 }
 
 // The arrows sit in the shell's chrome row rather than in this row, so nothing
@@ -1077,7 +1527,7 @@ function navigateHistory(delta: number): void {
   void showTarget({ ...target, key: `${target.key}:history:${next}` });
 }
 
-function nestedLookup(query: string, rect: DOMRect, depth: number, kind: "word" | "kanji" = "word", reading?: string): void {
+function nestedLookup(query: string, rect: DOMRect, depth: number, kind: "word" | "kanji" = "word", reading?: string, surface = query): void {
   const text = query.trim().slice(0, 24);
   if (!text) return;
   if (depth >= 5) {
@@ -1086,9 +1536,9 @@ function nestedLookup(query: string, rect: DOMRect, depth: number, kind: "word" 
   }
   const word = document.createElement("span");
   word.dataset.lemma = text;
-  word.dataset.surface = text;
+  word.dataset.surface = surface;
   word.dataset.state = "none";
-  const context: LookupContext = { surface: text, ...(reading ? { reading: hiraToKata(reading) } : {}) };
+  const context: LookupContext = { surface, ...(reading ? { reading: hiraToKata(reading) } : {}) };
   void showTarget({ key: `nested:${kind}:${depth + 1}:${text}:${Date.now()}`, query: text, rect, word, depth: depth + 1, kind, context });
 }
 
@@ -1104,15 +1554,23 @@ function onPopupKeydown(event: KeyboardEvent): void {
     event.stopPropagation();
   }
   else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    const overview = box?.querySelector<HTMLElement>(".sb-results-overview");
+    if (overview && !overview.hidden) {
+      const rows = [...overview.querySelectorAll<HTMLButtonElement>(".sb-result-link")];
+      const focused = rows.findIndex((row) => row === root?.activeElement);
+      const current = focused >= 0 ? focused : rows.findIndex((row) => row.getAttribute("aria-current") === "true");
+      const next = Math.max(0, Math.min(rows.length - 1, current + (event.key === "ArrowDown" ? 1 : -1)));
+      event.preventDefault();
+      rows[next]?.focus();
+      return;
+    }
     const body = box?.querySelector<HTMLElement>(".sb-body");
-    if (body && box?.classList.contains("sb-visible")) {
+    if (body && !body.hidden && box?.classList.contains("sb-visible")) {
       event.preventDefault();
       body.scrollBy({ top: event.key === "ArrowDown" ? 80 : -80, behavior: "smooth" });
     }
   }
 }
-window.addEventListener("keydown", onPopupKeydown);
-
 // Common / JLPT / frequency badges, as on the web card. Null when none apply.
 function badgeRow(def: Definition): Node | null {
   const items: Array<{ text: string; cls: string; title?: string }> = [];
@@ -1238,60 +1696,94 @@ function coveredSenses(word: HTMLElement): Set<string> | "all" {
   return new Set((raw ?? "").split(",").filter(Boolean));
 }
 
-// The card is 460px tall at most and a sense now draws its chips, a row per
-// language, its usage note and its cross references: eight of those and the
-// examples are somewhere below the fold, past meanings the reader has already
-// decided are not the one. So the list leads with four and counts the rest.
-//
-// The count is the point. `senses.slice(0, 8)` dropped everything past the
-// eighth and said nothing, which reads as "this word has eight meanings"; a card
-// that truncates has to admit it.
-//
-// Never while the picker is up. That picker is a form, and its answer is which
-// meanings to save: a hidden sense would be a box the reader never saw and a
-// save silently scoped to the ones they did. `pickable` is already capped at
-// eight senses, so the form stays a readable length by itself.
-const SENSES_SHOWN = 4;
-
 function sensesList(def: Definition, pickable = false, covered: Set<string> | "all" = new Set()): Node {
   const senses = def.senses;
-  const list = document.createElement("ol");
-  list.className = pickable ? "sb-senses sb-senses-pick" : "sb-senses";
-  const shown = pickable ? senses : senses.slice(0, SENSES_SHOWN);
-  const sourceEntries = new Set<string>();
-  let previousGroup: string | undefined;
-  const item = (sense: Sense) => {
-    const showSourceTags = !!sense.sourceEntry && !sourceEntries.has(sense.sourceEntry);
-    if (showSourceTags) sourceEntries.add(sense.sourceEntry!);
-    const groupKey = groupIdentity(sense);
-    const showGroupTags = !!groupKey && groupKey !== previousGroup;
-    previousGroup = groupKey;
-    const entryKey = sense.sourceEntry;
-    const entryTagKey = entryKey ? `entry-tags:${entryKey}` : undefined;
-    const showEntryTags = !!entryKey && !!def.entryTagsByEntry?.[entryKey]?.length &&
-      !sourceEntries.has(entryTagKey!);
-    if (showEntryTags) sourceEntries.add(entryTagKey!);
-    return senseItem(def, sense, pickable, covered, showSourceTags, showGroupTags, showEntryTags);
-  };
-  for (const sense of shown) list.append(item(sense));
-  if (shown.length < senses.length) {
-    const rest = senses.length - shown.length;
-    const more = document.createElement("button");
-    more.type = "button";
-    more.className = "sb-more-senses";
-    more.textContent = `+${rest} more ${rest === 1 ? "meaning" : "meanings"}`;
-    more.addEventListener("click", () => {
-      // Rebuilt rather than appended to, so the numbering, the covered marks and
-      // the picker state all come from one place: this is the same call with
-      // nothing held back.
-      more.replaceWith(...senses.slice(shown.length).map(item));
-    });
-    list.append(more);
+  const dictionaries = document.createElement("div");
+  dictionaries.className = "sb-dictionaries";
+  const runs: Sense[][] = [];
+  for (const sense of senses) {
+    const previous = runs.at(-1);
+    if (previous && previous[0]?.sourceEntry === sense.sourceEntry && previous[0]?.dictionary === sense.dictionary) previous.push(sense);
+    else runs.push([sense]);
   }
-  return list;
+  for (const run of runs) {
+    const section = document.createElement("section");
+    section.className = "sb-dictionary";
+    const content = document.createElement("div");
+    content.className = "sb-dictionary-content";
+    const collapsed = run.some((sense) => sense.covered);
+    content.hidden = collapsed;
+    if (run[0]?.dictionary) {
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "sb-source sb-dictionary-toggle";
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      const arrow = document.createElement("span");
+      arrow.className = "sb-dictionary-arrow";
+      arrow.setAttribute("aria-hidden", "true");
+      arrow.textContent = "⌄";
+      const name = document.createElement("span");
+      name.textContent = run[0].dictionary;
+      toggle.append(arrow, name);
+      toggle.addEventListener("click", () => {
+        const expanded = toggle.getAttribute("aria-expanded") !== "true";
+        toggle.setAttribute("aria-expanded", String(expanded));
+        content.hidden = !expanded;
+      });
+      section.append(toggle);
+    }
+    const sourceEntries = [...new Set(run.map((sense) => sense.sourceEntry).filter((entry): entry is string => !!entry))];
+    for (const entry of sourceEntries) section.append(...sourceHeadwordTagRows(def, entry));
+    const list = document.createElement("ol");
+    list.className = pickable ? "sb-senses sb-senses-pick" : "sb-senses";
+    let previousGroup: string | undefined;
+    let previousMarker: string | undefined;
+    for (const [index, sense] of run.entries()) {
+      const groupKey = groupIdentity(sense);
+      const showGroupTags = !!groupKey && groupKey !== previousGroup;
+      previousGroup = groupKey;
+      const parent = parentMarker(sense.label);
+      if (parent && sense.depth && showGroupTags && parent !== previousMarker && sense.groupTags?.length) {
+        const heading = document.createElement("li");
+        heading.className = "sb-sense-group";
+        heading.append(block("sb-sense-marker", ownMarker(parent) ?? parent));
+        const groupTags = chipRow(sense.groupTags ?? [], [], "sb-group-chips");
+        if (groupTags) heading.append(groupTags);
+        list.append(heading);
+      }
+      list.append(senseItem(def, sense, ownMarker(sense.label) ?? circled(index) ?? String(index + 1),
+        pickable, covered, showGroupTags && !parent, index === 0));
+      previousMarker = sense.label;
+    }
+    const hidden = [...list.querySelectorAll<HTMLElement>(".sb-gloss-row[hidden]")];
+    if (hidden.length) {
+      for (const item of list.querySelectorAll<HTMLElement>(".sb-sense-row")) {
+        if (item.querySelector(".sb-gloss-row[hidden]") && !item.querySelector(".sb-gloss-row:not([hidden])")) item.hidden = true;
+      }
+      const reveal = button(options.labels?.showDefinitions ?? "Show definitions", "sb-reveal-definitions", "", () => {
+        for (const item of list.querySelectorAll<HTMLElement>(".sb-sense-row[hidden], .sb-gloss-row[hidden]")) item.hidden = false;
+        reveal.remove();
+      });
+      content.append(reveal);
+    }
+    content.append(list);
+    section.append(content);
+    dictionaries.append(section);
+  }
+  return dictionaries;
 }
 
 const SENSE_MARKER = /(?:[㋐-㋾ⓐ-ⓩ]|[①-⑳㉑-㉟㊱-㊿Ⓐ-Ⓩ]|[（(][0-9０-９一二三四五六七八九十]+[）)]|[（(][ア-ンA-Za-zａ-ｚＡ-Ｚ][）)])$/u;
+function ownMarker(label?: string): string | undefined { return label?.match(SENSE_MARKER)?.[0] ?? label; }
+function parentMarker(label?: string): string | undefined {
+  if (!label) return undefined;
+  const own = label.match(SENSE_MARKER)?.[0];
+  return own ? label.slice(0, -own.length) || undefined : undefined;
+}
+function circled(index: number): string | undefined {
+  const codepoint = index < 20 ? 0x2460 + index : index < 35 ? 0x3251 + index - 20 : index < 50 ? 0x32B1 + index - 35 : undefined;
+  return codepoint === undefined ? undefined : String.fromCodePoint(codepoint);
+}
 
 function groupIdentity(sense: Sense): string | undefined {
   if (!sense.groupTags?.length) return undefined;
@@ -1304,22 +1796,18 @@ function groupIdentity(sense: Sense): string | undefined {
   });
 }
 
-function senseItem(def: Definition, sense: Sense, pickable: boolean, covered: Set<string> | "all", showSourceTags = false, showGroupTags = false, showEntryTags = false): HTMLElement {
+function senseItem(def: Definition, sense: Sense, marker: string, pickable: boolean, covered: Set<string> | "all", showGroupTags = false, showEntryTags = false): HTMLElement {
   const li = document.createElement("li");
-  if (sense.depth !== undefined) li.classList.add(`sb-sense-depth-${Math.min(2, Math.max(0, sense.depth))}`);
-  if (sense.covered) {
-    li.classList.add("sb-sense-covered");
-    li.tabIndex = 0;
-    li.setAttribute("aria-label", `${sense.dictionary ?? "Dictionary"} meaning. Focus or hover to reveal.`);
+  li.className = "sb-sense-row";
+  if (sense.depth !== undefined) {
+    const depth = sense.depth === 1 && !parentMarker(sense.label) ? 0 : sense.depth;
+    li.classList.add(`sb-sense-depth-${Math.min(2, Math.max(0, depth))}`);
   }
-  // With a picker, the checkbox is the row's first flex child and the sense
-  // body is wrapped so it stays one column; without it, content sits directly
-  // on the <li> (the numbered list marker).
-  const body = pickable ? document.createElement("div") : li;
-  if (sense.label) {
-    li.classList.add("sb-sense-labelled");
-    (pickable ? body : li).append(chip("sb-sense-label", sense.label));
-  }
+  const leading = document.createElement("div");
+  leading.className = "sb-sense-leading";
+  leading.append(block("sb-sense-marker", marker));
+  const body = document.createElement("div");
+  body.className = "sb-sense-body";
   // A meaning you already have a card for is not on offer: saving it again
   // would land on the card that exists, so the row says so instead of inviting
   // a second click. `pickedSenses` reads only the boxes that are left, so an
@@ -1329,19 +1817,17 @@ function senseItem(def: Definition, sense: Sense, pickable: boolean, covered: Se
   if (pickable && !saved) {
     const box = document.createElement("input");
     box.type = "checkbox";
-    box.checked = true;
+    box.checked = !sense.covered;
     box.className = "sb-sense-pick";
     box.dataset.ref = senseRef(sense);
     // Reference the gloss, not a sense number: the picker hides the list's
     // ordinals, so a number here would have no visible counterpart.
     box.setAttribute("aria-label", `Include "${senseText(sense)}" when saving`);
     sensePicks.push(box);
-    li.append(box);
+    leading.append(box);
   } else if (pickable) {
-    li.append(chip("sb-sense-saved-mark", "Saved"));
+    body.append(chip("sb-sense-saved-mark", "Saved"));
   }
-  if (sense.dictionary) body.append(block("sb-source", sense.dictionary));
-  if (showSourceTags && sense.sourceEntry) body.append(...sourceHeadwordTagRows(def, sense.sourceEntry));
   if (showEntryTags && sense.sourceEntry) {
     const entryTags = chipRow(def.entryTagsByEntry?.[sense.sourceEntry] ?? [], [], "sb-entry-chips");
     if (entryTags) body.append(entryTags);
@@ -1352,13 +1838,14 @@ function senseItem(def: Definition, sense: Sense, pickable: boolean, covered: Se
   }
   const labels = senseChips(sense);
   if (labels) body.append(labels);
-  for (const row of sense.glosses) body.append(glossRow(row, sense.glosses.length > 1));
+  const glosses = glossRows(sense.glosses, def.hiddenGlossLanguages);
+  if (glosses) body.append(glosses);
   const usages = usageRows(sense.usages);
   if (usages) body.append(usages);
-  for (const note of sense.notes ?? []) body.append(block("sb-sense-note", note));
+  for (const note of sense.notes ?? []) body.append(proseBlock("sb-sense-note", note));
   const xrefs = xrefRow(sense.xrefs);
   if (xrefs) body.append(xrefs);
-  if (pickable) li.append(body);
+  li.append(leading, body);
   return li;
 }
 
@@ -1385,11 +1872,19 @@ function chipRow(labels: SenseChip[], sourceTags: NonNullable<Sense["sourceTags"
   panel.hidden = true;
 
   for (const label of labels) {
-    const term = legendTerm(label.code, label.category === "pos" ? "pos" : "usage", readerLanguages);
+    const kind = label.category === "pos" ? "pos" : label.category === "misc" ? "usage" : null;
+    const defaultTerm = label.presentation
+      ? label.presentation.explanation
+        ? { label: label.presentation.fullLabel, body: label.presentation.explanation,
+          ...(label.presentation.example ? { example: label.presentation.example } : {}),
+          ...(label.presentation.jp ? { jp: label.presentation.jp } : {}) }
+        : null
+      : kind ? legendTerm(label.code, kind, tagDisplayLocale ? [tagDisplayLocale === "es" ? "spa" : "eng"] : readerLanguages) : null;
+    const term = options.legendForTag ? options.legendForTag(label.code, label.category, defaultTerm) : defaultTerm;
     if (!term) {
       const pill = chip(`sb-sense-chip sb-sense-chip-${label.category}`, label.label);
       // The raw JMdict code, for a reader cross-referencing the dictionary itself.
-      if (label.code) pill.title = label.code;
+      if (label.code) pill.title = label.presentation?.fullLabel ? `${label.code}: ${label.presentation.fullLabel}` : label.code;
       row.append(pill);
       continue;
     }
@@ -1498,22 +1993,65 @@ function xrefRow(xrefs: Sense["xrefs"]): HTMLElement | null {
 // word's own page is where a reader goes for the whole set.
 const XREFS_SHOWN = 6;
 
-// One meaning, on its own line, behind the two-letter tag for the language it
-// is in. The tag only appears when there is a second row to tell it apart from:
-// a reader with one language would otherwise be told EN on every line of every
-// card they ever open.
-function glossRow(row: GlossRow, tagged: boolean): HTMLElement {
-  const line = document.createElement("div");
-  line.className = "sb-gloss-row";
-  line.lang = row.lang === "spa" ? "es" : row.lang === "jpn" ? "ja" : "en";
-  if (row.title) line.append(block("sb-gloss-title", row.title));
-  if (tagged) {
-    const tag = chip("sb-gloss-lang", row.tag);
-    tag.lang = "en";
-    line.append(tag);
+// Match Shirabe's meaning layout: synonyms share a line, while Japanese prose
+// and publisher sections stay stacked. Tags distinguish languages, not glosses.
+function glossRows(rows: Sense["glosses"], hiddenLanguages: readonly GlossLanguage[] = [], tagged = new Set(rows.map((row) => row.lang)).size > 1): HTMLElement | null {
+  if (!rows.length) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "sb-glosses";
+  for (let start = 0; start < rows.length;) {
+    let end = start + 1;
+    while (end < rows.length && rows[end]!.lang === rows[start]!.lang) end += 1;
+    const group = rows.slice(start, end);
+    const line = document.createElement("div");
+    line.className = "sb-gloss-row";
+    line.hidden = hiddenLanguages.includes(group[0]!.lang);
+    line.lang = group[0]!.lang === "spa" ? "es" : group[0]!.lang === "jpn" ? "ja" : "en";
+    if (tagged) {
+      const tag = chip("sb-gloss-lang", group[0]!.tag);
+      tag.lang = "en";
+      line.append(tag);
+    }
+    const items = document.createElement("div");
+    items.className = "sb-gloss-items";
+    const stacked = group[0]!.lang === "jpn" || group.some((row) => row.title);
+    for (const [index, row] of group.entries()) {
+      if (index && !stacked) items.append(document.createTextNode("; "));
+      const item = document.createElement(stacked ? "div" : "span");
+      item.className = "sb-gloss-item";
+      if (row.title) item.append(proseBlock("sb-gloss-title", row.title));
+      appendJapaneseRuns(item, row.text);
+      items.append(item);
+    }
+    line.append(items);
+    wrap.append(line);
+    start = end;
   }
-  line.append(row.text);
-  return line;
+  return wrap;
+}
+
+// Match the site's japanese_runs helper with text nodes; API prose is never HTML.
+const JAPANESE_RUN = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}々〆〜ー゛゜、。・「」『』〈〉《》【】〔〕]+/gu;
+function appendJapaneseRuns(target: HTMLElement, value: string): void {
+  let offset = 0;
+  for (const match of value.matchAll(JAPANESE_RUN)) {
+    const index = match.index;
+    if (index > offset) target.append(document.createTextNode(value.slice(offset, index)));
+    const run = document.createElement("span");
+    run.className = "sb-japanese-run";
+    run.lang = "ja";
+    run.textContent = match[0];
+    target.append(run);
+    offset = index + match[0].length;
+  }
+  if (offset < value.length) target.append(document.createTextNode(value.slice(offset)));
+}
+
+function proseBlock(className: string, value: string): HTMLElement {
+  const element = document.createElement("div");
+  element.className = className;
+  appendJapaneseRuns(element, value);
+  return element;
 }
 
 function usageRows(usages: Sense["usages"]): HTMLElement | null {
@@ -1525,8 +2063,8 @@ function usageRows(usages: Sense["usages"]): HTMLElement | null {
     const row = document.createElement("div");
     row.className = "sb-usage";
     row.lang = usage.lang === "spa" ? "es" : usage.lang === "jpn" ? "ja" : "en";
-    if (usage.title) row.append(block("sb-usage-title", usage.title));
-    const text = block("sb-usage-text", usage.text);
+    if (usage.title) row.append(proseBlock("sb-usage-title", usage.title));
+    const text = proseBlock("sb-usage-text", usage.text);
     row.append(text);
     wrap.append(row);
   }
@@ -2058,6 +2596,12 @@ function pickCandidate(word: HTMLElement, entry: string): void {
   const target = currentTarget;
   if (!target || target.pick === entry) return;
 
+  const candidates = target.candidates ?? [];
+  optional().report?.("candidate_selected", {
+    from_index: Math.max(0, candidates.findIndex((candidate) => candidate.entry === target.pick)),
+    to_index: candidates.findIndex((candidate) => candidate.entry === entry),
+    candidate_count: candidates.length,
+  });
   void showTarget({ ...target, key: `pick:${entry}`, query: target.context?.surface ?? target.query, pick: entry, word });
 }
 
@@ -2130,6 +2674,12 @@ ${ACCOUNT_CSS}
   --sb-accent-tint-strong: #cfe7f6;
   --sb-accent-border: #7eb8d9;
   --sb-source: #0369a1;
+  --sb-result-word-ink: #345b91;
+  --sb-result-word-bg: #e1eaf4;
+  --sb-result-name-ink: #914265;
+  --sb-result-name-bg: #f6e7ee;
+  --sb-result-article-ink: #2f6154;
+  --sb-result-article-bg: #e4efec;
   --sb-field: #2563eb;
   --sb-dialect: #7c3aed;
   --sb-common-bg: #dcfce7;
@@ -2168,6 +2718,12 @@ ${ACCOUNT_CSS}
     --sb-accent-tint-strong: #5a383d;
     --sb-accent-border: #a8666e;
     --sb-source: #df9aa1;
+    --sb-result-word-ink: #aec8ee;
+    --sb-result-word-bg: #374153;
+    --sb-result-name-ink: #e7a1bc;
+    --sb-result-name-bg: #433039;
+    --sb-result-article-ink: #9ccabc;
+    --sb-result-article-bg: #304039;
     --sb-field: #d7a0bf;
     --sb-dialect: #c4a5df;
     --sb-common-bg: #203b28;
@@ -2203,6 +2759,12 @@ ${ACCOUNT_CSS}
   --sb-accent-tint: #452e31;
   --sb-accent-tint-strong: #5a383d;
   --sb-accent-border: #a8666e;
+  --sb-result-word-ink: #aec8ee;
+  --sb-result-word-bg: #374153;
+  --sb-result-name-ink: #e7a1bc;
+  --sb-result-name-bg: #433039;
+  --sb-result-article-ink: #9ccabc;
+  --sb-result-article-bg: #304039;
   --sb-source: #df9aa1;
   --sb-field: #d7a0bf;
   --sb-dialect: #c4a5df;
@@ -2232,8 +2794,8 @@ ${ACCOUNT_CSS}
      senses on anything with three candidates, and a two-line gloss is the normal
      case rather than the long one. Still capped to the viewport so a narrow
      phone window is not pushed sideways. */
-  width: min(480px, calc(100vw - 24px));
-  max-height: min(70vh, 620px);
+  width: var(--sb-popup-width, min(480px, calc(100vw - 24px)));
+  max-height: var(--sb-popup-max-height, min(70vh, 620px));
   padding: 16px 18px;
   background: var(--sb-surface);
   color: var(--sb-ink-body);
@@ -2250,13 +2812,14 @@ ${ACCOUNT_CSS}
 }
 .sb-popup.sb-visible { opacity: 1; visibility: visible; transform: translateY(0); }
 
-/* Content column fills the shell; head/actions pin, body scrolls. */
 .sb-popup-content {
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex: 1 1 auto;
 }
+.sb-popup-footer { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; min-width: 0; min-height: 24px; margin-top: 6px; }
+.sb-popup-footer:empty { display: none; }
 
 /* Back, forward, close: one row in the top-right, outside content swaps. Its
    width is the gutter every first content row keeps clear. */
@@ -2283,9 +2846,6 @@ ${ACCOUNT_CSS}
 .sb-btn.sb-chrome-button:disabled { cursor: default; opacity: .35; }
 .sb-btn.sb-close { font-size: 18px; }
 
-/* Head + actions stay pinned; the body (badges, pitch, senses, examples)
-   scrolls (Yomitan-style) so the reading is always visible. min-height:0 lets
-   the flex child shrink below its content height. */
 .sb-popup-head {
   flex: 0 0 auto;
   display: flex;
@@ -2295,13 +2855,24 @@ ${ACCOUNT_CSS}
   font-size: 28px;
   font-weight: 700;
 }
-.sb-headword { color: var(--sb-ink); text-decoration: none; cursor: pointer; }
+.sb-headword { padding: 0; border: 0; background: transparent; color: var(--sb-ink); font: inherit; text-align: start; text-decoration: none; cursor: pointer; }
 .sb-headword:hover { color: var(--sb-accent); text-decoration: underline; }
 .sb-headword ruby { ruby-align: center; }
 .sb-headword ruby rt { font-size: 0.5em; font-weight: 600; color: var(--sb-accent); user-select: none; }
-.sb-popup-reading { font-size: 14px; font-weight: 500; color: var(--sb-accent); }
+.sb-popup-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; margin: 3px 0 7px; }
+.sb-popup-meta[hidden], .sb-popup-meta:empty { display: none; }
+.sb-popup-meta > :is(.sb-inflection, .sb-badges, .sb-pitch) { margin: 0; }
+@media (max-height: 450px) {
+  .sb-popup { padding: 12px 16px; }
+  .sb-popup-meta { margin-bottom: 3px; }
+  .sb-popup-footer { margin-top: 4px; }
+}
 .sb-popup-message { color: var(--sb-ink-subtle); padding-right: var(--sb-chrome-gutter); }
 .sb-popup-message.sb-body { padding-right: 0; }
+.sb-loading-body { display: flex; align-items: center; gap: 9px; min-height: 72px; color: var(--sb-ink-subtle); font-size: 13px; }
+.sb-loading-spinner { width: 15px; height: 15px; border: 2px solid var(--sb-outline-strong); border-top-color: var(--sb-accent); border-radius: 50%; animation: sb-loading-spin 0.8s linear infinite; }
+@keyframes sb-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sb-loading-spinner { animation: none; } }
 
 /* Signing in from the card (link.ts). The link is a real target rather than a
    line of text: on a phone this is what the reader taps to leave for a browser,
@@ -2334,6 +2905,15 @@ ${ACCOUNT_CSS}
   user-select: text;
 }
 .sb-inflection { margin-bottom: 7px; color: var(--sb-ink-subtle); font-size: 12px; }
+.sb-parts, .sb-lookup-links { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 9px; margin: 8px 0; font-size: 12px; }
+.sb-parts-label, .sb-lookup-label { color: var(--sb-ink-muted); }
+.sb-btn.sb-part { padding: 2px 5px; border: 1px solid var(--sb-outline); border-radius: 5px; background: var(--sb-surface-muted); color: var(--sb-ink); font: inherit; cursor: pointer; }
+.sb-btn.sb-part:hover { background: var(--sb-accent-tint); color: var(--sb-accent); }
+.sb-lookup-link { color: var(--sb-accent); text-decoration: none; cursor: pointer; }
+.sb-lookup-link:hover { color: var(--sb-accent-hover); text-decoration: underline; }
+.sb-btn.sb-reveal-definitions { margin: 6px 0; padding: 4px 0; border: 0; background: transparent; color: var(--sb-accent); font: inherit; font-size: 12px; cursor: pointer; }
+.sb-btn.sb-reveal-definitions:hover { color: var(--sb-accent-hover); text-decoration: underline; }
+.sb-sense-row[hidden], .sb-gloss-row[hidden] { display: none !important; }
 
 /* The candidate picker: every word this span can name, the current one marked.
    A row of chips rather than a list, because it is a choice between short
@@ -2387,21 +2967,89 @@ ${ACCOUNT_CSS}
 /* The rest of the ranked list, one click away. A chip because it sits in the row
    and takes the same click, but with no headword to show. */
 .sb-candidate-more { font-size: 12px; color: var(--sb-ink-subtle); }
+.sb-btn.sb-results-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: auto;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sb-accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.sb-results-toggle::after { content: ""; width: 6px; height: 6px; margin: 0 3px 3px 0; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
+.sb-results-toggle[aria-expanded="true"]::after { margin: 3px 3px 0 0; transform: rotate(225deg); }
+.sb-results-toggle:hover { color: var(--sb-accent-hover); }
+.sb-results-overview { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.sb-results-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sb-result-link {
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr);
+  gap: 4px;
+  width: 100%;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sb-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.sb-result-link:hover, .sb-result-link[aria-current="true"] { background: var(--sb-accent-tint); }
+.sb-result-link:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: -2px; }
+.sb-result-number { color: var(--sb-accent); font-size: 13px; font-weight: 700; }
+.sb-result-details { min-width: 0; }
+.sb-result-heading { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.sb-result-title, .sb-result-reading, .sb-result-preview { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-result-title { font-size: 17px; font-weight: 700; line-height: 1.3; }
+.sb-result-reading { min-width: 0; color: var(--sb-ink-subtle); font-size: 12px; }
+.sb-result-summary { display: flex; align-items: baseline; gap: 6px; min-width: 0; margin-top: 3px; }
+.sb-result-kind { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--sb-result-word-bg); color: var(--sb-result-word-ink); font-size: 11px; font-weight: 600; line-height: 1.4; }
+.sb-result-kind-name { background: var(--sb-result-name-bg); color: var(--sb-result-name-ink); }
+.sb-result-kind-encyclopedia { background: var(--sb-result-article-bg); color: var(--sb-result-article-ink); }
+.sb-result-preview { min-width: 0; color: var(--sb-ink-subtle); font-size: 12px; }
 .sb-alternatives { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--sb-divider); }
-.sb-alternatives-label { margin-bottom: 6px; color: var(--sb-ink-subtle); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
 .sb-alternative { padding: 10px 0; border-top: 1px solid var(--sb-divider); }
+.sb-body > div > .sb-alternative { padding-top: 0; border-top: 0; }
 .sb-alternative:first-of-type { border-top: 0; }
-.sb-alternative-headword { display: inline-flex; align-items: baseline; gap: 7px; margin: 0 0 5px; padding: 0; border: 0; background: transparent; color: var(--sb-ink); font: 700 19px/1.35 inherit; cursor: pointer; text-align: start; }
+.sb-alternative-headword { display: inline-block; margin: 0 0 5px; padding: 0; border: 0; background: transparent; color: var(--sb-ink); font-family: inherit; font-size: 24px; font-weight: 700; line-height: 1.35; cursor: pointer; text-align: start; }
 .sb-alternative-headword:hover:not(:disabled) { color: var(--sb-accent); }
 .sb-alternative-headword:disabled { cursor: default; }
 .sb-alternative-headword:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 3px; border-radius: 3px; }
-.sb-alternative-reading { color: var(--sb-accent); font-size: 12px; font-weight: 500; }
-.sb-alternative .sb-badges { margin-bottom: 6px; }
-.sb-alternative .sb-pitch { margin-bottom: 6px; }
+.sb-alternative-headword ruby rt, .sb-name-headword ruby rt { font-size: 0.55em; font-weight: 600; color: var(--sb-accent); user-select: none; }
+.sb-name-group-label { margin-bottom: 6px; color: var(--sb-ink-muted); font-size: 12px; font-weight: 700; }
+.sb-name-results { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.sb-name-result { padding: 8px 0; border-bottom: 1px solid var(--sb-divider); }
+.sb-name-result:last-child { border-bottom: 0; }
+.sb-name-spellings { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.sb-name-headword { padding: 0; border: 0; background: transparent; color: var(--sb-ink); font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; }
+.sb-name-headword:hover:not(:disabled) { color: var(--sb-accent); }
+.sb-name-headword:disabled { cursor: default; }
+.sb-name-headword:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
+.sb-name-result .sb-pitch { margin: 3px 0 5px; }
+.sb-name-types { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.sb-name-meanings { color: var(--sb-ink); font-size: var(--sb-definition-size, 14px); line-height: 1.5; }
 .sb-study-unavailable { flex: 0 0 auto; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--sb-outline); color: var(--sb-ink-subtle); font-size: 11px; }
 .sb-study-unavailable .sb-plans { font-size: 11px; }
 
-.sb-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; margin-top: 8px; }
+.sb-scroll-region { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
+.sb-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 10px; scrollbar-width: none; }
+.sb-body::-webkit-scrollbar { display: none; }
+.sb-scroll-track { position: absolute; top: 0; right: 0; bottom: 0; width: 5px; border-radius: 999px; background: var(--sb-surface-muted); cursor: pointer; }
+.sb-scroll-thumb { position: absolute; top: 0; right: 0; width: 5px; border-radius: 999px; background: var(--sb-outline-strong); }
+.sb-results-overview { scrollbar-width: thin; scrollbar-color: var(--sb-outline-strong) transparent; }
+.sb-results-overview::-webkit-scrollbar { width: 7px; }
+.sb-results-overview::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--sb-outline-strong); }
+.sb-results-overview::-webkit-scrollbar-track { background: transparent; }
+.sb-body[hidden], .sb-results-overview[hidden], .sb-scroll-region[hidden], .sb-scroll-track[hidden] { display: none; }
 
 .sb-btn.sb-audio {
   flex: 0 0 auto;
@@ -2480,48 +3128,37 @@ ${ACCOUNT_CSS}
   text-transform: uppercase;
   color: var(--sb-ink-muted);
 }
-.sb-form { font-size: 14px; color: var(--sb-ink); }
+.sb-word-form { padding: 0; border: 0; background: transparent; font: inherit; font-size: 14px; color: var(--sb-ink); cursor: pointer; }
+.sb-word-form:hover { color: var(--sb-accent); text-decoration: underline; }
+.sb-word-form:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; border-radius: 2px; }
 /* Rare spellings are the ones a reader cannot place, so they are shown: dimmed
    is the dictionary's judgement of them, not a way of hiding them. */
-.sb-form-rare { color: var(--sb-ink-faint); }
+.sb-word-form-rare { color: var(--sb-ink-faint); }
+.sb-word-form[aria-pressed="true"] { color: var(--sb-accent); font-weight: 600; }
 .sb-source-tags { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin-top: 5px; }
 .sb-source-tags-label { font-size: 10px; font-weight: 600; color: var(--sb-ink-muted); }
 .sb-source-tag { color: var(--sb-ink-muted); }
 
-.sb-senses { margin: 0; padding-left: 18px; font-size: var(--sb-definition-size, 14px); }
-/* The truncation, said out loud. A link rather than a button-looking control:
-   it reveals what is already on the card, it does not go anywhere. */
-.sb-more-senses {
-  display: block;
-  margin: 4px 0 0 -18px;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--sb-accent);
-  cursor: pointer;
-  text-underline-offset: 2px;
+.sb-dictionaries { display: flex; flex-direction: column; gap: 12px; }
+.sb-dictionary-toggle {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: -4px;
+  padding: 3px 4px; border: 0; border-radius: 5px; background: transparent;
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--sb-ink-muted); cursor: pointer;
 }
-.sb-more-senses:hover { text-decoration: underline; }
-.sb-senses li { margin: 4px 0; }
-.sb-sense-labelled { list-style: none; margin-left: -18px; }
-.sb-sense-depth-2 { margin-left: 16px !important; }
-.sb-sense-label {
-  display: inline-block;
-  margin-bottom: 3px;
-  color: var(--sb-ink-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-.sb-sense-covered > *:not(.sb-source) { filter: blur(5px); transition: filter 120ms ease; }
-.sb-sense-covered:hover > *, .sb-sense-covered:focus > *, .sb-sense-covered:focus-within > * { filter: none; }
-/* Sense picker: drop the list marker, lay checkbox + sense body side by side. */
-.sb-senses-pick { padding-left: 2px; list-style: none; }
-.sb-senses-pick li { display: flex; align-items: flex-start; gap: 7px; }
-.sb-sense-pick { margin: 3px 0 0; flex: none; cursor: pointer; accent-color: var(--sb-accent); }
-.sb-senses-pick li > div { min-width: 0; }
+.sb-dictionary-toggle:hover { color: var(--sb-ink); background: var(--sb-surface-muted); }
+.sb-dictionary-toggle:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
+.sb-dictionary-arrow { display: inline-block; width: 12px; transition: transform 120ms ease; }
+.sb-dictionary-toggle[aria-expanded="false"] .sb-dictionary-arrow { transform: rotate(-90deg); }
+.sb-dictionary-content[hidden] { display: none; }
+.sb-senses { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 0; padding: 0; list-style: none; font-size: var(--sb-definition-size, 14px); }
+.sb-sense-row, .sb-sense-group { display: grid; grid-template-columns: minmax(16px, max-content) minmax(0, 1fr); align-items: baseline; gap: 6px; }
+.sb-sense-leading, .sb-sense-group > .sb-sense-marker { color: var(--sb-ink-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sb-sense-body { min-width: 0; }
+.sb-sense-depth-1 { margin-left: 19px; }
+.sb-sense-depth-2 { margin-left: 38px; }
+.sb-sense-group { margin-left: 19px; }
+.sb-senses-pick .sb-sense-leading { display: flex; gap: 5px; align-items: baseline; }
+.sb-sense-pick { margin: 0; flex: none; cursor: pointer; accent-color: var(--sb-accent); }
 /* A meaning already saved: still readable, visibly not on offer. The chip sits
    where its checkbox would, so the rows stay in one column. */
 .sb-sense-saved { color: var(--sb-ink-subtle); }
@@ -2535,7 +3172,7 @@ ${ACCOUNT_CSS}
   font-size: 10px;
   font-weight: 600;
 }
-.sb-source { font-size: 11px; font-weight: 600; color: var(--sb-source); }
+.sb-source { font-size: 12px; font-weight: 600; color: var(--sb-source); }
 /* Chips rather than a run-on line of prose. JMdict's own labels repeat
    themselves ("noun (common) (futsuumeishi)"), so the chip prints the short form
    keyed off the code and keeps the code itself in its tooltip. Coloured by
@@ -2559,6 +3196,7 @@ ${ACCOUNT_CSS}
   color: var(--sb-ink-faint);
 }
 .sb-sense-chip-pos { color: var(--sb-accent); }
+.sb-sense-chip-nameType { color: var(--sb-accent); }
 /* A chip that explains itself. It carries no extra ornament: the whole row is
    already chips, and marking half of them differently would say "these are a
    different kind of label", which is exactly what the colours already say and
@@ -2584,10 +3222,7 @@ ${ACCOUNT_CSS}
 .sb-legend-example { margin-top: 3px; font-size: 11px; color: var(--sb-ink-muted); }
 .sb-sense-chip-field { color: var(--sb-field); }
 .sb-sense-chip-dialect { color: var(--sb-dialect); }
-/* One meaning per line, behind the tag for the language it is in. The tag is a
-   quiet outline rather than a filled badge: it repeats on every row of every
-   sense, and a reader who wants one language has to be able to skip it without
-   reading it. */
+/* Language tags appear only when the card contains more than one language. */
 /* A usage note is an aside about the sense above it, and italic is how the
    dictionary itself sets one: it must not read as another meaning. */
 .sb-sense-note {
@@ -2620,9 +3255,12 @@ ${ACCOUNT_CSS}
 .sb-xref:focus-visible { outline: 2px solid var(--sb-accent-border); outline-offset: 1px; }
 .sb-gloss-row { display: block; white-space: pre-wrap; }
 .sb-gloss-row + .sb-gloss-row { margin-top: 2px; }
+.sb-gloss-items { display: inline-block; vertical-align: top; }
+.sb-gloss-item + .sb-gloss-item { margin-top: 2px; }
+.sb-japanese-run { font-family: var(--sb-font-japanese, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif); }
 .sb-gloss-title, .sb-usage-title { margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--sb-ink-muted); }
-.sb-usages { margin-top: 5px; }
-.sb-usage { margin-top: 4px; white-space: pre-wrap; }
+.sb-usages { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; padding-left: 10px; border-left: 2px solid var(--sb-outline); }
+.sb-usage { white-space: pre-wrap; }
 .sb-usage-text { color: var(--sb-ink-subtle); }
 .sb-gloss-lang {
   display: inline-flex;
@@ -2762,15 +3400,9 @@ ${ACCOUNT_CSS}
 .sb-btn:focus-visible, .sb-headword:focus-visible, .sb-btn.sb-close:focus-visible {
   outline: 3px solid var(--sb-accent); outline-offset: 2px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .sb-popup, .sb-sense-covered > *:not(.sb-source) { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .sb-popup, .sb-dictionary-arrow { transition: none; } }
 @media (forced-colors: active) {
   .sb-popup, .sb-btn { border: 1px solid ButtonText; }
   .sb-popup { box-shadow: none; }
-  .sb-sense-covered > *:not(.sb-source) { filter: none; color: Canvas; background: CanvasText; }
-  .sb-sense-covered:hover > *, .sb-sense-covered:focus > *, .sb-sense-covered:focus-within > * {
-    color: CanvasText; background: Canvas;
-  }
 }
 `;

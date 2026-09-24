@@ -14,5 +14,8 @@ export * from "./scan.js";
 export * from "./wrap.js";
 export * from "./page.js";
 export * from "./api-host.js";
+export * from "./candidate-host.js";
+export * from "./export-html.js";
+export * from "./dictionary-reveal.js";
 export * from "./fallback-host.js";
 export * from "./api-types.js";
