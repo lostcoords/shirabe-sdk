@@ -29,7 +29,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && touch dist-ready",
+    "watch": "node ../watch.mjs",
     "codegen": "../../bin/openapi bundle && openapi-ts && node scripts/generate-bound-operations.mjs",
     "codegen:check": "../../bin/openapi check-client",
     "typecheck": "tsc --noEmit",

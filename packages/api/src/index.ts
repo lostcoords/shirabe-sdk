@@ -8,3 +8,5 @@ export {
   type ShirabeClient,
   type ShirabeClientConfig,
 } from "./client.js";
+export { ShirabePublicClient, ShirabePublicApiError } from "./public-oauth.js";
+export type { PublicAuthorization, PublicCredentials, ShirabePublicClientConfig } from "./public-oauth.js";

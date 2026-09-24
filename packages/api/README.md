@@ -27,7 +27,10 @@ const identified = await reader.identifyWords({ tokens: [{ lemma: "猫" }] });
 
 const { authorizeUrl } = shirabe.link.begin(String(user.id));
 const tokens = await shirabe.link.complete({
-  code, state, subject: String(user.id), issuer: iss,
+  code,
+  state,
+  subject: String(user.id),
+  issuer: iss,
 });
 // Encrypt and store the access and refresh tokens against your user.
 const renewed = await shirabe.link.refresh(storedRefreshToken);
@@ -37,14 +40,37 @@ await shirabe.link.revoke(storedRefreshToken);
 `link.begin` generates PKCE and encrypted callback state. `link.complete`
 returns credentials; your application stores them and supplies a reader access
 token to `asUser` for each request. `getCredential()` exposes the shared service
-token and its early-renewal deadline for a trusted internal proxy.
+token, its actual `expiresAt`, and the next `refreshAt` for a trusted internal proxy.
+The service bearer lasts 24 hours. The SDK starts renewal after 75% of the
+returned lifetime and keeps a still-valid bearer available if renewal fails
+temporarily; it retries later with backoff.
 
 Browser and token-only consumers import `createShirabeClient` from the package
-root and pass `accessToken`. Both clients expose named, typed methods generated
-from the OpenAPI operations. Operations with only a request body take that body
-as their first argument; other operation options, such as headers or a signal,
-are the second argument. Operations with path or query parameters take the
-OpenAPI option object.
+root and pass `accessToken`. A public browser client can use `ShirabePublicClient`
+to manage authorization-code PKCE, refresh-token rotation, and one retry after a 401. It uses Web Crypto and requires no client secret. The host opens the URL,
+stores credentials, and supplies its redirect URI.
+
+```ts
+import { ShirabePublicClient } from "@shirabe-org/api";
+
+const oauth = new ShirabePublicClient({
+  baseUrl: "https://shirabe.org",
+  clientId: "my-public-client",
+  scopes: ["user:profile:read"],
+  credentials: storedCredentials,
+  onCredentials: saveCredentials,
+  onSignedOut: clearCredentials,
+});
+const flow = await oauth.begin(redirectUri);
+const callbackUrl = await openAuthorizationWindow(flow.url);
+const credentials = await oauth.complete(callbackUrl, flow);
+await saveCredentials(credentials);
+```
+
+Both clients expose named, typed methods generated from the OpenAPI operations.
+Operations with only a request body take that body as their first argument;
+other operation options, such as headers or a signal, are the second argument.
+Operations with path or query parameters take the OpenAPI option object.
 
 Run `npm run codegen --workspace @shirabe-org/api` after changing the OpenAPI
 contract. The generator creates endpoint functions, response types, and the

@@ -581,13 +581,20 @@ export const identifyWord = (options) => (options.client ?? client).post({
  * Returns one preferred segmentation for every item in `texts`. Shirabe uses
  * the caller's active dictionary stack, including private dictionaries, when
  * choosing useful word boundaries. It does not return alternative parses or
- * definitions; send a token to `POST /api/v1/words/identify` when the user
- * asks for its dictionary card.
+ * definitions. Resolve a selected span from the local dictionary pack or use
+ * `POST /api/v1/identify` with the surrounding text and token offsets.
  *
- * Offsets are UTF-16 and map directly to browser text nodes. Add
- * `Prefer: respond-async` to queue the same operation and poll the URL in the
+ * A bearer token is optional for synchronous parsing. Without one, Shirabe
+ * uses the public dictionary stack, accepts up to 2,000 characters per
+ * request, and applies an IP-based request limit. A bearer token enables the
+ * caller's dictionary stack and its configured limits. The `study` include
+ * requires its own scope.
+ *
+ * Offsets are UTF-16 and map directly to browser text nodes.
+ * Authenticated callers may add `Prefer: respond-async` to queue the same operation and poll the URL in the
  * `Location` header. The request and completed result shapes are identical in
- * synchronous and asynchronous use. `results` follows the same order as
+ * synchronous and asynchronous use. Anonymous requests remain synchronous.
+ * `results` follows the same order as
  * `texts`, and each result repeats its submitted text.
  *
  */

@@ -462,6 +462,10 @@ export type ParseRequest = {
      *
      */
     include?: Array<'furigana' | 'morphology' | 'study'>;
+    /**
+     * Ordered dictionary sources to use for this parse, such as `jmdict:en`.
+     */
+    sources?: Array<string>;
 };
 
 /**
@@ -472,6 +476,14 @@ export type Parse = {
      * Fingerprint of the active dictionary stack used to choose token boundaries.
      */
     stackFingerprint: string;
+    /**
+     * Revision of the public dictionary pack whose data the parser used.
+     */
+    packRevision: string;
+    /**
+     * Ordered dictionary and definition-language sources used for this parse.
+     */
+    sources: Array<string>;
     /**
      * Tokenization results in the same order as the request's `texts`.
      */
@@ -1675,6 +1687,7 @@ export type DictionaryPackManifest = {
     dictionaries: Array<{
         slug: string;
         version?: string | null;
+        languages?: Array<string>;
     }>;
     modifications: Array<string>;
     sources: Array<{
@@ -5216,7 +5229,7 @@ export type ParseData = {
          */
         'Accept-Language'?: string;
         /**
-         * Queue the parse when set to `respond-async`.
+         * Queue an authenticated parse when set to `respond-async`.
          */
         Prefer?: 'respond-async';
     };
@@ -5242,7 +5255,7 @@ export type ParseErrors = {
      */
     403: Error403;
     /**
-     * Text exceeds this user's per-request limit.
+     * Text exceeds the caller's per-request limit.
      */
     413: Error413;
     /**

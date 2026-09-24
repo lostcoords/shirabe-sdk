@@ -6,12 +6,12 @@ test("one server client uses service credentials by default and isolates a reade
   const requests: Request[] = [];
   const client = createShirabeClient({
     baseUrl: "https://shirabe.test/",
-    clientId: "nadeshiko",
+    clientId: "example-reader",
     clientSecret: "test-secret",
     scopes: ["dictionary:read", "user:dictionary:read"],
     headers: { "x-sdk-client": "integration-test" },
     link: {
-      redirectUri: "https://nadeshiko.test/callback",
+      redirectUri: "https://example-reader.test/callback",
       stateSecret: "a-state-secret-with-at-least-32-characters",
     },
     fetch: async (input) => {

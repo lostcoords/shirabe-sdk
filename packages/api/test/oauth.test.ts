@@ -9,9 +9,9 @@ const secret = "test-state-secret-with-at-least-32-characters";
 const requests: Request[] = [];
 const oauth = createShirabeOAuth({
   baseUrl: "https://shirabe.test/",
-  clientId: "nadeshiko",
+  clientId: "example-reader",
   clientSecret: "client-secret",
-  redirectUri: "https://nadeshiko.test/link/shirabe/callback",
+  redirectUri: "https://example-reader.test/link/shirabe/callback",
   stateSecret: secret,
   scopes: ["user:dictionary:read"],
   fetch: async (input) => {
@@ -44,9 +44,9 @@ test("browser authorization binds PKCE, resource and the subject to a single flo
   const body = await requests[0]?.json();
   assert.equal(body.grant_type, "authorization_code");
   assert.equal(body.code, "one-time-code");
-  assert.equal(body.client_id, "nadeshiko");
+  assert.equal(body.client_id, "example-reader");
   assert.equal(body.client_secret, "client-secret");
-  assert.equal(body.redirect_uri, "https://nadeshiko.test/link/shirabe/callback");
+  assert.equal(body.redirect_uri, "https://example-reader.test/link/shirabe/callback");
   assert.equal(body.resource, "https://shirabe.test/api/v1");
   assert.equal(createHash("sha256").update(body.code_verifier).digest("base64url"), url.searchParams.get("code_challenge"));
 });
@@ -70,7 +70,7 @@ test("refresh and revoke use the same client and resource", async () => {
   assert.equal(refresh.refresh_token, "old-refresh");
   assert.equal(refresh.resource, "https://shirabe.test/api/v1");
   assert.equal(revoke.token, "old-refresh");
-  assert.equal(revoke.client_id, "nadeshiko");
+  assert.equal(revoke.client_id, "example-reader");
 });
 
 test("typed user scopes match the server's scope list", () => {

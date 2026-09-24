@@ -17,9 +17,10 @@ export declare function createShirabeService(config: ShirabeServiceConfig): {
     credential: () => Promise<{
         token: string;
         expiresAt: number;
+        refreshAt: number;
     }>;
     client: () => import("./client.js").ShirabeClient;
-    /** Clears the local cache after credential rotation or in tests. */
+    /** Clears the local cache and forces the next call to request a new token. */
     clear: () => void;
 };
 //# sourceMappingURL=service.d.ts.map
