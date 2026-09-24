@@ -1,6 +1,6 @@
 {
   "name": "@shirabe-org/api",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Typed client for the Shirabe API, generated from its OpenAPI contract.",
   "license": "MIT",
   "repository": {
@@ -17,6 +17,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./oauth": {
+      "types": "./dist/oauth.d.ts",
+      "import": "./dist/oauth.js"
     }
   },
   "main": "./dist/index.js",
