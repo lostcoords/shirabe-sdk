@@ -144,7 +144,7 @@ try {
       "globalThis.window = { addEventListener() {} };",
       'const { wordCard } = await import("@shirabe-org/card");',
       'const { isR2AudioUrl } = await import("@shirabe-org/card/word-card/audio");',
-      'if (typeof createShirabeClient !== "function" || typeof createServerClient !== "function" || typeof createShirabeClient().identifyWords !== "function" || typeof wordCard.apiHost !== "function" || typeof isR2AudioUrl !== "function") throw new Error("Package runtime exports are incomplete");',
+      'if (typeof createShirabeClient !== "function" || typeof createServerClient !== "function" || typeof createShirabeClient().identifyWords !== "function" || typeof wordCard.apiHost !== "function" || typeof wordCard.candidateToDefinition !== "function" || typeof isR2AudioUrl !== "function") throw new Error("Package runtime exports are incomplete");',
       'console.log("Packed JavaScript imports successfully.");',
       "",
     ].join("\n"),
