@@ -8,7 +8,7 @@ import { formDataBodySerializer } from './client/index.js';
  */
 export const pairAnkiProfile = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -26,7 +26,7 @@ export const pairAnkiProfile = (options) => (options.client ?? client).post({
  */
 export const unlinkAnkiProfile = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -40,7 +40,7 @@ export const unlinkAnkiProfile = (options) => (options.client ?? client).delete(
  */
 export const finishAnkiSnapshot = (options) => (options.client ?? client).patch({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -58,7 +58,7 @@ export const finishAnkiSnapshot = (options) => (options.client ?? client).patch(
  */
 export const startAnkiSnapshot = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -74,7 +74,7 @@ export const startAnkiSnapshot = (options) => (options.client ?? client).post({
  */
 export const refreshAnkiCollectionSettings = (options) => (options.client ?? client).patch({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -92,7 +92,7 @@ export const refreshAnkiCollectionSettings = (options) => (options.client ?? cli
  */
 export const prepareAnkiPublications = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -110,7 +110,7 @@ export const prepareAnkiPublications = (options) => (options.client ?? client).p
  */
 export const selectAnkiDeck = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -128,7 +128,7 @@ export const selectAnkiDeck = (options) => (options.client ?? client).post({
  */
 export const applyAnkiBatch = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -144,7 +144,7 @@ export const applyAnkiBatch = (options) => (options.client ?? client).post({
  */
 export const getAnkiBatchReceipt = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -156,7 +156,7 @@ export const getAnkiBatchReceipt = (options) => (options.client ?? client).get({
  */
 export const listAnkiMediaFiles = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -169,7 +169,7 @@ export const listAnkiMediaFiles = (options) => (options.client ?? client).get({
 export const uploadAnkiMediaFile = (options) => (options.client ?? client).post({
     ...formDataBodySerializer,
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -185,7 +185,7 @@ export const uploadAnkiMediaFile = (options) => (options.client ?? client).post(
  */
 export const deleteAnkiMediaFile = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -201,7 +201,7 @@ export const deleteAnkiMediaFile = (options) => (options.client ?? client).delet
  */
 export const downloadAnkiMediaFile = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -213,7 +213,7 @@ export const downloadAnkiMediaFile = (options) => (options.client ?? client).get
  */
 export const getAnkiNoteConflict = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -225,7 +225,7 @@ export const getAnkiNoteConflict = (options) => (options.client ?? client).get({
  */
 export const getAnkiCardConflict = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -237,7 +237,7 @@ export const getAnkiCardConflict = (options) => (options.client ?? client).get({
  */
 export const getAnkiCardConflictComparison = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -255,7 +255,7 @@ export const getAnkiCardConflictComparison = (options) => (options.client ?? cli
  */
 export const requestAnkiNoteDeletion = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -273,7 +273,7 @@ export const requestAnkiNoteDeletion = (options) => (options.client ?? client).p
  */
 export const cancelAnkiNoteDeletion = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -285,7 +285,7 @@ export const cancelAnkiNoteDeletion = (options) => (options.client ?? client).de
  */
 export const getAnkiNoteDeletion = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -303,7 +303,7 @@ export const getAnkiNoteDeletion = (options) => (options.client ?? client).get({
  */
 export const requestAnkiReviewUndo = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -321,7 +321,7 @@ export const requestAnkiReviewUndo = (options) => (options.client ?? client).pos
  */
 export const cancelAnkiReviewUndo = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -333,7 +333,7 @@ export const cancelAnkiReviewUndo = (options) => (options.client ?? client).dele
  */
 export const getAnkiReviewUndo = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -347,7 +347,7 @@ export const getAnkiReviewUndo = (options) => (options.client ?? client).get({
  */
 export const deliverAnkiChanges = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -363,7 +363,7 @@ export const deliverAnkiChanges = (options) => (options.client ?? client).post({
  */
 export const getAnkiDeliveryReceipt = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -377,7 +377,7 @@ export const getAnkiDeliveryReceipt = (options) => (options.client ?? client).ge
  */
 export const acknowledgeAnkiChanges = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -537,7 +537,7 @@ export const oauthDeviceAuthorization = (options) => (options.client ?? client).
  */
 export const search = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -564,7 +564,7 @@ export const search = (options) => (options.client ?? client).post({
  */
 export const identifyWord = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -593,7 +593,7 @@ export const identifyWord = (options) => (options.client ?? client).post({
  */
 export const parse = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -611,7 +611,7 @@ export const parse = (options) => (options.client ?? client).post({
  */
 export const getParseOperation = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -631,7 +631,7 @@ export const getParseOperation = (options) => (options.client ?? client).get({
  */
 export const unsaveWord = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -655,7 +655,7 @@ export const unsaveWord = (options) => (options.client ?? client).delete({
  */
 export const saveCard = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -677,7 +677,7 @@ export const saveCard = (options) => (options.client ?? client).post({
  */
 export const gradeCard = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -701,7 +701,7 @@ export const gradeCard = (options) => (options.client ?? client).post({
  */
 export const startStudySession = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -719,7 +719,7 @@ export const startStudySession = (options) => (options.client ?? client).post({
  */
 export const endStudySession = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -737,7 +737,7 @@ export const endStudySession = (options) => (options.client ?? client).delete({
  */
 export const getStudySession = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -759,7 +759,7 @@ export const getStudySession = (options) => (options.client ?? client).get({
  */
 export const undoLatestReview = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -782,7 +782,7 @@ export const undoLatestReview = (options) => (options.client ?? client).delete({
  */
 export const setWordState = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -803,7 +803,7 @@ export const setWordState = (options) => (options.client ?? client).post({
  */
 export const lookupWordStates = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -823,7 +823,7 @@ export const lookupWordStates = (options) => (options.client ?? client).post({
  */
 export const listDecks = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -837,7 +837,7 @@ export const listDecks = (options) => (options?.client ?? client).get({
  */
 export const createDeck = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -855,7 +855,7 @@ export const createDeck = (options) => (options.client ?? client).post({
  */
 export const deleteDeck = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -869,7 +869,7 @@ export const deleteDeck = (options) => (options.client ?? client).delete({
  */
 export const updateDeck = (options) => (options.client ?? client).patch({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -893,7 +893,7 @@ export const updateDeck = (options) => (options.client ?? client).patch({
  */
 export const listCards = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -914,7 +914,7 @@ export const listCards = (options) => (options?.client ?? client).get({
  */
 export const bulkUpdateCards = (options) => (options.client ?? client).patch({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -935,7 +935,7 @@ export const bulkUpdateCards = (options) => (options.client ?? client).patch({
  */
 export const deleteCard = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -949,7 +949,7 @@ export const deleteCard = (options) => (options.client ?? client).delete({
  */
 export const getCard = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -968,7 +968,7 @@ export const getCard = (options) => (options.client ?? client).get({
  */
 export const updateCard = (options) => (options.client ?? client).patch({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -990,7 +990,7 @@ export const updateCard = (options) => (options.client ?? client).patch({
  */
 export const dueQueue = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1006,7 +1006,7 @@ export const dueQueue = (options) => (options?.client ?? client).get({
  */
 export const studyStats = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1020,7 +1020,7 @@ export const studyStats = (options) => (options?.client ?? client).get({
  */
 export const getSettings = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1037,7 +1037,7 @@ export const getSettings = (options) => (options?.client ?? client).get({
  */
 export const updateSettings = (options) => (options.client ?? client).patch({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1057,7 +1057,7 @@ export const updateSettings = (options) => (options.client ?? client).patch({
  */
 export const getForecast = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1073,7 +1073,7 @@ export const getForecast = (options) => (options?.client ?? client).get({
  */
 export const listWordNotes = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1087,7 +1087,7 @@ export const listWordNotes = (options) => (options?.client ?? client).get({
  */
 export const upsertWordNote = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1105,7 +1105,7 @@ export const upsertWordNote = (options) => (options.client ?? client).post({
  */
 export const deleteWordNote = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1121,7 +1121,7 @@ export const deleteWordNote = (options) => (options.client ?? client).delete({
  */
 export const ignoreWord = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1143,7 +1143,7 @@ export const ignoreWord = (options) => (options.client ?? client).post({
  */
 export const bulkAddSearch = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1188,7 +1188,7 @@ export const bulkAddSearch = (options) => (options.client ?? client).post({
  */
 export const identifyWords = (options) => (options.client ?? client).post({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1220,7 +1220,7 @@ export const identifyWords = (options) => (options.client ?? client).post({
  */
 export const getWord = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1242,7 +1242,7 @@ export const getWord = (options) => (options.client ?? client).get({
 export const listSentences = (options) => (options?.client ?? client).get({
     querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1257,7 +1257,7 @@ export const listSentences = (options) => (options?.client ?? client).get({
 export const getSentence = (options) => (options.client ?? client).get({
     querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1275,7 +1275,7 @@ export const getSentence = (options) => (options.client ?? client).get({
  */
 export const listTags = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1292,7 +1292,7 @@ export const listTags = (options) => (options?.client ?? client).get({
  */
 export const listDictionaries = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1306,7 +1306,7 @@ export const listDictionaries = (options) => (options?.client ?? client).get({
  */
 export const deleteDictionary = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1320,7 +1320,7 @@ export const deleteDictionary = (options) => (options.client ?? client).delete({
  */
 export const getDictionaryStack = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1334,7 +1334,7 @@ export const getDictionaryStack = (options) => (options?.client ?? client).get({
  */
 export const replaceDictionaryStack = (options) => (options.client ?? client).put({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1350,7 +1350,7 @@ export const replaceDictionaryStack = (options) => (options.client ?? client).pu
  */
 export const listDictionaryImports = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1362,7 +1362,7 @@ export const listDictionaryImports = (options) => (options?.client ?? client).ge
  */
 export const deleteDictionaryImport = (options) => (options.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1374,7 +1374,7 @@ export const deleteDictionaryImport = (options) => (options.client ?? client).de
  */
 export const getDictionaryImport = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1392,7 +1392,7 @@ export const getDictionaryImport = (options) => (options.client ?? client).get({
  */
 export const listDictionaryPacks = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1425,7 +1425,7 @@ export const downloadShirabeDictionaryPack = (options) => (options.client ?? cli
  */
 export const getDictionaryPack = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1448,7 +1448,7 @@ export const getReaderHostRules = (options) => (options?.client ?? client).get({
  */
 export const getMe = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1476,7 +1476,7 @@ export const getMe = (options) => (options?.client ?? client).get({
  */
 export const revokeOwnKey = (options) => (options?.client ?? client).delete({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1488,7 +1488,7 @@ export const revokeOwnKey = (options) => (options?.client ?? client).delete({
  */
 export const getPreferences = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1505,7 +1505,7 @@ export const getPreferences = (options) => (options?.client ?? client).get({
  */
 export const updatePreferences = (options) => (options.client ?? client).patch({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1531,7 +1531,7 @@ export const updatePreferences = (options) => (options.client ?? client).patch({
  */
 export const listKanji = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1545,7 +1545,7 @@ export const listKanji = (options) => (options?.client ?? client).get({
  */
 export const listKanjiRadicals = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1559,7 +1559,7 @@ export const listKanjiRadicals = (options) => (options?.client ?? client).get({
  */
 export const getKanjiRadical = (options) => (options.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1573,7 +1573,7 @@ export const getKanjiRadical = (options) => (options.client ?? client).get({
  */
 export const listKanjiComponents = (options) => (options?.client ?? client).get({
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1590,7 +1590,7 @@ export const listKanjiComponents = (options) => (options?.client ?? client).get(
 export const listKanjiComponentMatches = (options) => (options?.client ?? client).get({
     querySerializer: { parameters: { components: { array: { explode: false } } } },
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
@@ -1607,7 +1607,7 @@ export const listKanjiComponentMatches = (options) => (options?.client ?? client
 export const getKanji = (options) => (options.client ?? client).get({
     querySerializer: { parameters: { include: { array: { explode: false } } } },
     security: [{
-            key: 'ApiKeyAuth',
+            key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],

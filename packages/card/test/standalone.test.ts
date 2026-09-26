@@ -19,6 +19,10 @@ Object.assign(globalThis, {
 });
 const sdk = () => import("../src/standalone.js").then((module) => module.default);
 const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0)); };
+const requestBody = async (input: string | URL | Request, init?: RequestInit): Promise<unknown> => {
+  const body = input instanceof Request ? await input.clone().text() : String(init?.body ?? "");
+  return body ? JSON.parse(body) : null;
+};
 
 test("a prepared definition renders before an unresolved online study-state read", async (t) => {
   const SDK = await sdk();
@@ -31,8 +35,8 @@ test("a prepared definition renders before an unresolved online study-state read
     fetch: async (input) => {
       const path = new URL((input instanceof Request ? input.url : String(input))).pathname;
       calls.push(path);
-      if (path === "/api/v1/me") return new Response(JSON.stringify({
-        preferences: { languages: ["en"] }, credential: { scopes: ["user:account:read", "user:dictionary:read", "user:study:read"] },
+      if (path === "/api/v1/dictionary-stack") return new Response(JSON.stringify({
+        dictionaryStack: { fingerprint: "test", sources: [{ dictionary: "jmdict", languages: ["en"], reveal: "show" }] },
       }));
       assert.equal(path, "/api/v1/srs/states/lookup");
       return pending;
@@ -55,7 +59,7 @@ test("a prepared definition renders before an unresolved online study-state read
     assert.deepEqual(calls, [], "Offline wrapping must not fetch study state");
     attachment.show(root.querySelector(".sb-word") as unknown as HTMLElement);
     await settle();
-    assert.deepEqual(calls, ["/api/v1/me", "/api/v1/srs/states/lookup"]);
+    assert.deepEqual(calls, ["/api/v1/dictionary-stack", "/api/v1/srs/states/lookup"]);
     before = content();
   } finally {
     release(new Response(JSON.stringify({ states: [] })));
@@ -101,9 +105,9 @@ for (const studyColors of [false, true, undefined]) {
       linked: () => true, signIn: async () => {}, signOut() {},
       fetch: async (input: string | URL | Request, init?: RequestInit) => {
         const path = new URL((input instanceof Request ? input.url : String(input))).pathname;
-        calls.push({ path, body: init?.body ? JSON.parse(String(init.body)) : null });
-        if (path === "/api/v1/me") return new Response(JSON.stringify({
-          preferences: { languages: ["en"] }, credential: { scopes: ["user:account:read", "user:dictionary:read", "user:study:read"] },
+        calls.push({ path, body: await requestBody(input, init) });
+        if (path === "/api/v1/dictionary-stack") return new Response(JSON.stringify({
+          dictionaryStack: { fingerprint: "test", sources: [{ dictionary: "jmdict", languages: ["en"], reveal: "show" }] },
         }));
         assert.equal(path, "/api/v1/srs/states/lookup", "Snapshot definitions must not fall back online");
         return new Response(JSON.stringify({ states: [{ lemma: "猫", state: "none" }] }));
@@ -121,7 +125,7 @@ for (const studyColors of [false, true, undefined]) {
     await settle();
     assert.equal(root.querySelectorAll(".sb-word").length, 3);
     if (studyColors !== false) {
-      assert.deepEqual(calls.map(call => call.path), ["/api/v1/me", "/api/v1/srs/states/lookup"]);
+      assert.deepEqual(calls.map(call => call.path), ["/api/v1/dictionary-stack", "/api/v1/srs/states/lookup"]);
       return;
     }
     assert.equal(calls.length, 0, "Preparing an offline snapshot must not read an account or upload its lemmas");
@@ -130,7 +134,7 @@ for (const studyColors of [false, true, undefined]) {
     assert.equal(calls.length, 0, "Reread must preserve the automatic study-color opt-out");
     attachment.show(root.querySelector(".sb-word") as unknown as HTMLElement);
     await settle();
-    assert.deepEqual(calls.map(call => call.path), ["/api/v1/me", "/api/v1/srs/states/lookup"]);
+    assert.deepEqual(calls.map(call => call.path), ["/api/v1/dictionary-stack", "/api/v1/srs/states/lookup"]);
     assert.deepEqual(calls[1]!.body, { words: ["猫"] });
   });
 }
@@ -310,7 +314,7 @@ test("explicit selection identifies the whole chosen span without parsing it aga
   const kinds: Array<{ query: string; kind: unknown }> = [];
   const host = SDK.apiHost({ apiBase: "https://example.test", fetch: async (input, init) => {
     const path = new URL((input instanceof Request ? input.url : String(input))).pathname;
-    calls.push({ path, body: init?.body ? JSON.parse(String(init.body)) : null });
+    calls.push({ path, body: await requestBody(input, init) });
     return new Response(JSON.stringify(path.endsWith("/parse") ? { stackFingerprint: "test", results: [{ tokens: [
       { surface: "勉強", lemma: "勉強", startOffset: 0, endOffset: 2, kind: "word" },
     ] }] } : { words: [{ candidates: [] }] }));
@@ -457,7 +461,7 @@ test("a document attachment defers against its hidden body", async () => {
   } finally { body.style.removeProperty("opacity"); }
 });
 
-test("web and Anki attach preserve the same visible parse input, private entry pin and Spanish senses", async () => {
+test("web and Anki attach preserve the same parse input and resolve Spanish senses on lookup", async () => {
   const SDK = await sdk();
   const observed: unknown[] = [];
   for (const anki of [false, true]) {
@@ -472,11 +476,10 @@ test("web and Anki attach preserve the same visible parse input, private entry p
     };
     const http: typeof fetch = async (input, init) => {
       const url = new URL((input instanceof Request ? input.url : String(input)));
-      calls.push({ path: `${url.pathname}${url.search}`, body: init?.body ? JSON.parse(String(init.body)) : null });
-      let payload: unknown = detail;
-      if (url.pathname.endsWith("/me")) payload = {
-        credential: { scopes: ["user:account:read"] },
-        preferences: { languages: ["es", "en"], dictionaryReveal: { "personal:es": "hover" } },
+      calls.push({ path: `${url.pathname}${url.search}`, body: await requestBody(input, init) });
+      let payload: unknown = { words: [{ candidates: [detail] }] };
+      if (url.pathname.endsWith("/dictionary-stack")) payload = {
+        dictionaryStack: { fingerprint: "test", sources: [{ dictionary: "personal", languages: ["es", "en"], reveal: "hover" }] },
       };
       else if (url.pathname.endsWith("/parse")) payload = { stackFingerprint: "test", results: [{ tokens: [
         { surface: "😀", startOffset: 0, endOffset: 2, kind: "symbol" },
@@ -500,7 +503,7 @@ test("web and Anki attach preserve the same visible parse input, private entry p
     assert.equal(fragments.length, 2);
     assert.equal(root.querySelector("em"), original);
     for (const fragment of fragments) {
-      assert.equal(fragment.getAttribute("data-entry"), "personal:mine:1");
+      assert.equal(fragment.getAttribute("data-entry"), null, "parse supplies spans without dictionary entry IDs");
       assert.equal(fragment.getAttribute("data-surface"), "勉強");
       attachment.show(fragment as unknown as HTMLElement);
       await settle();
@@ -521,10 +524,16 @@ test("web and Anki attach preserve the same visible parse input, private entry p
   assert.deepEqual(observed[1], observed[0]);
   assert.deepEqual(observed[0], {
     texts: ["😀勉強する。"], parse: [{ path: "/api/v1/parse", body: { texts: ["😀勉強する。"] } }],
-    pinned: [{ path: "/api/v1/words/identify", body: {
-      tokens: [{ lemma: "勉強", surface: "勉強" }],
-      include: ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"],
-    } }],
+    pinned: [
+      { path: "/api/v1/words/identify", body: {
+        tokens: [{ lemma: "勉強", surface: "勉強", reading: "ベンキョウ" }],
+        include: ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"],
+      } },
+      { path: "/api/v1/words/identify", body: {
+        tokens: [{ lemma: "勉強", surface: "勉強" }],
+        include: ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"],
+      } },
+    ],
     entry: "personal:mine:1", ref: "personal#3", glosses: [{ text: "estudio", lang: "spa", tag: "ES" }, { text: "study", lang: "eng", tag: "EN" }],
   });
 });

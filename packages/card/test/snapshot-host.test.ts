@@ -462,7 +462,7 @@ test("partial-result reuse rejects conflicting context, hidden content and selec
   const changes: Array<(data: PreparedSnapshot) => void> = [
     (data) => { data.segments[0]!.tokens[3]!.reading = "ビョウ"; },
     (data) => { data.segments[0]!.tokens[3]!.pos = "verb"; },
-    (data) => { data.segments[0]!.tokens[3]!.entry = "jmdict:1"; },
+    (data) => { data.segments[0]!.tokens[3]!.entry = "jmdict:alternative"; },
     (data) => { data.segments[0]!.tokens[3]!.inflection = ["past"]; },
     (data) => { data.segments[0]!.tokens[3]!.inflectionBase = "猫"; },
     (data) => { data.segments[0]!.results[1]!.candidates[0]!.entries[0]!.senses[0]!.definitions[1]!.text = "otro significado"; },
@@ -598,6 +598,10 @@ test("Python's prepared spans and candidates produce the same content as the API
   if (expected.status === "found" && expected.definition) {
     Object.assign(expected.definition, { offline: true, preparedAt: data.createdAt });
     expected.definition.senses = expected.definition.senses.map((sense) => ({ ...sense, covered: false }));
+    for (const alternative of expected.alternatives ?? []) {
+      Object.assign(alternative, { offline: true, preparedAt: data.createdAt });
+      alternative.senses = alternative.senses.map((sense) => ({ ...sense, covered: false }));
+    }
   }
   assert.deepEqual(await host.lookup("猫", "word", context), expected);
   const pinned = await host.lookupEntry("jmdict:1", "猫");

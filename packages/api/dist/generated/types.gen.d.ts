@@ -2853,7 +2853,7 @@ export type Error503 = {
     title: string;
     status: 503;
     detail?: string;
-    code: 'DICTIONARY_PACK_UNAVAILABLE' | 'IMPORT_CAPACITY_UNAVAILABLE';
+    code: 'DICTIONARY_PACK_UNAVAILABLE';
     instance: string;
 };
 export type ReaderHostRules = {

@@ -407,19 +407,19 @@ export function snapshotHost(fallback: WordCardHost | undefined, snapshot: unkno
     ].filter(Boolean))].join("\n"),
   };
   function result(candidates: SnapshotCandidate[], token?: CardToken, selected = candidates[0]): LookupFound {
-    const definition = selected ? toDefinition(JSON.parse(JSON.stringify(selected)), options.apiBase.replace(/\/$/, ""), languages) : null;
-    if (definition) {
+    const define = (candidate: SnapshotCandidate) => {
+      const definition = toDefinition(JSON.parse(JSON.stringify(candidate)), options.apiBase.replace(/\/$/, ""), languages);
       definition.offline = true;
       definition.preparedAt = parsed!.createdAt;
       if (exampleSource) definition.examples = definition.examples.map((example, index) => {
-        const translations = selected!.examples?.[index]?.translations ?? [];
+        const translations = candidate.examples?.[index]?.translations ?? [];
         const language = example.translation && uiLanguagesFrom(languages).find((language) =>
           translations.some((translation) => translation.lang === language && translation.text === example.translation));
         return { ...example, ...exampleSource, ...(language ? { translationLanguage: language } : {}) };
       });
-      definition.pitch = selected!.pitch.map((pitch) => {
-        if (pitch.recording && selected!.reading) playable.set(pitch.recording.filename, pitch.recording);
-        return { downstep: pitch.downstep, audioUrl: selected!.reading ? pitch.recording?.filename ?? null : null };
+      definition.pitch = candidate.pitch.map((pitch) => {
+        if (pitch.recording && candidate.reading) playable.set(pitch.recording.filename, pitch.recording);
+        return { downstep: pitch.downstep, audioUrl: candidate.reading ? pitch.recording?.filename ?? null : null };
       });
       if (token?.inflection?.length) {
         definition.sourceForm = token.surface;
@@ -431,10 +431,14 @@ export function snapshotHost(fallback: WordCardHost | undefined, snapshot: unkno
         const covered = !!slug && Object.entries(parsed?.preferences?.dictionaryReveal ?? {}).some(([source, mode]) => source.split(":")[0] === slug && mode === "hover");
         return { ...sense, covered };
       });
-    }
+      return definition;
+    };
+    const alternatives = candidates.map(define);
+    const definition = selected ? alternatives[candidates.indexOf(selected)] ?? define(selected) : null;
     return {
       status: "found",
       definition,
+      ...(alternatives.length ? { alternatives } : {}),
       candidates: candidates.map((c) => ({ entry: `${c.dictionary}:${c.sourceId}`, headword: c.headword, reading: c.reading ?? null, common: c.common })),
     };
   }
@@ -498,6 +502,7 @@ export function snapshotHost(fallback: WordCardHost | undefined, snapshot: unkno
         if (new Set(entries).size === entries.length && hits.every((hit) => {
           if (!hit.result.candidates.length || queryIdentity(hit.token) !== query) return false;
           const first = hit.result.candidates[0]!;
+          if (hit.token.entry && !hit.result.candidates.some((candidate) => `${candidate.dictionary}:${candidate.sourceId}` === hit.token.entry)) return false;
           if (!hit.token.entry && `${first.dictionary}:${first.sourceId}` !== entries[0]) return false;
           const subset = hit.result.candidates.map(candidateIdentity);
           let index = 0;
