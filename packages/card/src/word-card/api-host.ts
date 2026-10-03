@@ -27,7 +27,9 @@ import type {
 } from "@shirabe-org/api";
 
 type IdentifyToken = IdentifyWordsData["body"]["tokens"][number];
-export type IdentifiedCandidate = NonNullable<NonNullable<IdentifyWordsResponse["words"][number]>["candidates"]>[number];
+export type IdentifiedCandidate = NonNullable<NonNullable<IdentifyWordsResponse["words"][number]>["candidates"]>[number] & {
+  matchedFurigana?: Array<{ text: string; ruby?: string }>;
+};
 
 /** Override the SDK's short chip label, for a host's own language or wording. */
 export type TagLabeler = (tag: ApiTag, defaultLabel: string) => string;
@@ -211,9 +213,14 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       // a 401. Answering "no entry" there would blame the word for our missing
       // account, so the error is kept and turned into the same offer any other
       // request gets.
-      const tokens = await this.tokenize!(query.slice(0, 120)).catch((error: unknown) => whatWentWrong(error));
+      const contextual = context?.text && Number.isInteger(context.startOffset) && context.startOffset! >= 0 && context.startOffset! < context.text.length;
+      const start = contextual ? Math.max(0, context.startOffset! - 64) : 0;
+      const source = contextual ? context.text!.slice(start, context.startOffset! + 120) : query.slice(0, 120);
+      const offset = contextual ? context.startOffset! - start : 0;
+      const tokens = await this.tokenize!(source).catch((error: unknown) => whatWentWrong(error));
       if (!Array.isArray(tokens)) return tokens;
-      const first = tokens.find((token) => token.content !== false);
+      const first = tokens.find((token) => token.content !== false &&
+        (!contextual || token.start <= offset && offset < token.start + token.length));
       if (!first) return { status: "found", definition: null };
       const result = await identify({
         lemma: first.lemma ?? first.surface,
@@ -225,7 +232,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       const selected = first.entry && result.definition?.entry !== first.entry
         ? await this.lookupEntry(first.entry, first.surface) : result;
       if (selected.status !== "found" || !selected.definition) return selected;
-      return { ...selected, candidates: result.candidates, definition: { ...selected.definition, sourceForm: first.surface,
+      return { ...selected, candidates: result.candidates, ...(contextual ? { scanStart: start + first.start } : {}), definition: { ...selected.definition, sourceForm: first.surface,
         ...(first.inflection?.length ? { inflection: first.inflection, inflectionBase: first.inflectionBase } : {}),
       } };
     },
@@ -383,7 +390,7 @@ export function candidateToDefinition(
     common: candidate.common === true,
     jlpt: candidate.jlpt,
     frequency: candidate.frequency,
-    furigana: (candidate.furigana ?? []).map((part) => ({ text: part.text, ...(part.ruby ? { ruby: part.ruby } : {}) })),
+    furigana: (candidate.matchedFurigana ?? candidate.furigana ?? []).map((part) => ({ text: part.text, ...(part.ruby ? { ruby: part.ruby } : {}) })),
     pitch: (candidate.pitch ?? []).map((pitch) => ({
       downstep: pitch.downstep,
       pattern: (pitch.pattern ?? "heiban") as ApiWordDetail["pitch"][number]["pattern"],

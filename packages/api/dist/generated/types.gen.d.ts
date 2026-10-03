@@ -131,6 +131,18 @@ export type Result = {
      */
     id: string;
     headword: string;
+    /**
+     * For identify results, the kanji spelling that matched the selected text or its dictionary form when it differs from the canonical headword. Display this spelling when present; keep id and headword as the entry identity.
+     *
+     */
+    matchedHeadword?: string;
+    /**
+     * Reading aligned to matchedHeadword; canonical furigana stays unchanged.
+     */
+    matchedFurigana?: Array<{
+        text: string;
+        ruby?: string;
+    }>;
     reading?: string | null;
     /**
      * How the query matched this result.

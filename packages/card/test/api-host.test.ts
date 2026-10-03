@@ -277,6 +277,23 @@ test("candidate mapping preserves the aligned furigana for the matched spelling"
   }
 });
 
+test("identify matched spelling uses its own ruby while preserving entry identity", () => {
+  const candidate = {
+    ...payload,
+    headword: "初",
+    matchedHeadword: "生",
+    reading: "うぶ",
+    furigana: [{ text: "初", ruby: "うぶ" }],
+    matchedFurigana: [{ text: "生", ruby: "うぶ" }],
+  };
+  const definition = candidateToDefinition(candidate, "https://shirabe.org", ["eng"]);
+  assert.equal(definition.headword, "生");
+  assert.deepEqual(definition.furigana, [{ text: "生", ruby: "うぶ" }]);
+  assert.equal(definition.entry, `${payload.dictionary}:${payload.sourceId}`);
+  assert.equal(candidate.headword, "初");
+  assert.deepEqual(candidate.furigana, [{ text: "初", ruby: "うぶ" }]);
+});
+
 test("display order cannot replace the resolved dictionary identity", () => {
   const definition = toDefinition({ ...payload, dictionary: "daijirin", sourceId: "9" }, "https://shirabe.org", ["eng"]);
   assert.equal(definition.entry, "daijirin:9");
@@ -866,4 +883,64 @@ test("signed out, a raw-text scan offers the sign-in rather than blaming the sen
 
   assert.equal(result.status, "pending", "the reader is offered the account the cut needs");
   assert.equal(calls, 0, "and still without spending the anonymous budget");
+});
+
+test("contextual scans identify the complete word at every UTF-16 pointer position", async () => {
+  const text = "😀欲しいって言った。";
+  let parses = 0;
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async (input, init) => {
+    const request = new Request(input, init);
+    const body = await request.json();
+    if (request.url.endsWith("/parse")) {
+      parses++;
+      assert.deepEqual(body.texts, [text]);
+      return Response.json({ stackFingerprint: "test", results: [{ tokens: [
+        { surface: "😀", startOffset: 0, endOffset: 2, kind: "symbol" },
+        { surface: "欲しい", lemma: "欲しい", startOffset: 2, endOffset: 5, reading: "ホシイ", partOfSpeech: "adj", kind: "word" },
+        { surface: "って", lemma: "って", startOffset: 5, endOffset: 7, kind: "function" },
+        { surface: "言った", lemma: "言う", startOffset: 7, endOffset: 10, kind: "inflected" },
+        { surface: "。", startOffset: 10, endOffset: 11, kind: "symbol" },
+      ] }] });
+    }
+    assert.equal(body.tokens[0].surface, "欲しい");
+    assert.equal(body.tokens[0].lemma, "欲しい");
+    return Response.json({ words: [{ candidates: [payload] }] });
+  } });
+  for (let offset = 2; offset < 5; offset++) {
+    const result = await host.lookup(text.slice(offset), "text", { text, startOffset: offset });
+    assert.equal(result.status, "found", `pointer ${offset}`);
+    if (result.status === "found") {
+      assert.equal(result.definition?.sourceForm, "欲しい");
+      assert.equal(result.scanStart, 2);
+    }
+  }
+  assert.equal(parses, 1, "the sentence parse is shared across pointer positions");
+});
+
+test("contextual pointer offsets remain absolute when the parse window starts mid-sentence", async () => {
+  const text = `${"猫".repeat(70)}食べちゃったって言った。`;
+  for (let offset = 70; offset < 76; offset++) {
+    const origin = offset - 64;
+    const start = 70 - origin;
+    const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async (input, init) => {
+      const request = new Request(input, init);
+      const body = await request.json();
+      if (request.url.endsWith("/parse")) {
+        assert.deepEqual(body.texts, [text.slice(origin)]);
+        return Response.json({ stackFingerprint: "test", results: [{ tokens: [
+          { surface: text.slice(origin, 70), lemma: "猫", startOffset: 0, endOffset: start, kind: "word" },
+          { surface: "食べちゃった", lemma: "食べる", startOffset: start, endOffset: start + 6, kind: "inflected", partOfSpeech: "verb" },
+        ] }] });
+      }
+      assert.equal(body.tokens[0].surface, "食べちゃった");
+      assert.equal(body.tokens[0].lemma, "食べる");
+      return Response.json({ words: [{ candidates: [payload] }] });
+    } });
+    const found = await host.lookup(text.slice(offset), "text", { text, startOffset: offset });
+    assert.equal(found.status, "found");
+    if (found.status === "found") {
+      assert.equal(found.scanStart, 70);
+      assert.equal(found.definition?.sourceForm, "食べちゃった");
+    }
+  }
 });

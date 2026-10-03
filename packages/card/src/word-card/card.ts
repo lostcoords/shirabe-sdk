@@ -106,6 +106,7 @@ export type PopupOptions = {
   themeVariables?: Partial<Record<`--sb-${string}`, string>>;
   /** Host-owned content below the lookup body. Kept mounted across lookup redraws. */
   footer?: HTMLElement | null;
+  lookupLinksPlacement?: "body" | "footer";
   /** Omit the SDK's copy and field-selection controls when the host supplies its own actions. */
   showAuthoring?: boolean;
   /** Called when a visible popup closes, including Escape and outside clicks. */
@@ -656,6 +657,12 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
   if (box) box.style.height = "";
   resultToggle?.remove();
   resultToggle = null;
+  box?.classList.remove("sb-results-open");
+  footerRow?.querySelector(".sb-lookup-links")?.remove();
+  if (options.lookupLinksPlacement === "footer") {
+    const links = lookupLinks(null, target.word);
+    if (links) footerRow?.prepend(links);
+  }
   const nextAccount = optional().account;
   const showAccount = !!nextAccount && nextAccount.connected?.() !== false;
   if (accountPort !== nextAccount || !!accountControls !== showAccount) {
@@ -949,6 +956,8 @@ function definitionRows(
   alternatives?: readonly Definition[],
 ): Node[] {
   scrollIndicatorObserver?.disconnect();
+  footerRow?.querySelector(".sb-lookup-links")?.remove();
+  box?.classList.remove("sb-results-open");
   sensePicks = []; // rebuilt by sensesList for this render
   sensePickWord = null;
   if (!def) {
@@ -957,7 +966,7 @@ function definitionRows(
     body.setAttribute("aria-live", "polite");
     body.append(messageRow(`No entry for 「${lemma}」`));
     const links = lookupLinks(null, word);
-    if (links) body.append(links);
+    if (links) (options.lookupLinksPlacement === "footer" ? footerRow : body)?.append(links);
     const rows: Node[] = [body];
     if (canMine()) rows.push(actions(word));
     return rows;
@@ -1018,7 +1027,10 @@ function definitionRows(
     body.append(firstPanel);
   }
   const links = lookupLinks(def, word);
-  if (links) (firstPanel ?? body).append(links);
+  if (links) {
+    if (options.lookupLinksPlacement === "footer") footerRow?.prepend(links);
+    else (firstPanel ?? body).append(links);
+  }
   const lookupHost = backend();
   if (options.showAuthoring !== false) {
     (firstPanel ?? body).append(authoringActions(def, word, lookupHost.authoring, def.entry ? async () => {
@@ -1115,6 +1127,7 @@ function definitionRows(
       const open = overview.hidden;
       keepPopupHeight(() => {
         overview.hidden = !open;
+        box?.classList.toggle("sb-results-open", open);
         body.hidden = open;
         scrollRegion.hidden = open;
         toggle.setAttribute("aria-expanded", String(open));
@@ -1141,6 +1154,11 @@ function definitionRows(
       metadataRows[index]!.hidden = false;
       body.scrollTop = 0;
       visibleDefinition = results[index]!;
+      if (options.lookupLinksPlacement === "footer") {
+        footerRow?.querySelector(".sb-lookup-links")?.remove();
+        const links = lookupLinks(visibleDefinition, word);
+        if (links) footerRow?.prepend(links);
+      }
       const replacement = headRow(visibleDefinition, displayedSpellings.get(visibleDefinition));
       head.replaceWith(replacement);
       head = replacement;
@@ -1156,6 +1174,7 @@ function definitionRows(
       link.addEventListener("click", () => {
         keepPopupHeight(() => {
           overview.hidden = true;
+          box?.classList.remove("sb-results-open");
           body.hidden = false;
           scrollRegion.hidden = false;
           toggle.setAttribute("aria-expanded", "false");
@@ -1193,17 +1212,63 @@ function definitionRows(
     thumb.style.transform = `translateY(${visibleIndex * segment + offset}px)`;
   };
   body.addEventListener("scroll", updateScrollIndicator);
-  track.addEventListener("pointerdown", (event) => {
+  let drag: { pointerId: number; offset: number } | null = null;
+  const scrollToPointer = (clientY: number, offset: number) => {
     const rect = track.getBoundingClientRect();
-    if (resultPanels.length > 1) {
-      keepPopupHeight(() => showResult(Math.max(0, Math.min(resultPanels.length - 1,
-        Math.floor((event.clientY - rect.top) / rect.height * resultPanels.length)))));
-      updateScrollIndicator();
-      return;
+    const segment = rect.height / Math.max(1, resultPanels.length);
+    if (segment <= 0) return;
+    const top = Math.max(0, clientY - rect.top - offset);
+    const index = Math.min(Math.max(0, resultPanels.length - 1), Math.floor(top / segment));
+    if (index !== visibleIndex) keepPopupHeight(() => showResult(index));
+    updateScrollIndicator();
+    const travel = segment - parseFloat(thumb.style.height);
+    const remaining = Math.max(0, body.scrollHeight - body.clientHeight);
+    body.scrollTop = travel > 0 ? Math.max(0, Math.min(remaining, (top - index * segment) / travel * remaining)) : 0;
+    updateScrollIndicator();
+  };
+  track.addEventListener("pointerdown", (event) => {
+    if (event.button > 0) return;
+    event.preventDefault();
+    const onThumb = event.target === thumb;
+    drag = { pointerId: event.pointerId, offset: onThumb ? event.clientY - thumb.getBoundingClientRect().top : thumb.getBoundingClientRect().height / 2 };
+    if (event.pointerId !== undefined) track.setPointerCapture(event.pointerId);
+    if (!onThumb) {
+      if (resultPanels.length > 1) {
+        const rect = track.getBoundingClientRect();
+        keepPopupHeight(() => showResult(Math.max(0, Math.min(resultPanels.length - 1,
+          Math.floor((event.clientY - rect.top) / rect.height * resultPanels.length)))));
+        updateScrollIndicator();
+      } else scrollToPointer(event.clientY, drag.offset);
     }
-    const remaining = body.scrollHeight - body.clientHeight;
-    body.scrollTop = Math.max(0, Math.min(remaining, (event.clientY - rect.top) / rect.height * remaining));
   });
+  track.addEventListener("pointermove", (event) => {
+    if (drag && event.pointerId === drag.pointerId) scrollToPointer(event.clientY, drag.offset);
+  });
+  const stopDrag = (event: PointerEvent) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    drag = null;
+    if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
+  };
+  track.addEventListener("pointerup", stopDrag);
+  track.addEventListener("pointercancel", stopDrag);
+  track.addEventListener("lostpointercapture", () => { drag = null; });
+  const scrollResults = (event: WheelEvent) => {
+    const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? body.clientHeight : 1);
+    if (!delta || event.ctrlKey) return;
+    event.preventDefault();
+    const remaining = Math.max(0, body.scrollHeight - body.clientHeight);
+    const next = body.scrollTop + delta;
+    if (next > remaining && visibleIndex < resultPanels.length - 1) {
+      keepPopupHeight(() => showResult(visibleIndex + 1));
+      body.scrollTop = Math.min(Math.max(0, body.scrollHeight - body.clientHeight), next - remaining);
+    } else if (next < 0 && visibleIndex > 0) {
+      keepPopupHeight(() => showResult(visibleIndex - 1));
+      body.scrollTop = Math.max(0, body.scrollHeight - body.clientHeight + next);
+    } else body.scrollTop = Math.max(0, Math.min(remaining, next));
+    updateScrollIndicator();
+  };
+  body.addEventListener("wheel", scrollResults, { passive: false });
+  track.addEventListener("wheel", scrollResults, { passive: false });
   if (typeof ResizeObserver !== "undefined") {
     scrollIndicatorObserver = new ResizeObserver(updateScrollIndicator);
     scrollIndicatorObserver.observe(body);
@@ -1749,6 +1814,7 @@ function sensesList(def: Definition, pickable = false, covered: Set<string> | "a
     for (const entry of sourceEntries) section.append(...sourceHeadwordTagRows(def, entry));
     const list = document.createElement("ol");
     list.className = pickable ? "sb-senses sb-senses-pick" : "sb-senses";
+    const tiered = run.some((sense) => sense.depth === 0 || (sense.depth && parentMarker(sense.label) && sense.groupTags?.length));
     let previousGroup: string | undefined;
     let previousMarker: string | undefined;
     for (const [index, sense] of run.entries()) {
@@ -1765,7 +1831,7 @@ function sensesList(def: Definition, pickable = false, covered: Set<string> | "a
         list.append(heading);
       }
       list.append(senseItem(def, sense, ownMarker(sense.label) ?? circled(index) ?? String(index + 1),
-        pickable, covered, showGroupTags && !parent, index === 0));
+        pickable, covered, showGroupTags && !parent, index === 0, senseDisplayDepth(sense, run, tiered)));
       previousMarker = sense.label;
     }
     const hidden = [...list.querySelectorAll<HTMLElement>(".sb-gloss-row[hidden]")];
@@ -1809,13 +1875,18 @@ function groupIdentity(sense: Sense): string | undefined {
   });
 }
 
-function senseItem(def: Definition, sense: Sense, marker: string, pickable: boolean, covered: Set<string> | "all", showGroupTags = false, showEntryTags = false): HTMLElement {
+function senseDisplayDepth(sense: Sense, run: Sense[], tiered: boolean): number {
+  let depth = sense.depth ?? 1;
+  const parent = parentMarker(sense.label);
+  if (!parent && run.some((candidate) => candidate.depth === 0)) depth = 0;
+  else if (parent && !sense.groupTags?.length && !run.some((candidate) => candidate.label === parent)) depth -= 1;
+  return Math.min(2, Math.max(0, tiered ? depth : depth - 1));
+}
+
+function senseItem(def: Definition, sense: Sense, marker: string, pickable: boolean, covered: Set<string> | "all", showGroupTags = false, showEntryTags = false, depth = 0): HTMLElement {
   const li = document.createElement("li");
   li.className = "sb-sense-row";
-  if (sense.depth !== undefined) {
-    const depth = sense.depth === 1 && !parentMarker(sense.label) ? 0 : sense.depth;
-    li.classList.add(`sb-sense-depth-${Math.min(2, Math.max(0, depth))}`);
-  }
+  li.classList.add(`sb-sense-depth-${depth}`);
   const leading = document.createElement("div");
   leading.className = "sb-sense-leading";
   leading.append(block("sb-sense-marker", marker));
@@ -2836,6 +2907,9 @@ ${ACCOUNT_CSS}
 }
 .sb-popup-footer { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; min-width: 0; min-height: 24px; margin-top: 6px; }
 .sb-popup-footer:empty { display: none; }
+.sb-popup-footer:has(> .sb-lookup-links) { flex-wrap: wrap; }
+.sb-popup-footer > .sb-lookup-links { flex-basis: 100%; margin: 0; }
+.sb-popup.sb-results-open .sb-chrome { display: none; }
 
 .sb-chrome {
   position: absolute;
@@ -2872,9 +2946,10 @@ ${ACCOUNT_CSS}
 .sb-headword:hover { color: var(--sb-accent); text-decoration: underline; }
 .sb-headword ruby { ruby-align: center; }
 .sb-headword ruby rt { font-size: 0.5em; font-weight: 600; color: var(--sb-accent); user-select: none; }
-.sb-popup-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; margin: 3px 0 7px; }
+.sb-popup-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; margin: 3px 0 3px; }
 .sb-popup-meta[hidden], .sb-popup-meta:empty { display: none; }
 .sb-popup-meta > :is(.sb-inflection, .sb-badges, .sb-pitch) { margin: 0; }
+.sb-popup-meta > .sb-pitch { flex-basis: 100%; margin-top: 8px; }
 @media (max-height: 450px) {
   .sb-popup { padding: 12px 16px; }
   .sb-popup-meta { margin-bottom: 3px; }
@@ -3056,7 +3131,7 @@ ${ACCOUNT_CSS}
 .sb-scroll-region { position: relative; display: flex; flex: 1 1 auto; min-height: 0; padding-right: 10px; }
 .sb-body { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; scrollbar-width: none; }
 .sb-body::-webkit-scrollbar { display: none; }
-.sb-scroll-track { position: absolute; top: 0; right: 0; bottom: 0; width: 5px; border-radius: 999px; background: var(--sb-surface-muted); cursor: pointer; }
+.sb-scroll-track { position: absolute; top: 0; right: 0; bottom: 0; width: 5px; border-radius: 999px; background: var(--sb-surface-muted); cursor: pointer; touch-action: none; user-select: none; }
 .sb-scroll-thumb { position: absolute; top: 0; right: 0; width: 5px; border-radius: 999px; background: var(--sb-outline-strong); }
 .sb-results-overview { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--sb-outline-strong) transparent; }
 .sb-results-overview::-webkit-scrollbar { width: 7px; }
@@ -3069,7 +3144,7 @@ ${ACCOUNT_CSS}
   align-self: center;
   color: inherit;
   background: transparent;
-  padding: 4px 6px;
+  padding: 4px 2px;
   border-radius: 8px;
   font-size: 15px;
   line-height: 1;
@@ -3086,7 +3161,7 @@ ${ACCOUNT_CSS}
 .sb-badge-freq, .sb-badge-prepared { background: var(--sb-surface-muted); color: var(--sb-ink-muted); font-variant-numeric: tabular-nums; }
 
 .sb-pitch { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
-.sb-pitch-item { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; min-width: 0; max-width: 100%; }
+.sb-pitch-item { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; max-width: 100%; }
 .sb-audio-status { order: 1; flex-basis: 100%; color: var(--sb-error); font-size: 12px; }
 .sb-audio-status:empty { display: none; }
 .sb-btn.sb-audio:disabled { cursor: wait; opacity: .5; }
@@ -3172,9 +3247,8 @@ ${ACCOUNT_CSS}
 .sb-sense-row, .sb-sense-group { display: grid; grid-template-columns: minmax(16px, max-content) minmax(0, 1fr); align-items: baseline; gap: 6px; }
 .sb-sense-leading, .sb-sense-group > .sb-sense-marker { color: var(--sb-ink-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .sb-sense-body { min-width: 0; }
-.sb-sense-depth-1 { margin-left: 19px; }
-.sb-sense-depth-2 { margin-left: 38px; }
-.sb-sense-group { margin-left: 19px; }
+.sb-sense-depth-1 { padding-inline-start: 1.375rem; }
+.sb-sense-depth-2 { padding-inline-start: 2.75rem; }
 .sb-senses-pick .sb-sense-leading { display: flex; gap: 5px; align-items: baseline; }
 .sb-sense-pick { margin: 0; flex: none; cursor: pointer; accent-color: var(--sb-accent); }
 /* A meaning already saved: still readable, visibly not on offer. The chip sits

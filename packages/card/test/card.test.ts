@@ -287,6 +287,68 @@ test("the result overview opens on demand and returns to the chosen definition",
   assert.equal((body.querySelector(".sb-result-panel") as unknown as HTMLElement).hidden, true);
 });
 
+test("wheel scrolling crosses results and keeps footer lookup links current", async () => {
+  const { card, window } = await page();
+  const alternative = { ...taberu, headword: "他べる", entry: "jmdict:other", url: "https://shirabe.org/en/word/other" };
+  const host = fakeHost({ study: false });
+  host.lookup = async () => ({ status: "found", definition: taberu, alternatives: [taberu, alternative] });
+  host.lookupLinks = (definition) => definition ? [{ id: "shirabe", label: "shirabe.org", url: definition.url }] : [];
+  card.setCardHost(host);
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, lookupLinksPlacement: "footer" });
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const body = shadow.querySelector(".sb-body") as unknown as HTMLElement;
+  const track = shadow.querySelector(".sb-scroll-track") as unknown as HTMLElement;
+  const toggle = shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement;
+  Object.defineProperties(body, { clientHeight: { value: 100 }, scrollHeight: { value: 300 } });
+  assert.equal(body.querySelector(".sb-lookup-links"), null);
+  assert.equal(shadow.querySelector(".sb-popup-footer .sb-lookup-link")?.getAttribute("href"), taberu.url);
+  body.scrollTop = 200;
+  body.dispatchEvent(new window.WheelEvent("wheel", { deltaY: 30, cancelable: true }) as unknown as Event);
+  assert.equal(toggle.textContent?.trim(), "2 of 2 results");
+  assert.equal(body.scrollTop, 30);
+  assert.equal(shadow.querySelector(".sb-popup-footer .sb-lookup-link")?.getAttribute("href"), alternative.url);
+  body.scrollTop = 0;
+  track.dispatchEvent(new window.WheelEvent("wheel", { deltaY: -20, cancelable: true }) as unknown as Event);
+  assert.equal(toggle.textContent?.trim(), "1 of 2 results");
+  assert.equal(body.scrollTop, 180);
+  toggle.click();
+  assert.ok(shadow.querySelector(".sb-popup")?.classList.contains("sb-results-open"));
+  (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
+  assert.equal(shadow.querySelector(".sb-popup")?.classList.contains("sb-results-open"), false);
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS });
+});
+
+test("the scrollbar thumb drags without jumping and stops on pointer release", async () => {
+  const { card, window } = await page();
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const body = shadow.querySelector(".sb-body") as unknown as HTMLElement;
+  const track = shadow.querySelector(".sb-scroll-track") as unknown as HTMLElement;
+  const thumb = shadow.querySelector(".sb-scroll-thumb") as unknown as HTMLElement;
+  Object.defineProperties(body, { clientHeight: { value: 600 }, scrollHeight: { value: 1800 } });
+  track.getBoundingClientRect = () => ({ top: 0, height: 600 } as DOMRect);
+  thumb.getBoundingClientRect = () => ({ top: 0, height: 200 } as DOMRect);
+  let captured = false;
+  track.setPointerCapture = () => { captured = true; };
+  track.hasPointerCapture = () => captured;
+  track.releasePointerCapture = () => { captured = false; };
+  body.dispatchEvent(new window.Event("scroll") as unknown as Event);
+  const pointer = (type: string, clientY: number) => new window.PointerEvent(type, { clientY, pointerId: 1, bubbles: true }) as unknown as PointerEvent;
+  thumb.dispatchEvent(pointer("pointerdown", 50));
+  assert.equal(body.scrollTop, 0);
+  assert.equal(captured, true);
+  track.dispatchEvent(pointer("pointermove", 250));
+  assert.equal(body.scrollTop, 600);
+  track.dispatchEvent(pointer("pointerup", 250));
+  assert.equal(captured, false);
+  track.dispatchEvent(pointer("pointermove", 450));
+  assert.equal(body.scrollTop, 600);
+});
+
 test("arrow keys move focus through the open result overview", async () => {
   const { card, window } = await page();
   const second = { ...taberu, headword: "他べる", entry: "jmdict:other" };
@@ -770,6 +832,28 @@ test("a sense with one language has no language tag, even when another sense use
   assert.equal(single.querySelector(".sb-dictionary-toggle")?.textContent?.trim(), "JMdict");
 });
 
+test("footer lookup links are available during loading and update after resolution", async () => {
+  const { card, window } = await page();
+  let resolve!: (result: { status: "found"; definition: typeof taberu }) => void;
+  const host = fakeHost({ study: false });
+  host.lookup = () => new Promise((done) => { resolve = done; });
+  host.lookupLinks = (definition, word) => [{ id: "shirabe", label: "shirabe.org",
+    url: definition?.url ?? `https://shirabe.org/en/search/${encodeURIComponent(word.dataset.lemma!)}` }];
+  card.setCardHost(host);
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, lookupLinksPlacement: "footer" });
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.ok(shadow.querySelector(".sb-loading"));
+  assert.equal(shadow.querySelector(".sb-popup-footer .sb-lookup-link")?.getAttribute("href"),
+    `https://shirabe.org/en/search/${encodeURIComponent("食べる")}`);
+  resolve({ status: "found", definition: taberu });
+  await settle();
+  assert.equal(shadow.querySelector(".sb-popup-footer .sb-lookup-link")?.getAttribute("href"), taberu.url);
+  assert.equal(shadow.querySelectorAll(".sb-popup-footer .sb-lookup-links").length, 1);
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS });
+});
+
 test("the popup opens with a loading state, then replaces it with the definition", async () => {
   const { card, window } = await page();
   let finish!: (result: { status: "found"; definition: typeof taberu }) => void;
@@ -870,6 +954,46 @@ test("a bare ① before ㊀ aligns with the section, while ㊀① stays indented
   await settle();
   const rows = [...window.document.querySelector(".sb-host")!.shadowRoot!.querySelectorAll(".sb-sense-row")];
   assert.deepEqual(rows.map((row) => row.classList.contains("sb-sense-depth-1")), [false, false, true, false, true]);
+});
+
+test("dictionary indentation preserves divisions, senses and subsenses", async () => {
+  const { card, window } = await page();
+  const groupPos = { label: "Pronoun", code: "pn", category: "pos" as const, scope: "group" as const };
+  const senses = [
+    { ...taberu.senses[0]!, position: 0, label: "㊀①", depth: 1, groupTags: [groupPos] },
+    { ...taberu.senses[0]!, position: 1, label: "㊀①㋐", depth: 2, groupTags: [groupPos] },
+    { ...taberu.senses[0]!, position: 2, label: "㊀①㋑", depth: 2, groupTags: [groupPos] },
+    { ...taberu.senses[0]!, position: 3, label: "㊀②", depth: 1, groupTags: [groupPos] },
+    { ...taberu.senses[0]!, position: 4, label: "㊁", depth: 0 },
+  ];
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": { ...taberu, senses } } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const rows = [...shadow.querySelectorAll(".sb-sense-row")];
+  assert.deepEqual(rows.map((row) => row.className), [
+    "sb-sense-row sb-sense-depth-1", "sb-sense-row sb-sense-depth-2",
+    "sb-sense-row sb-sense-depth-2", "sb-sense-row sb-sense-depth-1", "sb-sense-row sb-sense-depth-0",
+  ]);
+  assert.equal(shadow.querySelectorAll(".sb-sense-group").length, 1);
+});
+
+test("flat dictionaries indent only subsenses and omit empty parent divisions", async () => {
+  const { card, window } = await page();
+  const senses = [
+    { ...taberu.senses[0]!, position: 0, label: "一①", depth: 1 },
+    { ...taberu.senses[0]!, position: 1, label: "一①㋐", depth: 2 },
+    { ...taberu.senses[0]!, position: 2, label: "②", depth: 1 },
+    { ...taberu.senses[0]!, position: 3, label: "②㋐", depth: 2 },
+  ];
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": { ...taberu, senses } } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const rows = [...window.document.querySelector(".sb-host")!.shadowRoot!.querySelectorAll(".sb-sense-row")];
+  assert.deepEqual(rows.map((row) => row.className), [
+    "sb-sense-row sb-sense-depth-0", "sb-sense-row sb-sense-depth-1",
+    "sb-sense-row sb-sense-depth-0", "sb-sense-row sb-sense-depth-1",
+  ]);
 });
 
 test("group grammar follows cumulative publisher labels and source boundaries", async () => {
