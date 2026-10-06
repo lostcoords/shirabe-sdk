@@ -471,9 +471,11 @@ export type ParseRequest = {
     /**
      * Optional token details. `study` contains private card state and requires
      * `user:study:read`; the other values require only `user:dictionary:read`.
+     * `posFull` and `posLabel` are deprecated legacy Nadeshiko compatibility.
+     * Remove them when Nadeshiko deploys its new card/API SDK client to production.
      *
      */
-    include?: Array<'furigana' | 'morphology' | 'study'>;
+    include?: Array<'furigana' | 'morphology' | 'study' | 'posFull' | 'posLabel'>;
     /**
      * Ordered dictionary sources to use for this parse, such as `jmdict:en`.
      */
@@ -484,6 +486,12 @@ export type ParseRequest = {
  * One preferred, dictionary-aware tokenization for every submitted text.
  */
 export type Parse = {
+    /**
+     * Legacy Nadeshiko batch token projection, present only when requesting posFull or posLabel. Remove when its new card/API SDK client reaches production.
+     *
+     * @deprecated
+     */
+    tokens?: Array<Array<LegacyParseToken>>;
     /**
      * Fingerprint of the active dictionary stack used to choose token boundaries.
      */
@@ -1398,13 +1406,26 @@ export type Me = {
          */
         kind: 'api_key' | 'oauth';
         /**
-         * The scopes this credential carries. A subset of what the owner could grant.
+         * The scopes this credential carries. Legacy Nadeshiko grants return READ_DICTIONARY and READ_ACCOUNT until its new SDK reaches production.
          */
         scopes: Array<string>;
         /**
          * The registered name of the app behind an OAuth grant. Absent on a personal API key, which has no app behind it to name.
          */
         client?: string;
+    };
+    /**
+     * Legacy Nadeshiko account-stack snapshot, only for legacy Nadeshiko OAuth grants. Remove when its new card/API SDK client reaches production.
+     *
+     * @deprecated
+     */
+    preferences?: {
+        dictionaries: Array<string>;
+        dictionaryNames: {
+            [key: string]: string;
+        };
+        stackFingerprint: string;
+        stackIsPrivate: boolean;
     };
     /**
      * SRS entitlement, the same predicate the write endpoints gate on: a Pro subscription or a school membership. Clients (e.g. the browser extension) gate their write features on `srs`.
@@ -1455,7 +1476,7 @@ export type OauthTokenRequest = {
      */
     redirect_uri?: string;
     /**
-     * The protected resource requested. It must match the authorization grant, or is bound to a client-credentials token.
+     * The protected resource requested. It must match the authorization grant, or is bound to a client-credentials token. Only identified legacy Nadeshiko authorization codes and grants may omit it; an explicit mismatch is always rejected. Remove this fallback when its new card/API SDK reaches production.
      */
     resource?: string;
     /**
@@ -1486,7 +1507,7 @@ export type OauthTokenResponse = {
      */
     refresh_token?: string;
     /**
-     * The granted scopes, space-separated.
+     * The granted scopes, space-separated. Legacy Nadeshiko grants return READ_DICTIONARY and READ_ACCOUNT until its new card/API SDK reaches production.
      */
     scope: string;
 };
@@ -2420,6 +2441,36 @@ export type SearchSegment = {
      * Distinct word cards in preferred-first order.
      */
     matches: Array<Result>;
+};
+
+/**
+ * Legacy Nadeshiko production token projection. Remove when its new card/API SDK client reaches production.
+ *
+ * @deprecated
+ */
+export type LegacyParseToken = {
+    position: number;
+    length: number;
+    surface: string;
+    lemma?: string;
+    reading?: string;
+    pos?: string;
+    kind?: string;
+    posFull?: Array<string | null>;
+    posLabel?: string;
+    furigana?: Array<{
+        text: string;
+        ruby?: string;
+    }>;
+    inflection?: {
+        base: string;
+        labels: Array<string>;
+    };
+    components?: Array<{
+        surface: string;
+        offset: number;
+        length: number;
+    }>;
 };
 
 /**
@@ -7173,7 +7224,20 @@ export type IdentifyWordsData = {
         'Accept-Language'?: string;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Legacy Nadeshiko UI locale; remove when its new SDK reaches production.
+         *
+         * @deprecated
+         */
+        locale?: 'en' | 'es';
+        /**
+         * Legacy Nadeshiko dictionary selection; remove when its new SDK reaches production.
+         *
+         * @deprecated
+         */
+        'dictionaries[]'?: Array<string>;
+    };
     url: '/api/v1/words/identify';
 };
 
