@@ -30,7 +30,14 @@ With no argument, the script fetches the deployed contract from `https://shirabe
 
 Publish a GitHub release tagged `api-v<version>` or `card-v<version>`. The release workflow checks that the tag matches the selected package manifest, verifies both package archives from a clean consumer, and publishes through npm trusted publishing.
 
-The npm trusted publisher for each package must name this repository and `.github/workflows/npm-release.yml`.
+With npm 11.19.1, configure both trusted publishers for this repository:
+
+```sh
+npm trust github @shirabe-org/api --repository lostcoords/shirabe-sdk --file npm-release.yml --allow-publish
+npm trust github @shirabe-org/card --repository lostcoords/shirabe-sdk --file npm-release.yml --allow-publish
+```
+
+Enter only `npm-release.yml` as the workflow filename, not its full path. Verify each configuration with `npm trust list <package>`. Complete the first successful SDK release before revoking the old Shirabe publisher.
 
 ## License
 
