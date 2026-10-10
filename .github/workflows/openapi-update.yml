@@ -1,0 +1,65 @@
+name: Update OpenAPI contract
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: openapi-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Check the deployed contract and prepare an update
+        id: update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pending=$(gh pr list --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("openapi-update-"))] | length')
+          if [[ "$pending" != 0 ]]; then
+            echo "An OpenAPI update PR is awaiting review."
+            exit 0
+          fi
+          npm ci
+          script/update-openapi
+          if git diff --quiet; then
+            echo "The deployed contract has not changed."
+            exit 0
+          fi
+          npm run check
+          git diff --binary -- packages/api packages/card/package.json package-lock.json > openapi-update.patch
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          branch="openapi-update-${GITHUB_RUN_ID}"
+          git switch -c "$branch"
+          git add packages/api packages/card/package.json package-lock.json
+          git commit -m 'Update the bundled Shirabe OpenAPI contract'
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title 'Update the Shirabe OpenAPI contract' \
+            --body 'Imports the deployed contract, regenerates the client, and runs npm run check before opening this PR. New API versions update the exact card dependency and increment the card patch version. Review the contract and version changes before releasing.' \
+            || echo '::warning::PR creation is unavailable. Download the verified openapi-update patch artifact or open a PR from the pushed branch.'
+
+      - name: Save the verified contract update
+        if: always() && steps.update.outputs.changed == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: openapi-update
+          path: openapi-update.patch
+          retention-days: 30

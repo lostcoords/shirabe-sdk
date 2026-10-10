@@ -7,7 +7,7 @@
     "packages/card"
   ],
   "scripts": {
-    "check": "npm run check --workspace @shirabe-org/api && npm run build --workspace @shirabe-org/api && npm run check --workspace @shirabe-org/card && npm test --workspace @shirabe-org/card && bin/package-check",
+    "check": "node --test script/*.test.mjs && npm run check --workspace @shirabe-org/api && npm run build --workspace @shirabe-org/api && npm run check --workspace @shirabe-org/card && npm test --workspace @shirabe-org/card && bin/package-check",
     "package:check": "bin/package-check"
   },
   "engines": {

@@ -24,7 +24,7 @@ npm run check
 script/update-openapi [contract]
 ```
 
-With no argument, the script fetches the deployed contract from `https://shirabe.org/openapi.yaml`. It regenerates the client and verifies the API package before returning.
+With no argument, the script fetches the deployed contract from `https://shirabe.org/openapi.yaml`. It regenerates the client and verifies the API package before returning. A new contract version sets the API manifest to that exact version, updates the card dependency, and increments the card patch version. The daily `openapi-update.yml` workflow runs the full package checks and saves a patch for review. It also opens a PR when repository policy permits; it does not publish releases.
 
 ## Releases
 
