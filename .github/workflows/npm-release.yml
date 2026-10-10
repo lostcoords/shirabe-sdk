@@ -3,18 +3,27 @@ name: Publish npm package
 on:
   release:
     types: [published]
+  repository_dispatch:
+    types: [backend_release]
+  workflow_dispatch:
+    inputs:
+      backend_sha:
+        description: "Full Shirabe production commit SHA to retry"
+        required: true
+        type: string
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: npm-release-${{ github.event.release.tag_name }}
+  group: sdk-release
   cancel-in-progress: false
 
 jobs:
   publish:
     if: >-
+      github.event_name == 'release' &&
       github.event.release.prerelease == false &&
       (startsWith(github.event.release.tag_name, 'api-v') ||
       startsWith(github.event.release.tag_name, 'card-v'))
@@ -38,3 +47,119 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: bin/npm-release "$RELEASE_TAG"
+
+  backend-release:
+    if: github.event_name != 'release'
+    permissions:
+      contents: write
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - run: npm ci
+
+      - name: Import the released contract and plan versions
+        id: plan
+        env:
+          SHIRABE_SOURCE_TOKEN: ${{ secrets.SHIRABE_SOURCE_TOKEN }}
+        run: node script/backend-release.mjs
+
+      - name: Verify both packages
+        if: steps.plan.outputs.skip != 'true'
+        run: npm run check
+
+      - name: Commit the verified SDK and tag its source
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          BACKEND_SHA: ${{ steps.plan.outputs.backend_sha }}
+          API_VERSION: ${{ steps.plan.outputs.api_version }}
+          CARD_VERSION: ${{ steps.plan.outputs.card_version }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/api packages/card/package.json package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Release SDKs for Shirabe ${BACKEND_SHA}"
+            git push origin HEAD:main
+          fi
+          for tag in "api-v${API_VERSION}" "card-v${CARD_VERSION}"; do
+            if git rev-parse --verify "refs/tags/${tag}" >/dev/null 2>&1; then
+              if ! git diff --quiet "$tag" -- "packages/${tag%%-v*}"; then
+                echo "Release tag ${tag} does not match the package source; refusing to publish." >&2
+                exit 1
+              fi
+            else
+              git tag "$tag"
+              git push origin "refs/tags/${tag}"
+            fi
+          done
+
+      - name: Publish the API package
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          API_VERSION: ${{ steps.plan.outputs.api_version }}
+        run: bin/npm-release "api-v${API_VERSION}"
+
+      - name: Wait for the API dependency
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          API_VERSION: ${{ steps.plan.outputs.api_version }}
+        run: node script/backend-release.mjs wait "$API_VERSION"
+
+      - name: Publish the card package
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          CARD_VERSION: ${{ steps.plan.outputs.card_version }}
+        run: bin/npm-release "card-v${CARD_VERSION}"
+
+      - name: Verify the published packages
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          API_VERSION: ${{ steps.plan.outputs.api_version }}
+          CARD_VERSION: ${{ steps.plan.outputs.card_version }}
+        run: |
+          node script/backend-release.mjs wait "$API_VERSION" "$CARD_VERSION"
+          bin/package-check --registry
+
+      - name: Record GitHub releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_VERSION: ${{ steps.plan.outputs.api_version }}
+          CARD_VERSION: ${{ steps.plan.outputs.card_version }}
+          BACKEND_SHA: ${{ steps.plan.outputs.backend_sha }}
+          SPEC_URL: ${{ steps.plan.outputs.spec_url }}
+        run: |
+          set -euo pipefail
+          for tag in "api-v${API_VERSION}" "card-v${CARD_VERSION}"; do
+            if ! gh release view "$tag" >/dev/null 2>&1; then
+              gh release create "$tag" --verify-tag --title "$tag" \
+                --notes "Backend-driven SDK release for lostcoords/shirabe@${BACKEND_SHA}. Contract: ${SPEC_URL}"
+            fi
+          done
+
+      - name: Release summary
+        env:
+          API_VERSION: ${{ steps.plan.outputs.api_version }}
+          CARD_VERSION: ${{ steps.plan.outputs.card_version }}
+          BACKEND_SHA: ${{ steps.plan.outputs.backend_sha }}
+          SKIPPED: ${{ steps.plan.outputs.skip }}
+        run: |
+          {
+            echo "Shirabe commit: ${BACKEND_SHA}"
+            echo "API: @shirabe-org/api@${API_VERSION}"
+            echo "Card: @shirabe-org/card@${CARD_VERSION}"
+            echo "Both package versions already published: ${SKIPPED}"
+          } >> "$GITHUB_STEP_SUMMARY"

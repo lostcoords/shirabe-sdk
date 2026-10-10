@@ -41,6 +41,8 @@
     "watch": "node ../watch.mjs",
     "check": "tsc --noEmit",
     "test": "node test/run.mjs",
+    "test:theme": "node test/theme-browser.mjs",
+    "test:lookup": "node test/lookup-browser.mjs",
     "dev": "node playground/serve.mjs",
     "build:playground": "node -e \"import(\"esbuild\").then(e=>e.build({entryPoints:{main:\"playground/main.ts\"},bundle:true,format:\"esm\",outdir:\"playground\"}))\"",
     "build:cdn": "esbuild src/standalone.ts --bundle --format=iife --minify --outfile=dist/shirabe-card.js",
@@ -50,8 +52,9 @@
     "@shirabe-org/api": "0.6.1"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
     "esbuild": "^0.28.1",
-    "happy-dom": "^20.10.6"
+    "happy-dom": "^20.10.6",
+    "playwright": "1.63.0",
+    "typescript": "^5.6.0"
   }
 }

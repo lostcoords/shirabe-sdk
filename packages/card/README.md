@@ -23,9 +23,10 @@ Two methods are required and the rest are capabilities. A host that cannot do
 something omits it, and the card draws no control for it rather than a control
 that refuses.
 
-For a host that returns complete `alternatives`, the card shows one result at a
-time. The headword, metadata, and definition scroll together. A result count in
-the bottom row opens an overview for switching results. `onVisibleDefinition`
+For a host that returns complete `alternatives`, all results share one continuous
+scroll area, with each entry's headword and metadata beside its definition.
+The result count opens an overview that scrolls to the chosen entry.
+[`test/lookup-browser.mjs`](test/lookup-browser.mjs) checks scrolling across entries. `onVisibleDefinition`
 tells the host when the selected result changes, so host-specific actions can
 follow it. `onDefinitionRendered` reports the initial result after the card
 accepts it, so a late lookup cannot replace those actions. `kanjiUrl` turns the headword's kanji controls into links to a host's
@@ -83,8 +84,10 @@ offsets, as they can when a word crosses inline markup.
 Set `CardToken.parts` for a grouped expression such as いい天気. The card shows each
 part as an in-card lookup.
 
-The popup opens immediately with a loading message and replaces it with the
-definition or a retryable error. `scheduleShow` also starts a speculative lookup
+A marked word can show its known heading while loading. Raw-text scanning waits
+for the matched word before opening, as checked by
+[`test/lookup-browser.mjs`](test/lookup-browser.mjs).
+`scheduleShow` also starts a speculative lookup
 after `prefetchDelay` (60 ms by default), before the popup's `lookupDelay` (180 ms).
 Set `prefetchOnHover: false` to disable this. A click-only host can call
 `schedulePrefetch(word, host)` on hover and `showNow(word)` on click. The SDK
@@ -237,6 +240,9 @@ Set them on the element the card mounts under. `data-sb-theme` takes `light` or
 `prefers-color-scheme`. `--sb-definition-size` is set from
 `setPopupOptions({ definitionSize })` rather than by hand.
 
+The default palette uses white/dark neutral surfaces and Shirabe blue accents.
+[`test/theme-browser.mjs`](test/theme-browser.mjs) checks both system themes and explicit choices.
+
 Pass `theme`, `definitionSize`, and `themeVariables` to `setPopupOptions` to
 style a mounted card. Variables are set on the shadow host, so they win over
 the SDK's light and dark defaults. `--sb-popup-width` and
@@ -261,7 +267,7 @@ setPopupOptions({
   theme: "dark",
   definitionSize: "large",
   themeVariables: {
-    "--sb-accent": "#df9aa1",
+    "--sb-accent": "#38bdf8",
     "--sb-popup-width": "min(520px, calc(100vw - 24px))",
   },
   footer,

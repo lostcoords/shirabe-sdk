@@ -396,7 +396,7 @@ export function scheduleTextLookup(query: string, rect: DOMRect, sentence: strin
   kind: "text" | "word" = "text", scan: { immediate?: boolean; contextual?: boolean } = {}): void {
   window.clearTimeout(hideTimer);
   const key = `scan:${JSON.stringify([kind, scan.contextual, query, sentence, targetStart, Math.round(rect.left), Math.round(rect.top)])}`;
-  if (visible() && currentKey === key) return;
+  if (currentKey === key) return;
   if (!scan.immediate && scheduledScan && showTimer !== undefined && scheduledScan.node === anchor?.node
     && scheduledScan.offset === anchor?.offset && scheduledScan.query === query && scheduledScan.sentence === sentence) return;
   window.clearTimeout(showTimer);
@@ -634,7 +634,7 @@ function lookupTarget(target: PopupTarget, lookupHost: WordCardHost, speculative
 }
 
 async function showTarget(target: PopupTarget, retrying = false): Promise<void> {
-  if (!retrying && target.word === currentTarget?.word && target.key === currentKey && box?.classList.contains("sb-visible")) return;
+  if (!retrying && target.word === currentTarget?.word && target.key === currentKey) return;
   stopAudio();
   const focused = root?.activeElement as HTMLElement | null;
   if (!visible()) {
@@ -672,12 +672,17 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     if (accountControls) box?.append(accountControls);
   }
   if (focused && (el.contains(focused) || (focused as HTMLButtonElement).disabled)) box?.focus({ preventScroll: true });
-  el.replaceChildren(loadingRow(target.context?.surface ?? target.query));
-  position(target);
-  // The visibility class belongs on the dialog shell, not the content wrapper
-  // `element()` returns: `.sb-popup.sb-visible` is what the stylesheet, `hide`,
-  // and `visible()` all key off.
-  box?.classList.add("sb-visible");
+  const reveal = () => {
+    position(target);
+    box?.classList.add("sb-visible");
+  };
+  if (target.kind === "text") {
+    box?.classList.remove("sb-visible");
+    el.replaceChildren();
+  } else {
+    el.replaceChildren(loadingRow(target.context?.surface ?? target.query));
+    reveal();
+  }
 
   // A pick is answered by handle, so the reader gets the word they chose rather
   // than the one the ladder prefers. Everything after this point is the same:
@@ -699,7 +704,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     link.rel = "noopener noreferrer";
     link.className = "sb-headword";
     el.replaceChildren(messageRow(res.message), messageRow(link));
-    position(target);
+    reveal();
     optional().onDefinitionRendered?.(null);
     return;
   }
@@ -725,14 +730,14 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     actions.append(retry);
     body.append(message, actions);
     el.replaceChildren(body);
-    position(target);
+    reveal();
     optional().onDefinitionRendered?.(null);
     optional().report?.("lookup_failed", { kind: target.kind ?? "word" });
     return;
   }
   if (res.status === "pending") {
-    el.replaceChildren(loadingRow(target.context?.surface ?? target.query), messageRow(res.message));
-    position(target);
+    el.replaceChildren(loadingRow(target.kind === "text" ? undefined : target.context?.surface ?? target.query), messageRow(res.message));
+    reveal();
     // Only a host that can unblock itself gets asked to. Retrying against one
     // that cannot would ask the same question forever, and the reader would
     // watch a card that never resolves and never says why.
@@ -796,7 +801,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
   }
   if (root?.activeElement && el.contains(root.activeElement)) box?.focus({ preventScroll: true });
   el.replaceChildren(...definitionRows(res.definition, target.query, target.word, studyStatus, res.alternatives));
-  position(target);
+  reveal();
   optional().onDefinitionRendered?.(res.definition);
   if (studyStatus) void refreshReadOnlyStudy(target, mine, studyStatus);
   // Which of the two happened matters: a card that renders and a card that says
@@ -844,7 +849,7 @@ async function waitForHost(target: PopupTarget, mine: number): Promise<void> {
       if (!stillHere()) return;
       const progress = messageRow(message);
       progress.classList.add("sb-body");
-      element().replaceChildren(loadingRow(target.context?.surface ?? target.query), progress);
+      element().replaceChildren(loadingRow(target.kind === "text" ? undefined : target.context?.surface ?? target.query), progress);
       position(target);
     });
   } catch (error) {
@@ -923,13 +928,16 @@ function captionRect(word?: Element | null): DOMRect | null {
   return caption ? caption.getBoundingClientRect() : null;
 }
 
-function loadingRow(lemma: string): Node {
+function loadingRow(lemma?: string): Node {
   const wrap = document.createElement("div");
   wrap.className = "sb-loading";
   wrap.setAttribute("aria-busy", "true");
-  const head = document.createElement("div");
-  head.className = "sb-popup-head";
-  head.textContent = lemma.length > 32 ? `${lemma.slice(0, 32)}…` : lemma;
+  if (lemma) {
+    const head = document.createElement("div");
+    head.className = "sb-popup-head";
+    head.textContent = lemma;
+    wrap.append(head);
+  }
   const body = document.createElement("div");
   body.className = "sb-loading-body";
   body.setAttribute("role", "status");
@@ -937,7 +945,7 @@ function loadingRow(lemma: string): Node {
   spinner.className = "sb-loading-spinner";
   spinner.setAttribute("aria-hidden", "true");
   body.append(spinner, "Loading definitions…");
-  wrap.append(head, body);
+  wrap.append(body);
   return wrap;
 }
 
@@ -972,23 +980,16 @@ function definitionRows(
     return rows;
   }
 
-  const displayedSpellings = new Map<Definition, string>();
-  let visibleDefinition = def;
-  let head = headRow(def);
+  const head = headRow(def);
   function selectForm(definition: Definition, spelling: string): void {
-    displayedSpellings.set(definition, spelling);
-    if (visibleDefinition === definition) {
+    if (def === definition) {
       const link = head.querySelector<HTMLElement>(".sb-headword");
       if (link) setHeadwordSpelling(link, spelling, definition.reading);
     }
   }
 
-  // A scrollable body (pinned head + actions) mirroring the shirabe.org card.
   const body = document.createElement("div");
   body.className = "sb-body";
-  // The interesting half of this card arrives after it opens, so a reader who
-  // was dropped into the dialog would otherwise sit on "Looking up…" in silence.
-  // It changes once per card, so polite is not chatty.
   body.setAttribute("aria-live", "polite");
   const metadataRows = [resultMetadata(def)];
   const otherMatches = alternatives?.filter((alternative) => alternative.entry !== def.entry && !alternative.name) ?? [];
@@ -1023,7 +1024,7 @@ function definitionRows(
   const firstPanel = alternativesSection ? document.createElement("section") : null;
   if (firstPanel) {
     firstPanel.className = "sb-result-panel";
-    firstPanel.append(...body.childNodes);
+    firstPanel.append(head, metadataRows[0]!, ...body.childNodes);
     body.append(firstPanel);
   }
   const links = lookupLinks(def, word);
@@ -1044,6 +1045,7 @@ function definitionRows(
   let resultPanels: HTMLElement[] = [];
   let visibleIndex = 0;
   let showResult = (_index: number) => {};
+  let activateResult = (_index: number) => {};
   let heldHeight = 0;
   const keepPopupHeight = (change: () => void) => {
     const popup = box;
@@ -1059,10 +1061,9 @@ function definitionRows(
     const articles = [...alternativesSection.querySelectorAll<HTMLElement>(".sb-alternative")];
     metadataRows.push(...otherMatches.map(resultMetadata));
     if (groupedNames.length) metadataRows.push(resultMetadata(null));
-    for (const row of metadataRows.slice(1)) row.hidden = true;
     resultPanels = [firstPanel!, ...articles];
-    for (const article of articles) {
-      article.hidden = true;
+    for (const [index, article] of articles.entries()) {
+      article.insertBefore(metadataRows[index + 1]!, article.firstChild?.nextSibling ?? null);
       body.append(article);
     }
     const results = [def, ...otherMatches, ...groupedNames.slice(0, 1)];
@@ -1144,24 +1145,16 @@ function definitionRows(
     footerRow?.append(toggle);
     const count = toggle.querySelector("span")!;
     resultButtons[0]?.setAttribute("aria-current", "true");
-    showResult = (index: number) => {
+    activateResult = (index: number) => {
       if (index === visibleIndex) return;
       const from = visibleIndex;
-      resultPanels[visibleIndex]!.hidden = true;
-      metadataRows[visibleIndex]!.hidden = true;
       visibleIndex = index;
-      resultPanels[index]!.hidden = false;
-      metadataRows[index]!.hidden = false;
-      body.scrollTop = 0;
-      visibleDefinition = results[index]!;
+      const visibleDefinition = results[index]!;
       if (options.lookupLinksPlacement === "footer") {
         footerRow?.querySelector(".sb-lookup-links")?.remove();
         const links = lookupLinks(visibleDefinition, word);
         if (links) footerRow?.prepend(links);
       }
-      const replacement = headRow(visibleDefinition, displayedSpellings.get(visibleDefinition));
-      head.replaceWith(replacement);
-      head = replacement;
       count.textContent = `${index + 1} of ${results.length} results`;
       for (const [position, link] of resultButtons.entries()) {
         if (position === index) link.setAttribute("aria-current", "true");
@@ -1169,6 +1162,10 @@ function definitionRows(
       }
       optional().onVisibleDefinition?.(visibleDefinition);
       optional().report?.("candidate_selected", { from_index: from, to_index: index, candidate_count: results.length });
+    };
+    showResult = (index: number) => {
+      body.scrollTop += resultPanels[index]!.getBoundingClientRect().top - body.getBoundingClientRect().top;
+      activateResult(index);
     };
     for (const [index, link] of resultButtons.entries()) {
       link.addEventListener("click", () => {
@@ -1188,7 +1185,8 @@ function definitionRows(
     navigationRows.push(overview);
   }
   const scrollContent = document.createElement("div");
-  scrollContent.append(head, ...metadataRows, ...body.childNodes);
+  if (!firstPanel) body.prepend(head, metadataRows[0]!);
+  scrollContent.append(...body.childNodes);
   body.append(scrollContent);
   const scrollRegion = document.createElement("div");
   scrollRegion.className = "sb-scroll-region";
@@ -1203,27 +1201,28 @@ function definitionRows(
   const updateScrollIndicator = () => {
     if (!body.isConnected || body.hidden) return;
     const remaining = body.scrollHeight - body.clientHeight;
-    track.hidden = resultPanels.length <= 1 && remaining <= 1;
+    let index = 0;
+    if (body.scrollTop > 0) {
+      const top = body.getBoundingClientRect().top;
+      for (const [position, panel] of resultPanels.entries()) {
+        if (panel.getBoundingClientRect().top <= top + 1) index = position;
+      }
+      if (body.scrollTop >= remaining - 1) index = Math.max(0, resultPanels.length - 1);
+    }
+    activateResult(index);
+    track.hidden = remaining <= 1;
     if (track.hidden) return;
-    const segment = body.clientHeight / Math.max(1, resultPanels.length);
-    const height = Math.min(segment, Math.max(14, segment * body.clientHeight / Math.max(body.scrollHeight, body.clientHeight)));
+    const height = Math.min(body.clientHeight, Math.max(14, body.clientHeight ** 2 / body.scrollHeight));
     thumb.style.height = `${height}px`;
-    const offset = remaining > 0 ? body.scrollTop / remaining * (segment - height) : 0;
-    thumb.style.transform = `translateY(${visibleIndex * segment + offset}px)`;
+    thumb.style.transform = `translateY(${body.scrollTop / remaining * (body.clientHeight - height)}px)`;
   };
   body.addEventListener("scroll", updateScrollIndicator);
   let drag: { pointerId: number; offset: number } | null = null;
   const scrollToPointer = (clientY: number, offset: number) => {
     const rect = track.getBoundingClientRect();
-    const segment = rect.height / Math.max(1, resultPanels.length);
-    if (segment <= 0) return;
-    const top = Math.max(0, clientY - rect.top - offset);
-    const index = Math.min(Math.max(0, resultPanels.length - 1), Math.floor(top / segment));
-    if (index !== visibleIndex) keepPopupHeight(() => showResult(index));
-    updateScrollIndicator();
-    const travel = segment - parseFloat(thumb.style.height);
+    const travel = rect.height - parseFloat(thumb.style.height);
     const remaining = Math.max(0, body.scrollHeight - body.clientHeight);
-    body.scrollTop = travel > 0 ? Math.max(0, Math.min(remaining, (top - index * segment) / travel * remaining)) : 0;
+    body.scrollTop = travel > 0 ? Math.max(0, Math.min(remaining, (clientY - rect.top - offset) / travel * remaining)) : 0;
     updateScrollIndicator();
   };
   track.addEventListener("pointerdown", (event) => {
@@ -1232,14 +1231,7 @@ function definitionRows(
     const onThumb = event.target === thumb;
     drag = { pointerId: event.pointerId, offset: onThumb ? event.clientY - thumb.getBoundingClientRect().top : thumb.getBoundingClientRect().height / 2 };
     if (event.pointerId !== undefined) track.setPointerCapture(event.pointerId);
-    if (!onThumb) {
-      if (resultPanels.length > 1) {
-        const rect = track.getBoundingClientRect();
-        keepPopupHeight(() => showResult(Math.max(0, Math.min(resultPanels.length - 1,
-          Math.floor((event.clientY - rect.top) / rect.height * resultPanels.length)))));
-        updateScrollIndicator();
-      } else scrollToPointer(event.clientY, drag.offset);
-    }
+    if (!onThumb) scrollToPointer(event.clientY, drag.offset);
   });
   track.addEventListener("pointermove", (event) => {
     if (drag && event.pointerId === drag.pointerId) scrollToPointer(event.clientY, drag.offset);
@@ -1257,17 +1249,9 @@ function definitionRows(
     if (!delta || event.ctrlKey) return;
     event.preventDefault();
     const remaining = Math.max(0, body.scrollHeight - body.clientHeight);
-    const next = body.scrollTop + delta;
-    if (next > remaining && visibleIndex < resultPanels.length - 1) {
-      keepPopupHeight(() => showResult(visibleIndex + 1));
-      body.scrollTop = Math.min(Math.max(0, body.scrollHeight - body.clientHeight), next - remaining);
-    } else if (next < 0 && visibleIndex > 0) {
-      keepPopupHeight(() => showResult(visibleIndex - 1));
-      body.scrollTop = Math.max(0, body.scrollHeight - body.clientHeight + next);
-    } else body.scrollTop = Math.max(0, Math.min(remaining, next));
+    body.scrollTop = Math.max(0, Math.min(remaining, body.scrollTop + delta));
     updateScrollIndicator();
   };
-  body.addEventListener("wheel", scrollResults, { passive: false });
   track.addEventListener("wheel", scrollResults, { passive: false });
   if (typeof ResizeObserver !== "undefined") {
     scrollIndicatorObserver = new ResizeObserver(updateScrollIndicator);
@@ -2742,16 +2726,16 @@ ${ACCOUNT_CSS}
      browser version we do not choose. */
   color-scheme: light dark;
   --sb-surface: #ffffff;
-  --sb-surface-muted: #f3f4f6;
-  --sb-surface-hover: #e5e7eb;
+  --sb-surface-muted: #f1f5f9;
+  --sb-surface-hover: #e2e8f0;
   --sb-ink: #111827;
-  --sb-ink-body: #1f2937;
+  --sb-ink-body: #111827;
   --sb-ink-muted: #4b5563;
-  --sb-ink-subtle: #6b7280;
+  --sb-ink-subtle: #64748b;
   --sb-ink-faint: #9ca3af;
-  --sb-outline: #e5e7eb;
-  --sb-outline-strong: #d1d5db;
-  --sb-divider: #f3f4f6;
+  --sb-outline: #e2e8f0;
+  --sb-outline-strong: #cbd5e1;
+  --sb-divider: #f1f5f9;
   --sb-accent: #0369a1;
   --sb-accent-hover: #025a83;
   --sb-accent-tint: #e2f1fa;
@@ -2764,7 +2748,7 @@ ${ACCOUNT_CSS}
   --sb-result-name-bg: #f6e7ee;
   --sb-result-article-ink: #2f6154;
   --sb-result-article-bg: #e4efec;
-  --sb-field: #2563eb;
+  --sb-field: #0369a1;
   --sb-dialect: #7c3aed;
   --sb-common-bg: #dcfce7;
   --sb-common-fg: #166534;
@@ -2785,84 +2769,86 @@ ${ACCOUNT_CSS}
 /* What the OS asks for, unless the reader has overridden it to light. */
 @media (prefers-color-scheme: dark) {
   :host(:not([data-sb-theme="light"])) {
-    --sb-surface: #252525;
-    --sb-surface-muted: #303030;
-    --sb-surface-hover: #3a3a3a;
-    --sb-ink: #f0eeee;
-    --sb-ink-body: #e4e0e0;
-    --sb-ink-muted: #b4aeae;
-    --sb-ink-subtle: #928b8b;
-    --sb-ink-faint: #777171;
-    --sb-outline: rgba(255, 244, 244, 0.14);
-    --sb-outline-strong: rgba(255, 244, 244, 0.24);
-    --sb-divider: rgba(255, 244, 244, 0.13);
-    --sb-accent: #df9aa1;
-    --sb-accent-hover: #f0b4ba;
-    --sb-accent-tint: #452e31;
-    --sb-accent-tint-strong: #5a383d;
-    --sb-accent-border: #a8666e;
-    --sb-source: #df9aa1;
+    --sb-surface: #252526;
+    --sb-surface-muted: #1d1d1d;
+    --sb-surface-hover: #2c2c2c;
+    --sb-ink: #e8e8e8;
+    --sb-ink-body: #e8e8e8;
+    --sb-ink-muted: #a8a8a8;
+    --sb-ink-subtle: #8a8a8a;
+    --sb-ink-faint: #747474;
+    --sb-outline: #3c3c3c;
+    --sb-outline-strong: #666666;
+    --sb-divider: #3c3c3c;
+    --sb-accent: #139ff7;
+    --sb-accent-hover: #65b9fd;
+    --sb-accent-tint: #223749;
+    --sb-accent-tint-strong: #21445a;
+    --sb-accent-border: #3b7b9f;
+    --sb-source: #139ff7;
     --sb-result-word-ink: #aec8ee;
     --sb-result-word-bg: #374153;
     --sb-result-name-ink: #e7a1bc;
     --sb-result-name-bg: #433039;
     --sb-result-article-ink: #9ccabc;
     --sb-result-article-bg: #304039;
-    --sb-field: #d7a0bf;
+    --sb-field: #139ff7;
     --sb-dialect: #c4a5df;
     --sb-common-bg: #203b28;
     --sb-common-fg: #a8d9af;
-    --sb-jlpt-bg: #393536;
-    --sb-jlpt-fg: #c9c1c1;
+    --sb-jlpt-bg: #223749;
+    --sb-jlpt-fg: #65b9fd;
     --sb-error: #ff9999;
     --sb-shadow: 0 18px 50px rgba(0, 0, 0, 0.58);
-    --sb-known-btn: #595454;
-    --sb-known-btn-hover: #6d6666;
-    --sb-chip-bg: rgba(240, 224, 224, 0.08);
-    --sb-chip-bg-strong: rgba(240, 224, 224, 0.15);
-    --sb-chip-border: rgba(240, 224, 224, 0.25);
+    --sb-known-btn: #8a8a8a;
+    --sb-known-btn-hover: #a8a8a8;
+    --sb-on-solid: #06131e;
+    --sb-chip-bg: rgba(232, 232, 232, 0.08);
+    --sb-chip-bg-strong: rgba(232, 232, 232, 0.15);
+    --sb-chip-border: rgba(232, 232, 232, 0.25);
   }
 }
 /* The reader's own choice, which wins over the OS in both directions. */
 :host([data-sb-theme="light"]) { color-scheme: light; }
 :host([data-sb-theme="dark"]) {
   color-scheme: dark;
-  --sb-surface: #252525;
-  --sb-surface-muted: #303030;
-  --sb-surface-hover: #3a3a3a;
-  --sb-ink: #f0eeee;
-  --sb-ink-body: #e4e0e0;
-  --sb-ink-muted: #b4aeae;
-  --sb-ink-subtle: #928b8b;
-  --sb-ink-faint: #777171;
-  --sb-outline: rgba(255, 244, 244, 0.14);
-  --sb-outline-strong: rgba(255, 244, 244, 0.24);
-  --sb-divider: rgba(255, 244, 244, 0.13);
-  --sb-accent: #df9aa1;
-  --sb-accent-hover: #f0b4ba;
-  --sb-accent-tint: #452e31;
-  --sb-accent-tint-strong: #5a383d;
-  --sb-accent-border: #a8666e;
+  --sb-surface: #252526;
+  --sb-surface-muted: #1d1d1d;
+  --sb-surface-hover: #2c2c2c;
+  --sb-ink: #e8e8e8;
+  --sb-ink-body: #e8e8e8;
+  --sb-ink-muted: #a8a8a8;
+  --sb-ink-subtle: #8a8a8a;
+  --sb-ink-faint: #747474;
+  --sb-outline: #3c3c3c;
+  --sb-outline-strong: #666666;
+  --sb-divider: #3c3c3c;
+  --sb-accent: #139ff7;
+  --sb-accent-hover: #65b9fd;
+  --sb-accent-tint: #223749;
+  --sb-accent-tint-strong: #21445a;
+  --sb-accent-border: #3b7b9f;
   --sb-result-word-ink: #aec8ee;
   --sb-result-word-bg: #374153;
   --sb-result-name-ink: #e7a1bc;
   --sb-result-name-bg: #433039;
   --sb-result-article-ink: #9ccabc;
   --sb-result-article-bg: #304039;
-  --sb-source: #df9aa1;
-  --sb-field: #d7a0bf;
+  --sb-source: #139ff7;
+  --sb-field: #139ff7;
   --sb-dialect: #c4a5df;
   --sb-common-bg: #203b28;
   --sb-common-fg: #a8d9af;
-  --sb-jlpt-bg: #393536;
-  --sb-jlpt-fg: #c9c1c1;
+  --sb-jlpt-bg: #223749;
+  --sb-jlpt-fg: #65b9fd;
   --sb-error: #ff9999;
   --sb-shadow: 0 18px 50px rgba(0, 0, 0, 0.58);
-  --sb-known-btn: #595454;
-  --sb-known-btn-hover: #6d6666;
-  --sb-chip-bg: rgba(240, 224, 224, 0.08);
-  --sb-chip-bg-strong: rgba(240, 224, 224, 0.15);
-  --sb-chip-border: rgba(240, 224, 224, 0.25);
+  --sb-known-btn: #8a8a8a;
+  --sb-known-btn-hover: #a8a8a8;
+  --sb-on-solid: #06131e;
+  --sb-chip-bg: rgba(232, 232, 232, 0.08);
+  --sb-chip-bg-strong: rgba(232, 232, 232, 0.15);
+  --sb-chip-border: rgba(232, 232, 232, 0.25);
 }
 
 .sb-popup {
@@ -3106,8 +3092,6 @@ ${ACCOUNT_CSS}
 .sb-result-preview { min-width: 0; color: var(--sb-ink-subtle); font-size: 12px; }
 .sb-alternatives { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--sb-divider); }
 .sb-alternative { padding: 10px 0; border-top: 1px solid var(--sb-divider); }
-.sb-body > div > .sb-alternative { padding-top: 0; border-top: 0; }
-.sb-alternative:first-of-type { border-top: 0; }
 .sb-alternative-headword { display: inline-block; margin: 0 0 5px; padding: 0; border: 0; background: transparent; color: var(--sb-ink); font-family: inherit; font-size: 24px; font-weight: 700; line-height: 1.35; cursor: pointer; text-align: start; }
 .sb-alternative-headword:hover:not(:disabled) { color: var(--sb-accent); }
 .sb-alternative-headword:disabled { cursor: default; }
@@ -3129,7 +3113,7 @@ ${ACCOUNT_CSS}
 .sb-study-unavailable .sb-plans { font-size: 11px; }
 
 .sb-scroll-region { position: relative; display: flex; flex: 1 1 auto; min-height: 0; padding-right: 10px; }
-.sb-body { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.sb-body { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .sb-body::-webkit-scrollbar { display: none; }
 .sb-scroll-track { position: absolute; top: 0; right: 0; bottom: 0; width: 5px; border-radius: 999px; background: var(--sb-surface-muted); cursor: pointer; touch-action: none; user-select: none; }
 .sb-scroll-thumb { position: absolute; top: 0; right: 0; width: 5px; border-radius: 999px; background: var(--sb-outline-strong); }

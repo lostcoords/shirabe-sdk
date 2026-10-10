@@ -20,3 +20,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:theme --workspace @shirabe-org/card
+      - run: npm run test:lookup --workspace @shirabe-org/card

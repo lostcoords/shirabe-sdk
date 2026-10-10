@@ -190,7 +190,7 @@ test("pitch uses compact mora overlines instead of a graph", async () => {
   assert.equal(shadow.querySelector(".sb-pitch-num")?.textContent, "[2]");
 });
 
-test("a host with complete alternatives shows only the selected result", async () => {
+test("a host with complete alternatives keeps every result in one scroll area", async () => {
   const { card, window } = await page();
   const alternative = {
     ...taberu,
@@ -225,12 +225,12 @@ test("a host with complete alternatives shows only the selected result", async (
 
   const body = shadow.querySelector(".sb-body") as unknown as HTMLElement;
   const article = shadow.querySelector(".sb-alternative") as unknown as HTMLElement;
-  assert.equal(article.hidden, true);
+  assert.equal(article.hidden, false);
   (shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement).click();
   (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
   assert.equal(article.hidden, false);
-  assert.equal((body.querySelector(".sb-result-panel") as unknown as HTMLElement).hidden, true);
-  assert.equal(shadow.querySelector(".sb-headword")?.getAttribute("href"), alternative.url);
+  assert.equal((body.querySelector(".sb-result-panel") as unknown as HTMLElement).hidden, false);
+  assert.equal(article.querySelector(".sb-alternative-headword")?.getAttribute("aria-label"), "Use 他べる as this word");
   assert.deepEqual(visible, ["他べる"]);
 
   (shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement).click();
@@ -268,9 +268,9 @@ test("the result overview opens on demand and returns to the chosen definition",
   assert.equal(overview.hidden, true);
   assert.equal(body.hidden, false);
   assert.equal(toggle.textContent?.trim(), "2 of 2 results");
-  assert.equal(shadow.querySelector(".sb-headword")?.getAttribute("href"), alternative.url);
+  assert.equal(shadow.querySelector(".sb-alternative-headword")?.getAttribute("aria-label"), "Use 他べる as this word");
   assert.equal((body.querySelector(".sb-alternative") as HTMLElement).hidden, false);
-  assert.equal((body.querySelector(".sb-result-panel") as HTMLElement).hidden, true);
+  assert.equal((body.querySelector(".sb-result-panel") as HTMLElement).hidden, false);
   assert.equal(toggle.textContent?.trim(), "2 of 2 results");
 
   toggle.click();
@@ -278,16 +278,9 @@ test("the result overview opens on demand and returns to the chosen definition",
   assert.equal(body.scrollTop, 0);
   assert.equal(toggle.textContent?.trim(), "1 of 2 results");
 
-  const track = shadow.querySelector(".sb-scroll-track") as unknown as HTMLElement;
-  track.getBoundingClientRect = () => ({ top: 0, height: 100 } as DOMRect);
-  const railClick = new window.Event("pointerdown") as unknown as PointerEvent;
-  Object.defineProperty(railClick, "clientY", { value: 75 });
-  track.dispatchEvent(railClick);
-  assert.equal(toggle.textContent?.trim(), "2 of 2 results");
-  assert.equal((body.querySelector(".sb-result-panel") as unknown as HTMLElement).hidden, true);
 });
 
-test("wheel scrolling crosses results and keeps footer lookup links current", async () => {
+test("native scrolling updates the result counter and footer without resetting the scroll position", async () => {
   const { card, window } = await page();
   const alternative = { ...taberu, headword: "他べる", entry: "jmdict:other", url: "https://shirabe.org/en/word/other" };
   const host = fakeHost({ study: false });
@@ -299,20 +292,28 @@ test("wheel scrolling crosses results and keeps footer lookup links current", as
   await settle();
   const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
   const body = shadow.querySelector(".sb-body") as unknown as HTMLElement;
-  const track = shadow.querySelector(".sb-scroll-track") as unknown as HTMLElement;
   const toggle = shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement;
-  Object.defineProperties(body, { clientHeight: { value: 100 }, scrollHeight: { value: 300 } });
+  Object.defineProperties(body, { clientHeight: { value: 100 }, scrollHeight: { value: 500 } });
   assert.equal(body.querySelector(".sb-lookup-links"), null);
   assert.equal(shadow.querySelector(".sb-popup-footer .sb-lookup-link")?.getAttribute("href"), taberu.url);
-  body.scrollTop = 200;
-  body.dispatchEvent(new window.WheelEvent("wheel", { deltaY: 30, cancelable: true }) as unknown as Event);
+  body.getBoundingClientRect = () => ({ top: 0 } as DOMRect);
+  const panel = body.querySelector(".sb-result-panel") as HTMLElement;
+  const alternativePanel = body.querySelector(".sb-alternative") as HTMLElement;
+  panel.getBoundingClientRect = () => ({ top: -body.scrollTop } as DOMRect);
+  alternativePanel.getBoundingClientRect = () => ({ top: 200 - body.scrollTop } as DOMRect);
+  body.scrollTop = 230;
+  const wheel = new window.WheelEvent("wheel", { deltaY: 30, cancelable: true });
+  body.dispatchEvent(wheel as unknown as Event);
+  assert.equal(wheel.defaultPrevented, false);
+  assert.equal(body.scrollTop, 230);
+  body.dispatchEvent(new window.Event("scroll") as unknown as Event);
   assert.equal(toggle.textContent?.trim(), "2 of 2 results");
-  assert.equal(body.scrollTop, 30);
+  assert.equal(body.scrollTop, 230);
   assert.equal(shadow.querySelector(".sb-popup-footer .sb-lookup-link")?.getAttribute("href"), alternative.url);
-  body.scrollTop = 0;
-  track.dispatchEvent(new window.WheelEvent("wheel", { deltaY: -20, cancelable: true }) as unknown as Event);
+  body.scrollTop = 100;
+  body.dispatchEvent(new window.Event("scroll") as unknown as Event);
   assert.equal(toggle.textContent?.trim(), "1 of 2 results");
-  assert.equal(body.scrollTop, 180);
+  assert.equal(body.scrollTop, 100);
   toggle.click();
   assert.ok(shadow.querySelector(".sb-popup")?.classList.contains("sb-results-open"));
   (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
@@ -384,7 +385,7 @@ test("arrow keys move focus through the open result overview", async () => {
   assert.deepEqual(scrolls, [80, -80]);
 });
 
-test("the whole selected entry scrolls while result navigation stays in the footer", async () => {
+test("result metadata stays with its entry in the continuous scroll area", async () => {
   const { card, window } = await page();
   const alternative = { ...taberu, entry: "jmdict:other", headword: "他べる", reading: "ほかべる",
     inflection: ["potential"], common: false, pitch: [{ downstep: 0, audioUrl: null }] };
@@ -407,8 +408,10 @@ test("the whole selected entry scrolls while result navigation stays in the foot
 
   (shadow.querySelector(".sb-results-toggle") as unknown as HTMLButtonElement).click();
   (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
-  assert.equal((metadata[0] as unknown as HTMLElement).hidden, true);
+  assert.equal((metadata[0] as unknown as HTMLElement).hidden, false);
   assert.equal((metadata[1] as unknown as HTMLElement).hidden, false);
+  assert.equal(metadata[0]?.parentElement?.className, "sb-result-panel");
+  assert.equal(metadata[1]?.parentElement?.className, "sb-alternative");
   assert.equal(metadata[1]?.querySelector(".sb-inflection")?.textContent, "potential");
   assert.equal(metadata[1]?.querySelector(".sb-pitch-num")?.textContent, "[0]");
 });
@@ -596,14 +599,14 @@ test("an alternative match keeps its chosen spelling when switching results", as
   toggle.click();
   (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
   (article.querySelector(".sb-word-form") as unknown as HTMLElement).click();
-  assert.match(shadow.querySelector(".sb-headword")?.textContent ?? "", /喰/);
+  assert.match(article.querySelector(".sb-alternative-headword")?.textContent ?? "", /喰/);
 
   toggle.click();
   (shadow.querySelectorAll(".sb-result-link")[0] as unknown as HTMLButtonElement).click();
   assert.match(shadow.querySelector(".sb-headword")?.textContent ?? "", /食/);
   toggle.click();
   (shadow.querySelectorAll(".sb-result-link")[1] as unknown as HTMLButtonElement).click();
-  assert.match(shadow.querySelector(".sb-headword")?.textContent ?? "", /喰/);
+  assert.match(article.querySelector(".sb-alternative-headword")?.textContent ?? "", /喰/);
   assert.equal(lookups, 1);
 });
 
