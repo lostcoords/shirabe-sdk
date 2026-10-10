@@ -1,0 +1,6 @@
+node_modules/
+packages/*/node_modules/
+packages/*/dist/
+packages/*/dist-ready
+packages/card/playground/main.js
+packages/card/playground/main.js.map

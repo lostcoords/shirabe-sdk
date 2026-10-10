@@ -1,19 +1,36 @@
 # Shirabe SDKs
 
-This repository is being prepared as the public source home for Shirabe's TypeScript SDKs. The source and release automation have not moved here yet. Install the existing packages from npm:
+Public TypeScript SDKs for [Shirabe](https://shirabe.org).
 
 | Package | Purpose |
 | --- | --- |
-| [`@shirabe-org/api`](https://www.npmjs.com/package/@shirabe-org/api) | Typed client for the Shirabe API |
-| [`@shirabe-org/card`](https://www.npmjs.com/package/@shirabe-org/card) | Word card renderer and API host adapters |
+| [`@shirabe-org/api`](packages/api) | Typed client generated from Shirabe's OpenAPI contract |
+| [`@shirabe-org/card`](packages/card) | Word card renderer and API host adapters |
 
-The packages will live in `packages/api` and `packages/card` as npm workspaces. Each package will keep its own version and release tag. Pushes to `main` will publish dev builds, and package-specific version tags will publish stable builds. The card depends on an exact API package version, so that API version must be published first.
+The packages share a repository but remain independent releases. Each has its own manifest, version, tests, npm package, and release tag. The card declares an exact API dependency, so release that API version first.
 
-The API client is generated from Shirabe's OpenAPI contract. Moving the packages here will also require a public contract snapshot and a way to keep it synchronized with the service. The Shirabe app and extension will continue to consume the SDK packages after the move.
+## Development
 
-## Status
+Use Node 24 or newer.
 
-Repository setup only. There is no SDK source or release workflow here yet. See [the migration outline](docs/migration.md) for the remaining work.
+```sh
+npm install
+npm run check
+```
+
+`packages/api/openapi/shirabe.bundled.yaml` is the reviewed service contract snapshot used for client generation. Update it from a file or URL with:
+
+```sh
+script/update-openapi [contract]
+```
+
+With no argument, the script fetches the deployed contract from `https://shirabe.org/openapi.yaml`. It regenerates the client and verifies the API package before returning.
+
+## Releases
+
+Publish a GitHub release tagged `api-v<version>` or `card-v<version>`. The release workflow checks that the tag matches the selected package manifest, verifies both package archives from a clean consumer, and publishes through npm trusted publishing.
+
+The npm trusted publisher for each package must name this repository and `.github/workflows/npm-release.yml`.
 
 ## License
 

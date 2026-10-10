@@ -1,0 +1,16 @@
+{
+  "name": "shirabe-sdk",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/api",
+    "packages/card"
+  ],
+  "scripts": {
+    "check": "npm run check --workspace @shirabe-org/api && npm run build --workspace @shirabe-org/api && npm run check --workspace @shirabe-org/card && npm test --workspace @shirabe-org/card && bin/package-check",
+    "package:check": "bin/package-check"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

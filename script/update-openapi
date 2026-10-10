@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+source=${1:-https://shirabe.org/openapi.yaml}
+target=packages/api/openapi/shirabe.bundled.yaml
+temporary=$(mktemp)
+trap 'rm -f "$temporary"' EXIT
+
+case "$source" in
+  http://*|https://*) curl --fail --location --silent --show-error "$source" > "$temporary" ;;
+  *) cp "$source" "$temporary" ;;
+esac
+mv "$temporary" "$target"
+trap - EXIT
+
+npm run codegen --workspace @shirabe-org/api
+npm run check --workspace @shirabe-org/api

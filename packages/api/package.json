@@ -1,0 +1,47 @@
+{
+  "name": "@shirabe-org/api",
+  "version": "0.6.1",
+  "description": "Typed client for the Shirabe API, generated from its OpenAPI contract.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lostcoords/shirabe-sdk.git",
+    "directory": "packages/api"
+  },
+  "homepage": "https://shirabe.org",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && touch dist-ready",
+    "watch": "node ../watch.mjs",
+    "codegen": "openapi-ts && node scripts/generate-bound-operations.mjs",
+    "codegen:check": "node scripts/check-generated.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "check": "npm run codegen:check && npm run typecheck && npm test",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@types/node": "^24.10.1",
+    "tsx": "^4.23.2",
+    "typescript": "6.0.3"
+  }
+}
