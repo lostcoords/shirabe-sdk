@@ -39,6 +39,14 @@ npm trust github @shirabe-org/card --repository lostcoords/shirabe-sdk --file np
 
 Enter only `npm-release.yml` as the workflow filename, not its full path. Verify each configuration with `npm trust list <package>`. Complete the first successful SDK release before revoking the old Shirabe publisher.
 
+After npm makes both releases available, verify the published archives and a clean registry installation:
+
+```sh
+bin/package-check --registry
+```
+
+This also verifies npm registry signatures and provenance attestations.
+
 ## License
 
 The SDKs use the [MIT License](LICENSE). This license does not cover the Shirabe service or dictionary data returned by its API.

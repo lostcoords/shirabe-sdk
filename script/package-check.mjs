@@ -16,6 +16,9 @@ const definitions = [
   { name: "@shirabe-org/card", directory: "packages/card" },
 ];
 const repositoryUrl = "git+https://github.com/lostcoords/shirabe-sdk.git";
+const registry = process.argv.includes("--registry");
+if (process.argv.slice(2).some((argument) => argument !== "--registry"))
+  throw new Error("Usage: bin/package-check [--registry]");
 
 function run(command, args, options = {}) {
   console.log(`== ${[command, ...args].join(" ")}`);
@@ -93,12 +96,14 @@ function validateArchive(name, packed) {
 const temporary = mkdtempSync(join(tmpdir(), "shirabe-packages-"));
 try {
   const manifests = definitions.map(manifestFor);
-  run("npm", ["run", "codegen:check", "--workspace", "@shirabe-org/api"]);
-  for (const { name } of definitions)
-    run("npm", ["run", "build", "--workspace", name]);
+  if (!registry) {
+    run("npm", ["run", "codegen:check", "--workspace", "@shirabe-org/api"]);
+    for (const { name } of definitions)
+      run("npm", ["run", "build", "--workspace", name]);
+  }
 
   const archives = new Map();
-  for (const { name } of definitions) {
+  for (const { name, version } of manifests) {
     const packed = JSON.parse(
       run(
         "npm",
@@ -106,8 +111,7 @@ try {
           "pack",
           "--silent",
           "--json",
-          "--workspace",
-          name,
+          ...(registry ? ["--ignore-scripts", `${name}@${version}`] : ["--workspace", name]),
           "--pack-destination",
           temporary,
         ],
@@ -128,14 +132,22 @@ try {
     "npm",
     [
       "install",
-      "--offline",
+      ...(registry ? [] : ["--offline"]),
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
-      ...definitions.map(({ name }) => archives.get(name)),
+      ...(registry ? manifests.map(({ name, version }) => `${name}@${version}`) : definitions.map(({ name }) => archives.get(name))),
     ],
     { cwd: consumer },
   );
+  if (registry) {
+    for (const { name, version } of manifests) {
+      const installed = JSON.parse(readFileSync(join(consumer, "node_modules", name, "package.json"), "utf8"));
+      if (installed.version !== version || installed.repository?.url !== repositoryUrl)
+        throw new Error(`${name} registry metadata does not match the SDK release`);
+    }
+    run("npm", ["audit", "signatures"], { cwd: consumer });
+  }
   writeFileSync(
     join(consumer, "smoke.mjs"),
     [
