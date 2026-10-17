@@ -1483,7 +1483,7 @@ export function studyUnavailable(offline = false): HTMLElement | null {
   const row = document.createElement("div");
   row.className = "sb-study-unavailable";
   if (offline) {
-    const mode = document.createElement("div");
+    const mode = document.createElement(connected ? "div" : "span");
     mode.className = "sb-offline-mode";
     mode.textContent = "Offline Mode";
     row.append(mode);
@@ -1491,13 +1491,20 @@ export function studyUnavailable(offline = false): HTMLElement | null {
   if (connected) {
     row.append("Saving to your reviews is part of Pro. ", plansLink());
   } else {
+    if (offline) {
+      const separator = document.createElement("span");
+      separator.className = "sb-offline-sep";
+      separator.setAttribute("aria-hidden", "true");
+      separator.textContent = " | ";
+      row.append(separator);
+    }
     row.append(connectOffer());
   }
   return row;
 }
 
 function connectOffer(): HTMLElement {
-  const line = document.createElement("div");
+  const line = document.createElement("span");
   line.className = "sb-connect-line";
   const link = document.createElement("button");
   link.type = "button";
@@ -1517,6 +1524,8 @@ function connectOffer(): HTMLElement {
       await connect();
       link.hidden = true;
       line.hidden = true;
+      const separator = line.previousElementSibling;
+      if (separator instanceof HTMLElement && separator.classList.contains("sb-offline-sep")) separator.hidden = true;
     } catch (error) {
       link.disabled = false;
       const note = document.createElement("p");
@@ -3180,7 +3189,8 @@ ${ACCOUNT_CSS}
 .sb-name-meanings { color: var(--sb-ink); font-size: var(--sb-definition-size, 14px); line-height: 1.5; }
 .sb-study-unavailable { flex: 0 0 auto; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--sb-outline); color: var(--sb-ink-subtle); font-size: 11px; }
 .sb-study-unavailable .sb-plans { font-size: 11px; }
-.sb-offline-mode { margin: 0 0 2px; color: var(--sb-ink-muted); font-weight: 600; }
+.sb-offline-mode { margin: 0; color: var(--sb-ink-muted); font-weight: 600; }
+.sb-offline-sep { white-space: pre; }
 .sb-connect-line { margin: 0; }
 .sb-connect { margin: 0; padding: 0; border: 0; background: transparent; color: var(--sb-accent); font: inherit; font-weight: 600; text-align: start; text-decoration: none; cursor: pointer; }
 .sb-connect:hover { color: var(--sb-accent-hover); text-decoration: underline; }

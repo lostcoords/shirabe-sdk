@@ -1651,9 +1651,7 @@ test("an offline lookup puts Offline Mode ahead of the connect offer and drops h
     await settle();
     const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
     const row = shadow.querySelector(".sb-study-unavailable")!;
-    const text = row.textContent ?? "";
-    assert.equal(text.indexOf("Offline Mode"), 0);
-    assert.ok(text.indexOf("Offline Mode") < text.indexOf("Connect your account"));
+    assert.equal(row.textContent, "Offline Mode | Connect your account to see your dictionaries and save words");
     assert.equal(row.querySelector("button.sb-connect")?.textContent, "Connect your account");
     assert.equal(row.querySelector(".sb-connect-line")?.textContent, "Connect your account to see your dictionaries and save words");
     const css = shadow.querySelector("style")?.textContent ?? "";
