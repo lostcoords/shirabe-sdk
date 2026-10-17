@@ -1,6 +1,6 @@
 {
   "name": "@shirabe-org/card",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shirabe's word card renderer for browsers, extensions, and Anki templates.",
   "license": "MIT",
   "repository": {

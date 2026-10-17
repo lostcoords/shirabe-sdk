@@ -5,6 +5,10 @@
 - Publish API and card SDK releases from a verified Shirabe production commit when its OpenAPI version increases. Backend dispatch replaces daily spec polling; manual package releases remain available.
 - Reject contract edits without an API version bump, wait for the API dependency before publishing the card, and resume partially completed releases without bumping versions again.
 
+## Card 0.2.1
+
+- Republish the lookup-only SDK after npm published the 0.2.0 metadata without making its archive available.
+
 ## Card 0.2.0
 
 - Remove copy, field-selection, and example-search controls from the dictionary popup. Native Anki note tools remain in the add-on.
