@@ -223,6 +223,8 @@ export type WordCardHost = {
     signOut(): void | Promise<void>;
     connected?(): boolean;
   };
+  /** Start account linking. The card draws this for a signed-out reader who could save. */
+  connectAccount?(): void | Promise<void>;
   authoring?: AuthoringPort;
   exampleSearch?: ExampleSearch;
   audio?: AudioPort;

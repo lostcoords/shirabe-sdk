@@ -1619,6 +1619,54 @@ test("a surface that cannot save says nothing, rather than selling an upgrade", 
 
 // The other half: a surface that COULD save, for a reader who has not paid for
 // it, is exactly who that line is for.
+test("a signed-out reader can connect instead of reading a dead sentence", async () => {
+  const { card } = await page();
+  const host = fakeHost({ definitions: { "書く": taberu } });
+  let calls = 0;
+  host.connectAccount = async () => { calls += 1; };
+  card.setCardHost(host);
+  card.setWriteState({ canWrite: false, connected: false });
+
+  const offer = card.studyUnavailable();
+  assert.ok(offer);
+  const link = offer.querySelector("button.sb-connect") as HTMLButtonElement | null;
+  assert.equal(link?.textContent, "Connect your account");
+  assert.equal(offer.textContent, "Connect your account to see your dictionaries and save words");
+  assert.equal(offer.querySelector(".sb-offline-mode"), null);
+  assert.equal(offer.querySelector("a"), null);
+  link?.click();
+  await settle();
+  assert.equal(calls, 1);
+  assert.equal(link?.hidden, true);
+});
+
+test("an offline lookup puts Offline Mode ahead of the connect offer and drops history buttons when asked", async () => {
+  const { card, window } = await page();
+  const host = fakeHost({ definitions: { "三村": { ...taberu, offline: true } } });
+  card.setCardHost(host);
+  card.setWriteState({ canWrite: false, connected: false });
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, historyNavigation: false });
+  try {
+    card.showNow(await word("三村"));
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    const row = shadow.querySelector(".sb-study-unavailable")!;
+    const text = row.textContent ?? "";
+    assert.equal(text.indexOf("Offline Mode"), 0);
+    assert.ok(text.indexOf("Offline Mode") < text.indexOf("Connect your account"));
+    assert.equal(row.querySelector("button.sb-connect")?.textContent, "Connect your account");
+    assert.equal(row.querySelector(".sb-connect-line")?.textContent, "Connect your account to see your dictionaries and save words");
+    const css = shadow.querySelector("style")?.textContent ?? "";
+    assert.match(css, /\.sb-connect \{[^}]*text-decoration: none/);
+    assert.match(css, /\.sb-popup\.sb-no-history \.sb-chrome \{ display: none; \}/);
+    assert.equal(shadow.querySelector(".sb-chrome")?.hasAttribute("hidden"), true);
+    assert.ok(shadow.querySelector(".sb-popup")?.classList.contains("sb-no-history"));
+  } finally {
+    card.setPopupOptions(card.DEFAULT_CARD_OPTIONS);
+    card.setWriteState({ canWrite: false, connected: false });
+  }
+});
+
 test("a surface that could save still offers the upgrade", async () => {
   const { card } = await page();
   card.setCardHost(fakeHost({ definitions: { "読む": taberu } }));
@@ -1630,9 +1678,9 @@ test("a surface that could save still offers the upgrade", async () => {
   assert.match(await shown(), /Pro/);
 });
 
-// The 🔊 button is drawn from the entry's own `audioUrl`, but playing it went
-// through `host.audio`, which only the extension has: on every other surface the
-// button rendered and clicking it did nothing at all, silently.
+// The pronunciation button is drawn from the entry's own `audioUrl`, but playing
+// it went through `host.audio`, which only the extension has: on every other
+// surface the button rendered and clicking it did nothing at all, silently.
 test("a host with no audio port still plays the clip", async () => {
   const { card, window } = await page();
   const played: string[] = [];
@@ -1651,6 +1699,9 @@ test("a host with no audio port still plays the clip", async () => {
   const root = (window.document.querySelector(".sb-host") as unknown as { shadowRoot: ShadowRoot }).shadowRoot;
   const button = root.querySelector(".sb-audio") as HTMLElement | null;
   assert.ok(button, "the pronunciation button is drawn");
+  assert.equal(button.textContent, "", "the pronunciation button is an icon, not an emoji");
+  assert.equal(button.querySelector("svg")?.getAttribute("viewBox"), "0 0 24 24");
+  assert.match(button.querySelector("path")?.getAttribute("d") ?? "", /^M19\.114 5\.636/);
   button.click();
   await settle();
 

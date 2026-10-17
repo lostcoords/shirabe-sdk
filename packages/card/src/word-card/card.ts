@@ -111,6 +111,8 @@ export type PopupOptions = {
   showAuthoring?: boolean;
   /** Called when a visible popup closes, including Escape and outside clicks. */
   onClose?: (word: HTMLElement | null) => void;
+  /** Back and forward through earlier lookups. Off in the extension. */
+  historyNavigation?: boolean;
   /** Translate or replace the explanation opened from a tag chip. */
   legendForTag?: (code: string, category: SenseChip["category"], defaultTerm: LegendTerm | null) => LegendTerm | null;
 };
@@ -179,6 +181,7 @@ export function setPopupOptions(next: PopupOptions): void {
     if (previousFooter && previousFooter !== next.footer && previousFooter.parentElement === footerRow) previousFooter.remove();
     if (next.footer && next.footer.parentElement !== footerRow) footerRow.insertBefore(next.footer, resultToggle);
   }
+  applyHistoryChrome();
   applyCustomCss(next.customCss);
 }
 
@@ -253,6 +256,7 @@ function element(): HTMLElement {
   footerRow = document.createElement("div");
   footerRow.className = "sb-popup-footer";
   box.append(chromeRow, content, footerRow);
+  applyHistoryChrome();
   root.append(style, box);
   content.addEventListener("dblclick", (event) => {
     // Firefox exposes a selection inside an open shadow root on the root itself,
@@ -1262,7 +1266,7 @@ function definitionRows(
   const rows: Node[] = [...navigationRows, scrollRegion];
   if (canMine()) rows.push(actions(word, def));
   else {
-    const offer = studyUnavailable();
+    const offer = studyUnavailable(def.offline === true);
     if (offer) rows.push(offer);
   }
   return rows;
@@ -1474,16 +1478,55 @@ const FORMS_SHOWN = 8;
 //
 // Exported for the test that renders it: it's the whole free-reader experience
 // of this card, and asserting on the source text instead was never proof.
-export function studyUnavailable(): HTMLElement | null {
+export function studyUnavailable(offline = false): HTMLElement | null {
   if (readOnly || !optional().study?.save) return null;
   const row = document.createElement("div");
   row.className = "sb-study-unavailable";
+  if (offline) {
+    const mode = document.createElement("div");
+    mode.className = "sb-offline-mode";
+    mode.textContent = "Offline Mode";
+    row.append(mode);
+  }
   if (connected) {
     row.append("Saving to your reviews is part of Pro. ", plansLink());
   } else {
-    row.textContent = "Offline lookup · Connect a Pro account to save and review";
+    row.append(connectOffer());
   }
   return row;
+}
+
+function connectOffer(): HTMLElement {
+  const line = document.createElement("div");
+  line.className = "sb-connect-line";
+  const link = document.createElement("button");
+  link.type = "button";
+  link.className = "sb-connect";
+  link.textContent = "Connect your account";
+  line.append(link, " to see your dictionaries and save words");
+  for (const eventName of ["click", "pointerdown", "pointerup", "mousedown", "mouseup"]) {
+    link.addEventListener(eventName, (event) => event.stopPropagation());
+  }
+  link.addEventListener("click", async () => {
+    if (link.disabled) return;
+    const connect = optional().connectAccount;
+    if (!connect) return;
+    link.disabled = true;
+    line.parentElement?.querySelector(".sb-connect-status")?.remove();
+    try {
+      await connect();
+      link.hidden = true;
+      line.hidden = true;
+    } catch (error) {
+      link.disabled = false;
+      const note = document.createElement("p");
+      note.className = "sb-connect-status";
+      note.setAttribute("role", "status");
+      note.textContent = error instanceof Error && error.message.trim() ? error.message : "Couldn't connect. Try again.";
+      line.after(note);
+    }
+  });
+  return line;
 }
 
 // Headword (links to its shirabe.org page) with furigana. Audio sits next to pitch;
@@ -1573,6 +1616,13 @@ function refreshHistoryNav(): void {
   historyForward?.toggleAttribute("disabled", historyIndex >= lookupHistory.length - 1);
 }
 
+function applyHistoryChrome(): void {
+  const enabled = options.historyNavigation !== false;
+  box?.classList.toggle("sb-no-history", !enabled);
+  const chrome = box?.querySelector<HTMLElement>(".sb-chrome");
+  if (chrome) chrome.hidden = !enabled;
+}
+
 function recordHistory(target: PopupTarget): void {
   lookupHistory.splice(historyIndex + 1);
   lookupHistory.push(target);
@@ -1607,7 +1657,8 @@ function nestedLookup(query: string, rect: DOMRect, depth: number, kind: "word" 
 
 function onPopupKeydown(event: KeyboardEvent): void {
   if (!visible() || event.defaultPrevented) return;
-  if (event.key === "Escape" || (event.altKey && ["ArrowLeft", "ArrowRight"].includes(event.key))) {
+  const historyKey = options.historyNavigation !== false && event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight");
+  if (event.key === "Escape" || historyKey) {
     event.preventDefault();
     event.stopPropagation();
     if (event.key === "Escape") dismiss(true);
@@ -1696,6 +1747,18 @@ function pitchRows(pitch: Definition["pitch"], reading: string, offline: boolean
 // One compact mora-overline + [downstep], with its own play button. Each clip
 // speaks that exact accent, so a word read two ways (箸 / 橋) lets a learner hear
 // the same pattern they selected without spending a graph's height on it.
+const SPEAKER_PATH = "M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z";
+
+function speakerIcon(): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", SPEAKER_PATH);
+  svg.append(path);
+  return svg;
+}
+
 function pitchPattern(entry: Definition["pitch"][number], reading: string, offline: boolean): HTMLElement {
   const item = document.createElement("div");
   item.className = "sb-pitch-item";
@@ -1706,7 +1769,7 @@ function pitchPattern(entry: Definition["pitch"][number], reading: string, offli
     const status = document.createElement("span");
     status.className = "sb-audio-status";
     status.setAttribute("role", "status");
-    const audio = button("🔊", "sb-audio", "", async () => {
+    const audio = button("", "sb-audio", "", async () => {
       if (audio.disabled) return;
       const mine = token;
       audio.disabled = true;
@@ -1716,6 +1779,7 @@ function pitchPattern(entry: Definition["pitch"][number], reading: string, offli
       audio.disabled = false;
       status.textContent = error ?? "";
     });
+    audio.replaceChildren(speakerIcon());
     audio.title = local ? "Play saved pronunciation · Shirabe · Permitted for Anki deck synchronization and export" : "Play pronunciation";
     audio.setAttribute("aria-label", local ? "Play saved pronunciation" : "Play pronunciation");
     item.append(audio, status);
@@ -2884,6 +2948,11 @@ ${ACCOUNT_CSS}
   --sb-chrome-right: 28px;
   --sb-chrome-gutter: 72px;
 }
+.sb-popup.sb-no-history,
+.sb-popup.sb-no-history:has(.sb-scroll-region:not([hidden]) > .sb-scroll-track:not([hidden])) {
+  --sb-chrome-gutter: 0px;
+}
+.sb-popup.sb-no-history .sb-chrome { display: none; }
 
 .sb-popup-content {
   display: flex;
@@ -3111,6 +3180,13 @@ ${ACCOUNT_CSS}
 .sb-name-meanings { color: var(--sb-ink); font-size: var(--sb-definition-size, 14px); line-height: 1.5; }
 .sb-study-unavailable { flex: 0 0 auto; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--sb-outline); color: var(--sb-ink-subtle); font-size: 11px; }
 .sb-study-unavailable .sb-plans { font-size: 11px; }
+.sb-offline-mode { margin: 0 0 2px; color: var(--sb-ink-muted); font-weight: 600; }
+.sb-connect-line { margin: 0; }
+.sb-connect { margin: 0; padding: 0; border: 0; background: transparent; color: var(--sb-accent); font: inherit; font-weight: 600; text-align: start; text-decoration: none; cursor: pointer; }
+.sb-connect:hover { color: var(--sb-accent-hover); text-decoration: underline; }
+.sb-connect:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
+.sb-connect:disabled { cursor: default; opacity: 0.6; }
+.sb-connect-status { margin: 4px 0 0; color: var(--sb-error); }
 
 .sb-scroll-region { position: relative; display: flex; flex: 1 1 auto; min-height: 0; padding-right: 10px; }
 .sb-body { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
@@ -3126,14 +3202,23 @@ ${ACCOUNT_CSS}
 .sb-btn.sb-audio {
   flex: 0 0 auto;
   align-self: center;
-  color: inherit;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--sb-ink-subtle);
   background: transparent;
-  padding: 4px 2px;
-  border-radius: 8px;
-  font-size: 15px;
-  line-height: 1;
+  border-radius: 999px;
 }
-.sb-btn.sb-audio:hover { background: var(--sb-surface-muted); }
+.sb-btn.sb-audio svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sb-btn.sb-audio:hover { background: var(--sb-surface-muted); color: var(--sb-accent); }
 
 .sb-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .sb-badge {
