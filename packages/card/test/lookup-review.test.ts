@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import test, { before } from "node:test";
 import { Window } from "happy-dom";
 import { apiHost } from "../src/word-card/api-host.js";
-import { authoringActions } from "../src/word-card/authoring.js";
-import type { AuthoringSelection, ExampleSearchQuery, LookupResult } from "../src/word-card/host.js";
+import type { LookupResult } from "../src/word-card/host.js";
 import { fakeHost } from "./fake-host.js";
 import { kimi, taberu } from "./fixtures.js";
 
@@ -30,7 +29,7 @@ function word(surface = "食べました"): HTMLElement {
   return word;
 }
 
-test("raw API lookup highlights and proposes only the parsed surface, not the scan window", async () => {
+test("raw API lookup highlights only the parsed surface, not the scan window", async () => {
   const highlights = new Map<string, Set<Range>>();
   const oldCSS = globalThis.CSS;
   const oldHighlight = Object.getOwnPropertyDescriptor(globalThis, "Highlight");
@@ -44,10 +43,8 @@ test("raw API lookup highlights and proposes only the parsed surface, not the sc
       kind: "inflected", inflection: { forms: [{ code: "past", label: "past" }, { code: "polite", label: "polite" }], base: "食べる" },
     }] }] } : { words: [{ candidates: [candidate] }] },
   )) });
-  const proposals: AuthoringSelection[] = [];
   let origin!: HTMLElement;
   host.rememberOrigin = (word) => { origin = word; };
-  host.authoring = { addNote: (selection) => { proposals.push(selection); } };
   try {
     card.setCardHost(host);
     card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, lookupDelay: 0, audioAutoplay: false });
@@ -55,10 +52,8 @@ test("raw API lookup highlights and proposes only the parsed surface, not the sc
     card.scheduleTextLookup("食べました。次の文。", source.getBoundingClientRect(), "昨日、食べました。", 3,
       { node: source.firstChild as Text, offset: 3 });
     await settle();
-    button(shadow(), "Add Anki note").click();
-    await settle();
-    assert.equal(proposals[0].surface, "食べました");
-    assert.equal(proposals[0].lemma, "食べる");
+    assert.equal(origin.dataset.surface, "食べました");
+    assert.equal(origin.dataset.lemma, "食べる");
     assert.equal(origin.dataset.targetStart, "3");
     assert.equal(origin.dataset.targetEnd, "8");
     assert.equal(shadow().querySelector(".sb-inflection")!.textContent, "past, polite");
@@ -100,32 +95,24 @@ test("wrapped inflection belongs to its original entry, survives return, and nev
   card.dismissPopup();
 });
 
-test("choosing a candidate after a raw scan keeps the matched surface for pinned lookup and authoring", async () => {
+test("choosing a candidate after a raw scan keeps the matched surface for pinned lookup", async () => {
   const host = fakeHost({ study: false });
   const requests: string[][] = [];
-  const proposals: AuthoringSelection[] = [];
   host.lookup = async () => ({ status: "found", definition: { ...taberu, sourceForm: "食べました" },
     candidates: [taberu, kimi].map((def) => ({ entry: def.entry!, headword: def.headword, reading: def.reading, common: true })) });
   host.lookupEntry = async (entry, surface) => { requests.push([entry, surface]); return { status: "found", definition: kimi }; };
-  host.authoring = { addNote: (selection) => { proposals.push(selection); } };
   card.setCardHost(host);
   card.scheduleTextLookup("食べました。次の文。", new DOMRect(0, 0, 10, 10), "昨日、食べました。", 3);
   await settle();
   shadow().querySelectorAll<HTMLButtonElement>(".sb-candidate")[1].click();
   await settle();
-  button(shadow(), "Add Anki note").click();
-  await settle();
   assert.deepEqual(requests, [[kimi.entry, "食べました"]]);
-  assert.equal(proposals[0].surface, "食べました");
-  assert.equal(proposals[0].entry, kimi.entry);
   card.dismissPopup();
 });
 
 test("a wrapped lexical adverb explains its adjective base without changing note identity", async () => {
   const definition = { ...kimi, headword: "確かに", reading: "たしかに", entry: "jmdict:1205770" };
   const host = fakeHost({ study: false, definitions: { 確かに: definition } });
-  const proposals: AuthoringSelection[] = [];
-  host.authoring = { addNote: (selection) => { proposals.push(selection); } };
   card.setCardHost(host);
   const target = word("確かに");
   target.dataset.lemma = "確かに";
@@ -134,11 +121,9 @@ test("a wrapped lexical adverb explains its adjective base without changing note
   target.dataset.inflectionBase = "確か";
   card.showNow(target);
   await settle();
-  button(shadow(), "Add Anki note").click();
-  await settle();
   assert.equal(shadow().querySelector(".sb-inflection")?.textContent, "adverbial");
-  assert.equal(proposals[0].lemma, "確かに");
-  assert.equal(proposals[0].entry, definition.entry);
+  assert.equal(target.dataset.lemma, "確かに");
+  assert.equal(target.dataset.entry, definition.entry);
   card.dismissPopup();
 });
 
@@ -237,64 +222,4 @@ test("a rejected host lookup shows a safe, recoverable error instead of an unhan
   await settle();
   assert.ok(shadow().querySelector(".sb-headword"));
   card.dismissPopup();
-});
-
-test("copy-only popups offer the visible current sentence and independent sentence or translation copies", async () => {
-  const paragraph = document.createElement("p");
-  paragraph.innerHTML = '昨日、<ruby>ご飯<rt>ごはん</rt></ruby>を<span>食べました</span>。<span hidden>秘密の答え</span>';
-  document.body.append(paragraph);
-  const target = paragraph.querySelector("span")!;
-  const section = authoringActions({ ...taberu, examples: [{ japanese: "パンを食べる。", translation: "I eat bread." }] }, target);
-  document.body.append(section);
-  const copied: string[] = [];
-  Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { copied.push(text); } } });
-  button(section, "Copy current sentence").click();
-  await settle();
-  const current = [...section.querySelectorAll("fieldset")].find((field) => field.querySelector("legend")?.textContent === "Current sentence")!;
-  assert.ok(current);
-  assert.equal(current.querySelector("input")!.checked, false);
-  current.querySelector("input")!.click();
-  button(section, "Copy selected sentences").click();
-  await settle();
-  assert.equal(button(section, "Copy selected translations").disabled, true);
-  const examples = [...section.querySelectorAll("fieldset")].find((field) => field.querySelector("legend")?.textContent === "Examples")!;
-  examples.querySelector('input[type="checkbox"]')!.dispatchEvent(new window.MouseEvent("click", { bubbles: true }) as unknown as Event);
-  button(section, "Copy selected sentences").click();
-  await settle();
-  button(section, "Copy selected translations").click();
-  await settle();
-  assert.deepEqual(copied, ["昨日、ご飯を食べました。", "昨日、ご飯を食べました。", "昨日、ご飯を食べました。\n\nパンを食べる。", "I eat bread."]);
-  assert.ok(!section.textContent!.includes("秘密") && !section.textContent!.includes("ごはん"));
-});
-
-test("selecting the current sentence sends its source without changing context or inventing a translation", async () => {
-  const target = word();
-  target.dataset.sentence = "昨日、食べました。";
-  const proposals: AuthoringSelection[] = [];
-  const section = authoringActions(taberu, target, { addNote: (selection) => { proposals.push(selection); } });
-  document.body.append(section);
-  const current = [...section.querySelectorAll("fieldset")].find((field) => field.querySelector("legend")?.textContent === "Current sentence")!;
-  assert.ok(current);
-  current.querySelector("input")!.click();
-  button(section, "Add Anki note").click();
-  await settle();
-  assert.equal(proposals[0].contextSentence, "昨日、食べました。");
-  assert.deepEqual(proposals[0].examples, [{ japanese: "昨日、食べました。", translation: null, source: "Current card" }]);
-});
-
-test("example queries keep the chosen word only while searching this lookup's default term", async () => {
-  const queries: ExampleSearchQuery[] = [];
-  const section = authoringActions(taberu, word(), undefined, undefined, async (query) => {
-    queries.push(query);
-    return { examples: [], hasMore: false, cursor: null };
-  });
-  document.body.append(section);
-  const term = [...section.querySelectorAll<HTMLInputElement>('input[type="search"]')][0];
-  for (const query of ["食べる", "パン", " 食べる "]) {
-    term.value = query;
-    term.dispatchEvent(new window.Event("input", { bubbles: true }) as unknown as Event);
-    button(section, "Find examples").click();
-    await settle();
-  }
-  assert.deepEqual(queries.map(({ wordId }) => wordId), ["食べる-たべる", undefined, "食べる-たべる"]);
 });

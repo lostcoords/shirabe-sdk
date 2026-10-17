@@ -96,14 +96,3 @@ test("signing out during a lookup cannot return the previous account's private d
   assert.equal((await result).status, "pending");
 });
 
-test("Anki corpus search uses saved translation preferences and loses access after sign-out", async () => {
-  const fixture = setup();
-  const result = await fixture.host.exampleSearch!({ query: "猫" });
-  assert.equal(result.examples[0].translation, "Un gato.");
-  assert.equal(result.examples[0].translationLanguage, "es");
-  assert.equal(result.examples[0].reference, "tatoeba:1");
-  assert.equal(fixture.calls.length, 2);
-  fixture.host.account!.signOut();
-  await assert.rejects(fixture.host.exampleSearch!({ query: "猫" }), /Sign in/);
-  assert.equal(fixture.calls.length, 2);
-});

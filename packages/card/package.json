@@ -1,6 +1,6 @@
 {
   "name": "@shirabe-org/card",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Shirabe's word card renderer for browsers, extensions, and Anki templates.",
   "license": "MIT",
   "repository": {
@@ -46,7 +46,8 @@
     "dev": "node playground/serve.mjs",
     "build:playground": "node -e \"import(\"esbuild\").then(e=>e.build({entryPoints:{main:\"playground/main.ts\"},bundle:true,format:\"esm\",outdir:\"playground\"}))\"",
     "build:cdn": "esbuild src/standalone.ts --bundle --format=iife --minify --outfile=dist/shirabe-card.js",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "test:review": "node test/lookup-review-browser.mjs"
   },
   "dependencies": {
     "@shirabe-org/api": "0.6.1"

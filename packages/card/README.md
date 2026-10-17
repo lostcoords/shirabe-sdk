@@ -274,9 +274,6 @@ setPopupOptions({
 });
 ```
 
-Set `showAuthoring: false` when the host's footer handles copying or note
-creation. The SDK then omits its "Copy and choose fields" section.
-
 **The oldest browser that renders this card decides what CSS it may use.** Anki
 25.09 draws cards in Qt WebEngine 6.9, which is Chromium 122, so the palette is
 plain sRGB with no `light-dark()`, `oklch()` or `color-mix()`. An unsupported

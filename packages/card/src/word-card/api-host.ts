@@ -6,11 +6,9 @@ import { cardWordState } from "./types.js";
 import { GLOSS_TAGS } from "./languages.js";
 import { kataToHira } from "./furigana.js";
 import { tagPresentation, type TagDisplayLocale, type TagPresentation } from "./legend.js";
-import { apiExampleSearch } from "./api-example-search.js";
 import { cardApiResult, createCardApiClient, ApiError } from "./api-client.js";
 import {
   identifyWords,
-  listSentences,
   lookupWordStates,
   parse,
   saveCard,
@@ -238,26 +236,6 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
     },
 
     lookupEntry: (entry, surface) => identify({ lemma: surface, surface }, entry),
-
-    exampleSearch: apiExampleSearch((query, signal) => call(() => listSentences({
-      client,
-      query,
-      signal,
-      headers: { "Accept-Language": uiLocale(languages) },
-      querySerializer: (parameters) => {
-        const value = parameters as NonNullable<import("@shirabe-org/api").ListSentencesData["query"]>;
-        const search = new URLSearchParams();
-        if (value.query) search.set("query", value.query);
-        if (value.limit !== undefined) search.set("limit", String(value.limit));
-        if (value.cursor) search.set("cursor", value.cursor);
-        if (value.filter?.wordId) search.set("filter[wordId]", value.filter.wordId);
-        for (const language of value.filter?.translationLanguages ?? []) search.append("filter[translationLanguages][]", language);
-        for (const source of value.filter?.sources ?? []) search.append("filter[sources][]", source);
-        return search.toString();
-      },
-    })), languages, () => {
-      if (!credentialed()) throw new ApiError(401, signInPrompt ?? "Sign in to look this word up");
-    }),
 
     // The server's own tokenizer, so a host with no parser gets the same cuts
     // the website and the extension get rather than a guess made from a string.

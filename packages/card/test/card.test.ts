@@ -675,17 +675,17 @@ test("host footer stays mounted through redraws and can be replaced", async () =
   assert.equal((window.document.querySelector(".sb-host") as unknown as HTMLElement).style.getPropertyValue("--sb-accent"), "");
 });
 
-test("a host can omit SDK authoring while keeping its own footer", async () => {
+test("a host footer stays mounted and the popup has no field chooser", async () => {
   const { card, window } = await page();
   const footer = document.createElement("div");
   footer.textContent = "Host Anki actions";
-  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, showAuthoring: false, footer });
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, footer });
   try {
     card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
     card.showNow(await word("食べる"));
     await settle();
     const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
-    assert.equal(shadow.querySelector(".sb-body .sb-authoring"), null);
+    assert.doesNotMatch(shadow.textContent ?? "", /Copy and choose fields/);
     assert.match(shadow.querySelector(".sb-body")?.textContent ?? "", /to eat/);
     assert.equal(shadow.querySelector(".sb-popup-footer")?.lastElementChild, footer);
   } finally {
@@ -1361,7 +1361,7 @@ test("a card renders a definition from a host with no dictionary behind it", asy
   await settle();
 
   const text = await shown();
-  assert.match(text, /食べる/, "the headword");
+  assert.match(text, /食たべる/, "the headword");
   assert.match(text, /to eat/, "the first sense");
   assert.match(text, /N5/, "the JLPT badge");
   assert.deepEqual(host.journal.lookups, ["食べる"], "and it asked its host exactly once");

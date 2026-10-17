@@ -102,13 +102,6 @@ export function createAnkiHost(options: { apiBase: string; link: Link; now?: () 
     async tokenize(text) {
       return withSession(({ host }) => host.tokenize!(text));
     },
-    exampleSearch(query, signal) {
-      signal?.throwIfAborted();
-      return withSession(({ host }) => {
-        signal?.throwIfAborted();
-        return host.exampleSearch!(query, signal);
-      });
-    },
     account: { signOut, connected: () => options.link.linked() },
     study: fallback.study && {
       ...fallback.study,

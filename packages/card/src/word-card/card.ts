@@ -6,7 +6,6 @@ import { appendFurigana, appendFuriganaSegments, hiraToKata, kataToHira, type Fu
 import { isR2AudioUrl, isSnapshotRecordingFilename } from "./audio.js";
 import { senseText } from "./senses.js";
 import { legendTerm, type LegendTerm, type TagDisplayLocale } from "./legend.js";
-import { authoringActions, AUTHORING_CSS } from "./authoring.js";
 import { accountActions, ACCOUNT_CSS } from "./account-actions.js";
 
 /** How the reader wants the card to look and behave. The host pushes these in;
@@ -107,8 +106,6 @@ export type PopupOptions = {
   /** Host-owned content below the lookup body. Kept mounted across lookup redraws. */
   footer?: HTMLElement | null;
   lookupLinksPlacement?: "body" | "footer";
-  /** Omit the SDK's copy and field-selection controls when the host supplies its own actions. */
-  showAuthoring?: boolean;
   /** Called when a visible popup closes, including Escape and outside clicks. */
   onClose?: (word: HTMLElement | null) => void;
   /** Back and forward through earlier lookups. Off in the extension. */
@@ -680,11 +677,11 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     position(target);
     box?.classList.add("sb-visible");
   };
-  if (target.kind === "text") {
+  if (target.kind === "text" && !retrying) {
     box?.classList.remove("sb-visible");
     el.replaceChildren();
   } else {
-    el.replaceChildren(loadingRow(target.context?.surface ?? target.query));
+    el.replaceChildren(loadingRow(target.kind === "text" ? undefined : target.context?.surface ?? target.query));
     reveal();
   }
 
@@ -717,7 +714,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
     const body = block("sb-body", "");
     const message = messageRow(res.message);
     message.setAttribute("role", "status");
-    const actions = block("sb-authoring", "");
+    const actions = block("sb-lookup-retry", "");
     const retry = button("Retry lookup", "", "", () => {
       if (mine !== token || !visible() || retry.disabled) return;
       if (root?.activeElement === retry) box?.focus({ preventScroll: true });
@@ -759,7 +756,7 @@ async function showTarget(target: PopupTarget, retrying = false): Promise<void> 
         inflectionBase: definition.inflectionBase ?? (definition.inflection === undefined ? inflection.base : undefined) } };
     }
   }
-  const studyStatus = readOnly && res.definition ? block("sb-authoring-status", "") : undefined;
+  const studyStatus = readOnly && res.definition ? block("sb-study-status", "") : undefined;
   if (studyStatus) studyStatus.hidden = true;
   if (res.definition) {
     if (res.scanStart !== undefined && target.kind === "text") {
@@ -1036,15 +1033,6 @@ function definitionRows(
     if (options.lookupLinksPlacement === "footer") footerRow?.prepend(links);
     else (firstPanel ?? body).append(links);
   }
-  const lookupHost = backend();
-  if (options.showAuthoring !== false) {
-    (firstPanel ?? body).append(authoringActions(def, word, lookupHost.authoring, def.entry ? async () => {
-      const result = await lookupHost.lookupEntry(def.entry!, def.headword);
-      if (result.status !== "found") throw new Error(result.message);
-      return result.definition?.examples ?? [];
-    } : undefined, lookupHost.exampleSearch?.bind(lookupHost)));
-  }
-
   const navigationRows: HTMLElement[] = [];
   let resultPanels: HTMLElement[] = [];
   let visibleIndex = 0;
@@ -2777,7 +2765,6 @@ function button(label: string, className: string, hint: string, onClick: () => v
 }
 
 const CSS = `
-${AUTHORING_CSS}
 ${ACCOUNT_CSS}
 :host { all: initial; }
 :host {
@@ -3542,6 +3529,17 @@ ${ACCOUNT_CSS}
   color: var(--sb-on-solid);
 }
 .sb-btn:disabled { cursor: wait; opacity: 0.55; }
+.sb-lookup-retry { margin-top: 12px; }
+.sb-lookup-retry .sb-btn {
+  box-sizing: border-box; min-height: 44px; padding: 8px;
+  font: inherit; font-weight: 600; color: var(--sb-ink); background: var(--sb-surface-muted);
+  border: 1px solid var(--sb-outline-strong); border-radius: 8px; cursor: pointer;
+}
+.sb-lookup-retry .sb-btn:hover:not(:disabled) { background: var(--sb-accent-tint); }
+.sb-lookup-retry .sb-btn:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
+.sb-lookup-retry .sb-btn:disabled { opacity: .4; cursor: default; }
+.sb-study-status { margin: 4px 0 0; color: var(--sb-ink-subtle); overflow-wrap: anywhere; }
+.sb-study-status:empty { display: none; }
 .sb-btn kbd {
   font: 600 10px/1 ui-monospace, monospace;
   padding: 2px 4px; border-radius: 4px;

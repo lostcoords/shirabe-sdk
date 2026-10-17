@@ -104,58 +104,6 @@ export type LookupResult = LookupFound | LookupPending | LookupFailed | LookupUn
 /** What a write came back with. `proRequired` turns a refusal into an offer. */
 export type Outcome = { ok: boolean; message: string; cardUrl?: string; proRequired?: boolean };
 
-export type AuthoringExample = {
-  japanese: string;
-  translation: string | null;
-  source?: string;
-  reference?: string;
-  translationLanguage?: string;
-};
-
-export type ExampleSearchQuery = {
-  query: string;
-  wordId?: string;
-  keyword?: string;
-  maxLength?: number;
-  translationLanguage?: string;
-  translation?: "any" | "with" | "without";
-  cursor?: string;
-};
-
-export type ExampleSearchResult = {
-  examples: AuthoringExample[];
-  cursor: string | null;
-  hasMore: boolean;
-};
-
-export type ExampleSearch = (query: ExampleSearchQuery, signal?: AbortSignal) => Promise<ExampleSearchResult>;
-
-export type AuthoringSelection = {
-  surface: string;
-  lemma: string;
-  entry: string | null;
-  expression: string;
-  reading: string | null;
-  contextSentence: string | null;
-  senseRefs: string[];
-  definition: string;
-  examples: AuthoringExample[];
-  sourceUrl?: string;
-  pitch?: number[];
-  audioUrls?: string[];
-};
-
-/** Callbacks propose native actions. The native host resolves the current note
- * and requires editor save or confirmation before writing to the collection. */
-export type AuthoringPort = {
-  /** Only clips the host has verified may be imported into notes. */
-  insertableAudioUrls?: readonly string[];
-  addNote?(selection: AuthoringSelection): void | Promise<void>;
-  updateNote?(selection: AuthoringSelection): void | Promise<void>;
-  findNotes?(selection: AuthoringSelection): void | Promise<void>;
-  contextSentence?(word: HTMLElement): string | null;
-};
-
 // Present only on a host with an account behind it. Absent is the whole answer
 // for an anonymous Anki card: the card draws no mining controls rather than
 // drawing dead ones.
@@ -225,8 +173,6 @@ export type WordCardHost = {
   };
   /** Start account linking. The card draws this for a signed-out reader who could save. */
   connectAccount?(): void | Promise<void>;
-  authoring?: AuthoringPort;
-  exampleSearch?: ExampleSearch;
   audio?: AudioPort;
 
   /** Cut a run of Japanese into words, for a host that has no parser of its own.

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { Window } from "happy-dom";
 import { MAX_SNAPSHOT_BYTES, snapshotHash, snapshotHost, validateSnapshot } from "../src/word-card/snapshot-host.js";
-import type { AuthoringSelection } from "../src/word-card/host.js";
 import { fakeHost } from "./fake-host.js";
 
 const window = new Window({ url: "https://example.test" });
@@ -36,15 +35,9 @@ function fixture() {
   };
 }
 
-async function openPrepared(data = fixture(), withSearch = false) {
+async function openPrepared(data = fixture()) {
   card ??= await import("../src/word-card/card.js");
-  const proposals: AuthoringSelection[] = [];
-  const copied: string[] = [];
-  window.navigator.clipboard.writeText = async text => { copied.push(text); };
   const fallback = fakeHost({ study: false });
-  const searches: unknown[] = [];
-  if (withSearch) fallback.exampleSearch = async query => { searches.push(query); return { examples: [], cursor: null, hasMore: false }; };
-  fallback.authoring = { addNote: selection => { proposals.push(selection); } };
   card.setCardHost(snapshotHost(fallback, data, { contentVersion: data.contentVersion, apiBase: "https://dictionary.test", texts: ["猫"] }));
   card.setWriteState({ readOnly: true, connected: false, canWrite: false });
   const word = document.createElement("span");
@@ -55,13 +48,7 @@ async function openPrepared(data = fixture(), withSearch = false) {
   document.body.append(word);
   card.showNow(word);
   await settle();
-  return { shadow: document.querySelector(".sb-host")!.shadowRoot!, proposals, copied, searches };
-}
-
-function button(root: ParentNode, label: string): HTMLButtonElement {
-  const found = [...root.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label);
-  assert.ok(found, label);
-  return found;
+  return { shadow: document.querySelector(".sb-host")!.shadowRoot! };
 }
 
 test("prepared examples display their saved contributor and license notice below the sentences", async () => {
@@ -97,54 +84,6 @@ test("prepared examples display their saved contributor and license notice below
   assert.equal(scrolls.length, 1, "closing source details does not move the popup");
 });
 
-test("copy and native authoring preserve the aggregate saved-example attribution without inventing a sentence mapping", async () => {
-  const { shadow, proposals, copied } = await openPrepared();
-  const fieldset = [...shadow.querySelectorAll("fieldset")].find(fieldset => fieldset.querySelector("legend")?.textContent === "Examples")!;
-  fieldset.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
-  button(shadow, "Copy selected examples").click();
-  await settle();
-  assert.match(copied[0], /Tatoeba contributors/);
-  assert.match(copied[0], /CC BY 2\.0 FR/);
-  for (const reference of [...references, licenseUrl]) assert.ok(copied[0].includes(reference));
-  assert.ok(!copied[0].includes("猫を見ました。"));
-  button(shadow, "Add Anki note").click();
-  await settle();
-  const chosen = proposals[0].examples[0];
-  assert.equal(chosen.japanese, "猫が寝ています。");
-  assert.equal(chosen.translation, "El gato está durmiendo.");
-  assert.equal(chosen.translationLanguage, "es");
-  const attribution = [chosen.source, chosen.reference].filter(Boolean).join("\n");
-  assert.match(chosen.reference!, /^Sources saved with this card:/);
-  assert.match(attribution, /Tatoeba contributors/);
-  assert.match(attribution, /CC BY 2\.0 FR/);
-  for (const reference of [...references, licenseUrl]) assert.ok(attribution.includes(reference));
-  assert.deepEqual(Object.keys(chosen).sort(), ["japanese", "reference", "source", "translation", "translationLanguage"]);
-  fieldset.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1].click();
-  button(shadow, "Copy selected examples").click();
-  await settle();
-  assert.equal(copied[1].split(notice).length - 1, 1, "the shared caption is copied once for both selected sentences");
-  assert.equal(copied[1].split(references[0]).length - 1, 1);
-  button(shadow, "Copy selected sentences").click();
-  await settle();
-  assert.equal(copied[2], "猫が寝ています。\n\n猫を見ました。");
-  button(shadow, "Copy selected translations").click();
-  await settle();
-  assert.equal(copied[3], "El gato está durmiendo.\n\nVi un gato.");
-});
-
-test("saved examples remain selectable without requests when the host also offers online corpus search", async () => {
-  const { shadow, proposals, searches } = await openPrepared(fixture(), true);
-  const examples = [...shadow.querySelectorAll("fieldset")].find(fieldset => fieldset.querySelector("legend")?.textContent === "Examples")!;
-  const picks = [...examples.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
-  assert.equal(picks.length, 2);
-  assert.equal(picks[0].closest("label")!.hidden, false);
-  picks[0].click();
-  button(shadow, "Add Anki note").click();
-  await settle();
-  assert.equal(proposals[0].examples[0].translationLanguage, "es");
-  assert.deepEqual(searches, []);
-});
-
 test("source details keep their normal activation without forwarding review gestures", async () => {
   const { shadow } = await openPrepared();
   const summary = shadow.querySelector<HTMLElement>(".sb-example-source-details summary")!;
@@ -177,17 +116,12 @@ test("saved source notices remain inert and exclude unrelated account fields", a
   data.sources[0].source.licenseUrl = "file:///private/secret";
   Object.assign(data.sources[0], { account: { email: "PRIVATE_ACCOUNT" }, accessToken: "PRIVATE_TOKEN" });
   Object.assign(data.sources[0].source, { headers: { Authorization: "PRIVATE_BEARER" } });
-  const { shadow, proposals } = await openPrepared(data);
+  const { shadow } = await openPrepared(data);
   const examples = shadow.querySelector(".sb-examples")!;
   assert.match(examples.textContent!, /Tatoeba contributors/);
   assert.ok(examples.textContent!.includes(payload));
   assert.equal(examples.querySelectorAll("a,img,script,iframe").length, 0);
   assert.doesNotMatch(shadow.textContent!, /PRIVATE_ACCOUNT|PRIVATE_TOKEN|PRIVATE_BEARER/);
-  const choices = [...shadow.querySelectorAll("fieldset")].find(fieldset => fieldset.querySelector("legend")?.textContent === "Examples")!;
-  choices.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
-  button(shadow, "Add Anki note").click();
-  await settle();
-  assert.doesNotMatch(JSON.stringify(proposals), /PRIVATE_ACCOUNT|PRIVATE_TOKEN|PRIVATE_BEARER/);
 });
 
 test("missing corpus notices do not borrow dictionary attribution, and notice data stays within existing snapshot bounds", async () => {
