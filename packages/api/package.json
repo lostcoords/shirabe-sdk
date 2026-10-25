@@ -30,7 +30,6 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && touch dist-ready",
-    "watch": "node ../watch.mjs",
     "codegen": "openapi-ts && node scripts/generate-bound-operations.mjs",
     "codegen:check": "node scripts/check-generated.mjs",
     "typecheck": "tsc --noEmit",

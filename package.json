@@ -7,6 +7,8 @@
     "packages/card"
   ],
   "scripts": {
+    "build": "npm run build --workspace @shirabe-org/api && npm run build --workspace @shirabe-org/card",
+    "watch": "node packages/watch.mjs",
     "check": "node --test script/*.test.mjs && npm run check --workspace @shirabe-org/api && npm run build --workspace @shirabe-org/api && npm run check --workspace @shirabe-org/card && npm test --workspace @shirabe-org/card && bin/package-check",
     "package:check": "bin/package-check"
   },

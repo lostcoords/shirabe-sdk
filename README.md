@@ -23,6 +23,26 @@ npm run test:review --workspace @shirabe-org/card
 npm run test:sign-in --workspace @shirabe-org/card
 ```
 
+The SDK owns a watcher-only Parcela environment:
+
+```sh
+parcela up --detach
+parcela logs build
+parcela down
+```
+
+It needs a Parcela build that supports services without HTTP. It starts no proxy or playground. Readiness means the watcher process has started; check `parcela logs build` for initial build success. The setup hook installs dependencies only when `node_modules` is absent, preserving existing local workspace links.
+
+Build both packages once with `npm run build`, or run the watcher directly without Parcela:
+
+```sh
+npm run watch
+```
+
+The watcher builds API before card, including the standalone card bundle. It watches both packages' source and build configuration, rebuilds after edits, and retries on the next edit after a build error. Stop it with Ctrl-C. Run one watcher per SDK checkout. It does not start a web server.
+
+Link consumers separately using Shirabe's `bin/sdk link` or Reader's `npm run sdk:link`. Reader's own watcher picks up rebuilt linked packages. Rails keeps a copied card asset, so run `npm run sdk:assets` in each linked Shirabe web checkout after SDK rebuilds to refresh that copy. The SDK watcher does not write into consumer repositories.
+
 `packages/api/openapi/shirabe.bundled.yaml` is the reviewed service contract snapshot used for client generation. Update it from a file or URL with:
 
 ```sh

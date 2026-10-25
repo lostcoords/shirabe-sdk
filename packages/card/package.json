@@ -38,7 +38,6 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && npm run build:cdn && touch dist-ready",
-    "watch": "node ../watch.mjs",
     "check": "tsc --noEmit",
     "test": "node test/run.mjs",
     "test:theme": "node test/theme-browser.mjs",

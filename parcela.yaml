@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://parcela.davafons.com/schema/v1.json
+version: 1
+project: shirabe-sdk
+
+services:
+  build:
+    command: npm run watch
+
+hooks:
+  setup:
+    command: test -d node_modules || npm ci --no-audit --no-fund
