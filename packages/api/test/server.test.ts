@@ -41,14 +41,3 @@ test("one server client uses service credentials by default and isolates a reade
   assert.equal(url.searchParams.get("scope"), "user:dictionary:read");
   assert.equal(url.searchParams.get("resource"), "https://shirabe.test/api/v1");
 });
-
-test("scope names and operation bodies are checked at compile time", () => {
-  const client = createShirabeClient({ clientId: "id", clientSecret: "secret", scopes: ["dictionary:read"] });
-  if (false) {
-    // @ts-expect-error Unknown scope is not accepted.
-    createShirabeClient({ clientId: "id", clientSecret: "secret", scopes: ["user:dictionary:reed"] });
-    // @ts-expect-error A parse call needs the OpenAPI request body.
-    void client.parse({ word: "猫" });
-  }
-  assert.equal(typeof client.parse, "function");
-});

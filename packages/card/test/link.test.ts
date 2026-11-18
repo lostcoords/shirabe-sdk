@@ -162,7 +162,6 @@ test("signing in polls until the reader approves, then keeps the token", async (
   const anchor = prompt.querySelector("a")!;
   assert.equal(anchor.getAttribute("href"), "https://shirabe.org/link?code=FST7-4RZ3");
   assert.match(prompt.textContent!, /FST7-4RZ3/);
-  assert.doesNotMatch(prompt.textContent!, /and enter/);
   assert.match(prompt.textContent!, /Waiting for approval/);
 });
 

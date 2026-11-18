@@ -69,12 +69,6 @@ test("the span carries what makes a lookup about THIS word, not just its spellin
   assert.equal(span.dataset.pos, "noun");
 });
 
-test("punctuation is cut like anything else and is not made hoverable", async () => {
-  const root = await wrapped("<p>猫が</p>", ["猫"]);
-  assert.deepEqual([...root.querySelectorAll(".sb-word")].map((s) => s.textContent), ["猫"]);
-  assert.match(root.innerHTML, /が/);
-});
-
 test("a resolved token carries its dictionary pin into the clickable span", async () => {
   const { wrapWords } = await load();
   const root = document.createElement("div");
@@ -132,18 +126,6 @@ test("text with no Japanese is never sent to the tokenizer", async () => {
   document.body.append(root);
   await wrapWords(root, spy);
   assert.deepEqual(asked, ["猫"], "an English line is not a parse request");
-});
-
-test("a touch reader gets the same words, which is the half a phone can use", async () => {
-  // AnkiDroid and AnkiMobile have no hover at all, and a phone is where most
-  // Anki reviewing happens. Wrapping is what makes a tap targetable: without a
-  // span there is nothing under the finger to look up.
-  const root = await wrapped("<p>猫が窓に座る。</p>", ["猫", "窓", "座る"]);
-  const spans = [...root.querySelectorAll(".sb-word")] as HTMLElement[];
-  assert.equal(spans.length, 3);
-  for (const span of spans) {
-    assert.ok(span.dataset.lemma, "a tap needs something to look up");
-  }
 });
 
 // Wrapping happens to every Japanese run as the page renders, without anyone

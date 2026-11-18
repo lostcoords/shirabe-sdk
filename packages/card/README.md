@@ -117,9 +117,7 @@ when the lookup misses. `openHeadword` replaces the default link to Shirabe.
 choosing an analytics provider for the host.
 
 `candidateToDefinition(candidate, apiBase, languages, options)` remains available
-when a host needs only the mapping. `renderDefinitionHtml` and `renderPitchHtml`
-export escaped, class-prefixed markup for a host that stores definitions in
-HTML fields; its own CSS and field mapping stay outside the card package.
+when a host needs only the mapping.
 
 ```ts
 import { apiHost, withFallback } from "@shirabe-org/card/word-card";

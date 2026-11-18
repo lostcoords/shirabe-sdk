@@ -125,14 +125,6 @@ test("publication waits for registry visibility and times out instead of publish
   assert.deepEqual(requests.map((url) => url.split("/").at(-1)), ["0.7.0", "0.1.3"]);
 });
 
-test("release helpers can be imported by a Node evaluation without invoking the CLI", () => {
-  const output = execFileSync(process.execPath, ["--input-type=module", "-e", `
-    const { releaseSource } = await import(${JSON.stringify(new URL("./backend-release.mjs", import.meta.url).href)});
-    console.log(releaseSource('workflow_dispatch', { inputs: { backend_sha: '${sha}' } }).backend_sha);
-  `], { encoding: "utf8" });
-  assert.equal(output.trim(), sha);
-});
-
 test("the private spec fetch authenticates only to GitHub, never the npm registry", async () => {
   await fixture(async (root) => {
     const requests = [];

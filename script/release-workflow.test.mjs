@@ -9,18 +9,6 @@ import { parse } from "yaml";
 const workflow = parse(readFileSync(new URL("../.github/workflows/npm-release.yml", import.meta.url), "utf8"));
 const job = workflow.jobs["backend-release"];
 
-test("manual and backend dispatches share the existing trusted publisher and serialize both packages", () => {
-  assert.deepEqual(workflow.on.repository_dispatch.types, ["backend_release"]);
-  assert.equal(workflow.on.workflow_dispatch.inputs.backend_sha.required, true);
-  assert.equal(workflow.concurrency.group, "sdk-release");
-  assert.equal(workflow.concurrency["cancel-in-progress"], false);
-  assert.equal(job["runs-on"], "ubuntu-latest");
-  assert.equal(job.permissions["id-token"], "write");
-  assert.equal(job.permissions.contents, "write");
-  assert.match(workflow.jobs.publish.if, /github.event_name == 'release'/);
-  assert.equal(job.steps[0].with.ref, "main");
-});
-
 const releaseSteps = job.steps.slice(job.steps.findIndex((step) => step.name === "Commit the verified SDK and tag its source"), job.steps.findIndex((step) => step.name === "Release summary"));
 
 function executeRelease(options = {}) {

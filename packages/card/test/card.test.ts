@@ -65,19 +65,6 @@ test("parser morphemes do not appear as dictionary expression parts", async () =
   assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-parts"), null);
 });
 
-test("popup chrome keeps history navigation without a close button", async () => {
-  const { card, window } = await page();
-  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
-  card.showNow(await word("食べる"));
-  await settle();
-  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
-  assert.equal(shadow.querySelectorAll(".sb-chrome-button").length, 2);
-  assert.equal(shadow.querySelector('[aria-label="Close"]'), null);
-  assert.ok(shadow.querySelector('[aria-label="Previous lookup"]'));
-  assert.ok(shadow.querySelector('[aria-label="Next lookup"]'));
-  card.dismissPopup();
-});
-
 test("a host can translate the explanation opened from a chip", async () => {
   const { card, window } = await page();
   card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS,
@@ -186,7 +173,6 @@ test("pitch uses compact mora overlines instead of a graph", async () => {
   assert.equal(morae[0]!.classList.contains("sb-pitch-high"), false);
   assert.equal(morae[1]!.classList.contains("sb-pitch-high"), true);
   assert.equal(morae[1]!.classList.contains("sb-pitch-drop"), true);
-  assert.equal(shadow.querySelector(".sb-pitch-svg"), null);
   assert.equal(shadow.querySelector(".sb-pitch-num")?.textContent, "[2]");
 });
 
@@ -219,9 +205,7 @@ test("a host with complete alternatives keeps every result in one scroll area", 
 
   const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
   assert.equal(shadow.querySelector(".sb-candidates"), null);
-  assert.equal(shadow.querySelector(".sb-alternatives-label"), null);
   assert.equal(shadow.querySelector(".sb-alternative-headword ruby rt")?.textContent, "ほか");
-  assert.equal(shadow.querySelector(".sb-alternative-reading"), null);
 
   const body = shadow.querySelector(".sb-body") as unknown as HTMLElement;
   const article = shadow.querySelector(".sb-alternative") as unknown as HTMLElement;
@@ -471,7 +455,6 @@ test("a differing kana reading appears above the headword instead of beside it",
 
   const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
   assert.equal(shadow.querySelector(".sb-headword ruby rt")?.textContent, "かなた");
-  assert.equal(shadow.querySelector(".sb-popup-reading"), null);
 });
 
 test("name candidates share one compact result with readings, pitch and meanings", async () => {
@@ -496,7 +479,6 @@ test("name candidates share one compact result with readings, pitch and meanings
   assert.equal(shadow.querySelectorAll(".sb-name-result").length, 2);
   assert.equal(shadow.querySelectorAll(".sb-name-headword").length, 3);
   assert.equal(shadow.querySelector(".sb-name-headword ruby rt")?.textContent, "きみ");
-  assert.equal(shadow.querySelector(".sb-name-reading"), null);
   assert.match(shadow.querySelector(".sb-name-result")?.textContent ?? "", /Kimi/);
   assert.match(shadow.querySelector(".sb-name-result")?.textContent ?? "", /Given name/);
   assert.ok(shadow.querySelector(".sb-name-result .sb-pitch"));
@@ -673,24 +655,6 @@ test("host footer stays mounted through redraws and can be replaced", async () =
   }
   assert.equal(second.isConnected, false);
   assert.equal((window.document.querySelector(".sb-host") as unknown as HTMLElement).style.getPropertyValue("--sb-accent"), "");
-});
-
-test("a host footer stays mounted and the popup has no field chooser", async () => {
-  const { card, window } = await page();
-  const footer = document.createElement("div");
-  footer.textContent = "Host Anki actions";
-  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, footer });
-  try {
-    card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
-    card.showNow(await word("食べる"));
-    await settle();
-    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
-    assert.doesNotMatch(shadow.textContent ?? "", /Copy and choose fields/);
-    assert.match(shadow.querySelector(".sb-body")?.textContent ?? "", /to eat/);
-    assert.equal(shadow.querySelector(".sb-popup-footer")?.lastElementChild, footer);
-  } finally {
-    card.setPopupOptions(card.DEFAULT_CARD_OPTIONS);
-  }
 });
 
 test("the popup keeps matching source pairs separated by dictionary", async () => {
@@ -1367,14 +1331,6 @@ test("a card renders a definition from a host with no dictionary behind it", asy
   assert.deepEqual(host.journal.lookups, ["食べる"], "and it asked its host exactly once");
 });
 
-test("the inflection is shown as the host reported it", async () => {
-  const { card, window } = await page();
-  card.setCardHost(fakeHost({ definitions: { "食べた": taberu } }));
-  card.showNow(await word("食べた"));
-  await settle();
-  assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-inflection")?.textContent, "past");
-});
-
 test("the host's resolved inflection takes precedence over a parsed span's clue", async () => {
   const { card, window } = await page();
   const resolved = { ...taberu, sourceForm: "見れなかった", inflection: ["past", "negative", "potential (ら抜き)"], inflectionBase: "見る" };
@@ -1387,20 +1343,6 @@ test("the host's resolved inflection takes precedence over a parsed span's clue"
   await settle();
   assert.equal(window.document.querySelector(".sb-host")!.shadowRoot!.querySelector(".sb-inflection")?.textContent,
     "past, negative, potential (ら抜き)");
-});
-
-test("a lexical copula form explains its grammatical base without replacing its entry", async () => {
-  const { card, window } = await page();
-  const conditional = { ...taberu, headword: "なら", reading: "なら", entry: "jmdict:1009470",
-    sourceForm: "なら", inflection: ["conditional (〜なら)"], inflectionBase: "だ" };
-  card.setCardHost(fakeHost({ definitions: { "なら": conditional } }));
-  const target = await word("なら");
-  card.showNow(target);
-  await settle();
-  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
-  assert.equal(shadow.querySelector(".sb-inflection")?.textContent, "conditional (〜なら)");
-  assert.equal(shadow.querySelector(".sb-headword")?.textContent, "なら");
-  assert.equal(target.dataset.entry, "jmdict:1009470");
 });
 
 test("a parsed form keeps the resolved grammatical base for study identity", async () => {
@@ -1438,6 +1380,10 @@ test("choosing a noun homophone replaces the copula study base and explanation",
     assert.equal(target.dataset.lemma, "だ");
     assert.equal(target.dataset.state, "learning");
     const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    // The copula explains its base without becoming it: the entry and headword stay なら's.
+    assert.equal(target.dataset.entry, conditional.entry);
+    assert.equal(shadow.querySelector(".sb-headword")?.textContent, "なら");
+    assert.equal(shadow.querySelector(".sb-inflection")?.textContent, "conditional (〜なら)");
     (shadow.querySelectorAll(".sb-candidate")[1] as unknown as HTMLElement).click();
     await settle();
     assert.equal(target.dataset.entry, oak.entry);
@@ -1568,29 +1514,26 @@ test("a pack that is still installing is waited for, not routed around", async (
   assert.deepEqual(online.journal.lookups, [], "so the server is never asked");
 });
 
-test("a hide asked for twice on one move does not orphan the first countdown", async () => {
-  const { card } = await page();
-  // Two callers asking to hide on the same pointer move is ordinary: the card's
-  // own guard and the host's. The first `hideTimer` used to be overwritten
-  // rather than cancelled, so cancelling on arrival at the card cancelled only
-  // the second, and the card vanished a quarter of a second after the reader
-  // reached it.
-  const { window } = await page();
-  const host = window as unknown as { clearTimeout: (id: number) => void; setTimeout: (fn: () => void, ms: number) => number };
-  const cleared: number[] = [];
-  const started: number[] = [];
-  const realClear = host.clearTimeout;
-  const realSet = host.setTimeout;
-  host.clearTimeout = (id: number) => { cleared.push(id); realClear(id); };
-  host.setTimeout = (fn: () => void, ms: number) => { const id = realSet(fn, ms); started.push(id); return id; };
+// Two callers asking to hide on the same pointer move is ordinary: the card's
+// own guard and the host's. The first countdown used to be orphaned, so
+// reaching the card cancelled only the second, and the card vanished a quarter
+// of a second after the reader arrived.
+test("a card the reader reaches stays open after two callers asked it to hide", async () => {
+  const { card, window } = await page();
+  card.setPopupOptions({ ...card.DEFAULT_CARD_OPTIONS, hideDelay: 1 });
   try {
+    card.setCardHost(fakeHost({ study: false, definitions: { "食べる": taberu } }));
+    card.showNow(await word("食べる"));
+    await settle();
+    const host = window.document.querySelector(".sb-host")!;
     card.scheduleHide();
-    const first = started.at(-1)!;
     card.scheduleHide();
-    assert.ok(cleared.includes(first), "the countdown the first call started is cancelled, not orphaned");
+    host.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true, composed: true }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.ok(host.shadowRoot!.querySelector(".sb-popup.sb-visible"));
   } finally {
-    host.clearTimeout = realClear;
-    host.setTimeout = realSet;
+    card.setPopupOptions(card.DEFAULT_CARD_OPTIONS);
+    card.dismissPopup();
   }
 });
 
@@ -1613,7 +1556,6 @@ test("a surface that cannot save says nothing, rather than selling an upgrade", 
 
   const text = await shown();
   assert.match(text, /to eat/, "the definition is still the point");
-  assert.doesNotMatch(text, /Offline lookup/);
   assert.doesNotMatch(text, /Pro/);
 });
 

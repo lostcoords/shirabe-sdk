@@ -34,7 +34,7 @@ test("prepared lookup badge shows its saved date online or offline without inven
       assert.match(badge!.title, /while online/);
       assert.match(badge!.getAttribute("aria-label")!, /Desktop preparation/);
     } else assert.equal(badge, null);
-    assert.doesNotMatch(shadow.textContent!, /Get Shirabe Pro|Connect to save/);
+    assert.doesNotMatch(shadow.textContent!, /part of Pro|Connect your account/);
     assert.equal(def.preparedAt, timestamp);
     assert.equal(def.offline, offline);
     card.dismissPopup();

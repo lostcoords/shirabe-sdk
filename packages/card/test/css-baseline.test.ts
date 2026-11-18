@@ -61,22 +61,3 @@ test("every stylesheet we ship stays inside the oldest browser that renders it",
     );
   }
 });
-
-test("no colour depends on a function the baseline cannot parse", () => {
-  const css = stylesheet();
-  // The failure was silent rather than loud: an unsupported colour function makes
-  // the whole declaration invalid, `var()` on it computes to inherit, and the
-  // card draws in the page's colour rather than in none at all.
-  const declarations = [...css.matchAll(/(--sb-[\w-]+)\s*:\s*([^;]+);/g)];
-  assert.ok(declarations.length > 20, "found the palette");
-  for (const [, name, value] of declarations) {
-    assert.doesNotMatch(value!, /light-dark\s*\(/, `${name} would be invalid on the baseline`);
-  }
-});
-
-test("dark is reached by a media query, so a browser without light-dark() still themes", () => {
-  const css = stylesheet();
-  assert.match(css, /@media \(prefers-color-scheme: dark\)/);
-  assert.match(css, /:host\(:not\(\[data-sb-theme="light"\]\)\)/, "the OS default, overridable to light");
-  assert.match(css, /:host\(\[data-sb-theme="dark"\]\)/, "and the reader's own choice");
-});

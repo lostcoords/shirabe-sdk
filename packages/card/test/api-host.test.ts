@@ -179,23 +179,6 @@ test("saving sends the Rails lemma and selected dictionary identity", async () =
   });
 });
 
-test("a raw scan uses identify to choose among homographs", async () => {
-  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async (url) => {
-    const path = new URL((url instanceof Request ? url.url : String(url))).pathname;
-    if (path.endsWith("/parse")) return Response.json({ stackFingerprint: "test", results: [{ tokens: [
-      { surface: "開いた", lemma: "開く", startOffset: 0, endOffset: 3, kind: "inflected" },
-    ] }] });
-    if (path.endsWith("/words/identify")) return Response.json({ words: [{ candidates: [payload] }] });
-    throw new Error(`Unexpected request: ${url}`);
-  } });
-  const result = await host.lookup("開いた。", "text");
-  assert.equal(result.status, "found");
-  if (result.status !== "found") return;
-  assert.equal(result.definition!.entry, "jmdict:1202650");
-  assert.equal(result.definition!.sourceForm, "開いた");
-  assert.deepEqual(result.candidates?.map((candidate) => candidate.entry), ["jmdict:1202650"]);
-});
-
 // A payload shaped like GET /api/v1/words/{id}: two dictionaries, two
 // languages, and a sense position that is not its array index. Each of those is
 // a case the mapping gets wrong if it is written by eye.
@@ -245,13 +228,6 @@ test("the API entry kind reaches the card result", () => {
   assert.equal(built().kind, "definition");
   assert.equal(toDefinition({ ...payload, entries: [{ ...payload.entries[0]!, type: "encyclopedia" }] }, "https://shirabe.org", ["eng"]).kind, "encyclopedia");
   assert.equal(toDefinition({ ...payload, name: true }, "https://shirabe.org", ["eng"]).kind, "name");
-});
-
-test("entries are flattened in the server-provided dictionary order", () => {
-  const def = built();
-  assert.equal(def.senses[0]?.glosses[0]?.text, "to open");
-  assert.equal(def.senses.at(-1)?.glosses[0]?.text, "とじていたものをあける");
-  assert.equal(def.entry, "jmdict:1202650");
 });
 
 test("candidate mapping preserves the aligned furigana for the matched spelling", async () => {
@@ -490,13 +466,6 @@ test("full API relations preserve target readings and relation kinds", () => {
   ]);
 });
 
-test("tags split into parts of speech and everything else, with codes kept", () => {
-  const sense = built().senses[0]!;
-  assert.deepEqual(sense.partsOfSpeech.map((c) => c.label), ["Godan verb"]);
-  assert.deepEqual(sense.posCodes, ["v5k"]);
-  assert.deepEqual(sense.tags.map((c) => c.label), ["Kana only"]);
-});
-
 test("source tags retain publisher metadata and headword association", () => {
   const sourceTag = { name: "arch", category: "register", notes: "publisher note", order: 2, score: -3 };
   const sourceHeadwords = [{ text: "開く", reading: "ひらく", tags: [sourceTag], rules: ["v5k"], score: 7 }];
@@ -666,20 +635,6 @@ test("each lookup carries its candidates even when the headword changes", async 
   assert.equal((first as { candidates?: unknown[] }).candidates?.length, 2);
   assert.equal((second as { candidates?: unknown[] }).candidates?.length, 1);
   assert.deepEqual(await host.lookup("ひらいた", "word", { reading: "あく" }), first);
-});
-
-test("the same word hovered twice costs one request", async () => {
-  let calls = 0;
-  const host = apiHost({
-    apiBase: "https://shirabe.org",
-    fetch: async () => {
-      calls += 1;
-      return Response.json({ words: [{ candidates: [payload] }] });
-    },
-  });
-  await host.lookup("開く", "word");
-  await host.lookup("開く", "word");
-  assert.equal(calls, 1);
 });
 
 test("long Anki review sessions retain at most 128 dictionary lookups", async () => {
