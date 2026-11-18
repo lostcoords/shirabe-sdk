@@ -1994,3 +1994,28 @@ test("an unsaved word offers Ignore beside Known, and an ignored word can still 
     card.dismissPopup();
   }
 });
+
+test("a saved word names its decks from the host, never from the page's span", async () => {
+  const { card, window } = await page();
+  const host = fakeHost({ definitions: { "君": kimi }, details: { "君": { state: "learning", decks: [] } } });
+  host.study!.deckNames = () => ["Core 2k", "Novels"];
+  card.setCardHost(host);
+  card.setWriteState({ connected: true, canWrite: true });
+  try {
+    const target = await word("君", "learning");
+    target.dataset.deckNames = "Planted by the page";
+    card.showNow(target);
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    assert.equal(shadow.querySelector(".sb-membership")?.textContent, "Saved in Core 2k, Novels");
+
+    delete host.study!.deckNames;
+    card.dismissPopup();
+    card.showNow(target);
+    await settle();
+    assert.equal(shadow.querySelector(".sb-membership"), null, "a host with no deck names shows none");
+  } finally {
+    card.setWriteState({ connected: false, canWrite: false });
+    card.dismissPopup();
+  }
+});

@@ -162,6 +162,23 @@ test("signing in polls until the reader approves, then keeps the token", async (
   assert.match(prompt.textContent!, /Waiting for approval/);
 });
 
+test("a server stating no polling interval still gets one poll a second", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { fetch, calls } = server([started, { body: { access_token: "shra_live", expires_in: 3600 } }]);
+  const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: memory(), fetch });
+  const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  const signing = link.signIn(() => {});
+  for (let i = 0; i < 5; i++) await settle();
+  t.mock.timers.tick(999);
+  for (let i = 0; i < 5; i++) await settle();
+  assert.equal(calls.length, 1, "polled before a second had passed");
+  t.mock.timers.tick(1);
+  await signing;
+  assert.equal(calls.length, 2);
+  assert.equal(link.linked(), true);
+});
+
 test("a declined sign-in says so instead of polling out the clock", async () => {
   const { fetch } = server([started, { status: 400, body: { error: "access_denied" } }]);
   const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: memory(), fetch });

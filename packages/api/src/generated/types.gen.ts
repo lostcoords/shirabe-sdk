@@ -540,6 +540,11 @@ export type ParseToken = {
      */
     lemma?: string;
     /**
+     * The entry this token opens, as a word handle `GET /api/v1/words/{id}` accepts: the same entry the website opens for a click on this word. Absent on punctuation and on a word no enabled dictionary lists.
+     *
+     */
+    wordId?: string;
+    /**
      * Katakana reading of this occurrence when available.
      */
     reading?: string;
@@ -681,7 +686,7 @@ export type ParseOperation = {
 export type WordState = 'none' | 'ignored' | 'new' | 'learning' | 'due' | 'suspended' | 'retired';
 
 /**
- * One generated card with its own schedule and review revision. Siblings share a note, not progress.
+ * One card of a note, drawn by one of its kind's layouts, with its own schedule and review revision. Siblings share a note, not progress.
  */
 export type Card = {
     /**
@@ -692,32 +697,24 @@ export type Card = {
     note: {
         id: number;
         /**
-         * Plain-text label from the mapped expression, first nonempty text field, or note-type name. Not a rendered card face.
+         * Plain-text label, the note's headword. Not a rendered card face.
          */
         title: string;
-        type: {
-            id: number;
-            name: string;
-            kind: 'standard' | 'cloze';
-        };
         /**
-         * Ordered source fields, preserving HTML and media references. These values are not rendered card faces.
+         * What the note studies, which decides its fields and the layouts its cards are drawn with.
          */
-        fields: Array<{
-            name: string;
-            value: string;
-        }>;
+        kind: 'vocab' | 'kanji' | 'writing';
         tags: Array<string>;
         /**
-         * Mapped expression field. Omitted when empty or unmapped; may contain source HTML.
+         * The word or character the note studies. Omitted when empty.
          */
         headword?: string;
         /**
-         * Mapped reading field. Omitted when empty or unmapped; may contain source HTML.
+         * The note's own reading. Omitted when empty.
          */
         reading?: string;
         /**
-         * Mapped meaning field, not the rendered answer. Omitted when empty or unmapped; may contain source HTML.
+         * The note's stored meaning, not the rendered answer. Omitted when empty.
          */
         meaning?: string;
         /**
@@ -729,18 +726,16 @@ export type Card = {
          */
         senses?: Array<string>;
     };
+    /**
+     * The layout that draws this card.
+     */
     template: {
-        id: number;
         name: string;
         /**
-         * Zero-based template ordinal within the note type, not the cloze number.
+         * Zero-based layout ordinal within the note's kind. A note has at most one card per ordinal.
          */
         ordinal: number;
     };
-    /**
-     * The card's one-based cloze number (c1, c3, etc.). Omitted for standard cards.
-     */
-    clozeNumber?: number;
     state: WordState;
     /**
      * Human-readable schedule stage (New, Apprentice, Proficient, Master, Known, Suspended).
@@ -977,11 +972,9 @@ export type DeckResponse = {
 };
 
 /**
- * Edit the addressed card's shared note or its individual lifecycle. `meaning`,
- * `refresh`, `keepMine`, and `senses` change the note for every sibling card.
- * `lifecycle` changes only the addressed card. Imported source fields use the
- * note editor; these definition commands apply to dictionary-backed notes.
- * Send exactly one command per request.
+ * The card's own fields. Its note changes for every sibling card. Suspending a
+ * card, the senses it covers and where its fields come from each have their own
+ * resource under `/api/v1/srs/cards/{card_id}`.
  *
  */
 export type CardUpdateRequest = {
@@ -990,30 +983,7 @@ export type CardUpdateRequest = {
      * user-owned, which stops drift tracking.
      *
      */
-    meaning?: string;
-    /**
-     * Take the dictionary's current definition and clear the drift flag.
-     */
-    refresh?: boolean;
-    /**
-     * Keep your definition and clear the drift flag.
-     */
-    keepMine?: boolean;
-    /**
-     * Which senses this note covers, each `"<dictionary slug>#<that dictionary's
-     * own 0-based sense number>"` (e.g. `"jmdict#2"`). A bare number would not
-     * say which book counted it, and a note may cover senses from any dictionary
-     * the reader has stacked. Send an empty list to cover the whole word; omit
-     * this property to leave the note's scope unchanged.
-     *
-     */
-    senses?: Array<string>;
-    /**
-     * Move the card through its lifecycle: `suspend` shelves it out of review
-     * (off the queue and the free card cap), `resume` returns it.
-     *
-     */
-    lifecycle?: 'suspend' | 'resume';
+    meaning: string;
 };
 
 /**
@@ -2476,6 +2446,28 @@ export type UndoReviewRequest = {
 };
 
 /**
+ * Which senses of its dictionary word the card's note covers.
+ */
+export type CardSensesRequest = {
+    /**
+     * Each `"<dictionary slug>#<that dictionary's own 0-based sense number>"`
+     * (e.g. `"jmdict#2"`). A bare number would not say which book counted it,
+     * and a note may cover senses from any dictionary the reader has stacked.
+     * Send an empty list to cover the whole word.
+     *
+     */
+    senses: Array<string>;
+};
+
+/**
+ * Where each named field's value comes from. Fields left out keep their source.
+ */
+export type CardSourcesRequest = {
+    meaning?: 'mine' | 'shirabe';
+    reading?: 'mine' | 'shirabe';
+};
+
+/**
  * The API key owner's FSRS study settings (docs/srs.md §4, §7).
  */
 export type SrsSettings = {
@@ -2528,6 +2520,343 @@ export type SrsSettingsUpdate = {
     ];
     timezone?: string | null;
     dayCutoffHour?: number;
+};
+
+/**
+ * A Shirabe note type. From the add-on: what the collection holds for each note
+ * type carrying the `shirabe` marker, field names in order. From Shirabe: the
+ * canonical definition, sent when the add-on's version is older or its templates
+ * differ, which the add-on applies with `models.update_dict`.
+ *
+ */
+export type AnkiSyncNoteType = {
+    kind: 'vocab';
+    version: number;
+    /**
+     * The note type's name in Anki. Shirabe only.
+     */
+    name?: string;
+    fields: Array<string>;
+    /**
+     * Shirabe only.
+     */
+    templates?: Array<{
+        name: string;
+        front: string;
+        back: string;
+    }>;
+    /**
+     * Shirabe only.
+     */
+    css?: string;
+};
+
+/**
+ * One graded review, as a row of Anki's `revlog`. Both apps keep the union of
+ * both logs by `id`, so a row sent twice is stored once.
+ *
+ */
+export type AnkiSyncReview = {
+    /**
+     * The revlog id: milliseconds since the epoch when the review was made. Anki
+     * mints it for its own reviews; Shirabe mints it for its own and keeps it, so a
+     * review has one id in both apps.
+     *
+     */
+    id: number;
+    /**
+     * The note's guid.
+     */
+    guid: string;
+    /**
+     * The card's template ordinal within the note.
+     */
+    ord: number;
+    /**
+     * 1 Again, 2 Hard, 3 Good, 4 Easy.
+     */
+    ease: number;
+    /**
+     * Anki's revlog type when the card was answered: 0 learning, 1 review,
+     * 2 relearning, 3 filtered deck that reschedules. Cram rows (filtered, no
+     * rescheduling), manual rows (Set Due Date, Forget) and rescheduled rows never
+     * reach the scheduler and are not sent.
+     *
+     */
+    type: 0 | 1 | 2 | 3;
+    /**
+     * The interval the answer set, in days when positive, in seconds when negative. A learning step that crossed the rollover is in days.
+     */
+    ivl: number;
+    /**
+     * The interval before the answer, in the units of `ivl`.
+     */
+    lastIvl: number;
+    /**
+     * Anki's stored factor (FSRS difficulty scaled to 100 to 1000).
+     */
+    factor: number;
+    /**
+     * Time taken to answer.
+     */
+    timeMs: number;
+};
+
+/**
+ * A card's schedule and deck. A due crosses as a calendar date or an exact
+ * instant, never as an Anki day number, so neither app's rollover or time zone
+ * moves it: a card in review and a learning step that crossed the rollover have
+ * `dueDate`; a learning step within the day has `dueAt`; a new card has neither.
+ *
+ */
+export type AnkiSyncCard = {
+    guid: string;
+    ord: number;
+    /**
+     * The Shirabe deck the card is in. From the add-on, null when the card sits
+     * outside the Shirabe deck tree in Anki (dragged out, or into a deck made in
+     * Anki): Shirabe keeps its own deck and sends the card back with it.
+     *
+     */
+    deckId: number | null;
+    state: 'new' | 'learning' | 'review' | 'relearning';
+    suspended: boolean;
+    dueDate: string | null;
+    dueAt: string | null;
+    stability: number | null;
+    difficulty: number | null;
+    reps: number;
+    lapses: number;
+    lastReviewAt: string | null;
+    /**
+     * When the card last changed on the sending side (Anki's card `mtime`, Shirabe's `updated_at`). The newer change wins when neither side reviewed.
+     */
+    modifiedAt: string;
+};
+
+/**
+ * A Shirabe-type note. From the add-on: the Shirabe-owned fields a learner may
+ * edit, with the note's modification time; a guid Shirabe has never seen is a
+ * note created in Anki with a Shirabe note type, and is created (in `deckId`).
+ * From Shirabe: every field, derived ones included, which the add-on writes
+ * over whatever Anki holds.
+ *
+ */
+export type AnkiSyncNote = {
+    guid: string;
+    /**
+     * The Shirabe note kind, read from the note type's `shirabe` marker.
+     */
+    kind: 'vocab';
+    /**
+     * Where a note created in Anki goes: the Shirabe deck its first card is in.
+     */
+    deckId?: number | null;
+    /**
+     * Field values keyed by field name.
+     */
+    fields: {
+        [key: string]: string;
+    };
+    /**
+     * The note's last change on the sending side (Anki's note `mtime`). Each field that differs takes the side whose change is newer.
+     */
+    modifiedAt: string;
+};
+
+/**
+ * A deletion marker. A note deleted in Anki (or moved to a note type that is not
+ * Shirabe's) is trashed in Shirabe; a note or deck deleted in Shirabe is removed
+ * from Anki. A deletion wins over any edit; a restored note comes back with a new
+ * guid. Only Shirabe sends deck graves.
+ *
+ */
+export type AnkiSyncGrave = {
+    kind: 'note' | 'deck';
+    /**
+     * The note's guid, for a note grave.
+     */
+    guid?: string;
+    /**
+     * The Shirabe deck id, for a deck grave.
+     */
+    deckId?: number;
+};
+
+/**
+ * One page of the add-on's changes since its last sync, and the cursor of what it
+ * has already pulled. At most 500 rows across `reviews`, `cards`, `notes` and
+ * `graves`. A card's reviews travel in the same page as the card or an earlier one,
+ * and a note created in Anki before its cards.
+ *
+ */
+export type AnkiSyncRequest = {
+    collection: {
+        /**
+         * Minted by the add-on at pairing and kept in the collection's config, so it travels with the collection through AnkiWeb and backups.
+         */
+        id: string;
+        ankiVersion: string;
+        /**
+         * Anki's `rollover` hour.
+         */
+        rollover: number;
+        /**
+         * The desktop's IANA zone.
+         */
+        timeZone: string;
+    };
+    /**
+     * The `cursor` of the last response, stored verbatim. Null on a collection's first sync.
+     */
+    cursor: string | null;
+    noteTypes: Array<AnkiSyncNoteType>;
+    reviews: Array<AnkiSyncReview>;
+    cards: Array<AnkiSyncCard>;
+    notes: Array<AnkiSyncNote>;
+    graves: Array<AnkiSyncGrave>;
+};
+
+/**
+ * A Shirabe deck, mirrored under the one Shirabe deck tree in Anki. Decks are created, renamed and deleted in Shirabe only.
+ */
+export type AnkiSyncDeck = {
+    id: number;
+    /**
+     * The full Anki deck name, `::` between levels, under the tree's root.
+     */
+    name: string;
+    modifiedAt: string;
+};
+
+/**
+ * A row of the page Shirabe did not apply, and why. The rest of the page was
+ * applied. Every refusal is final for that row as sent: sending it again is
+ * refused again.
+ *
+ */
+export type AnkiSyncRefusedRow = {
+    kind: 'review' | 'card' | 'note' | 'grave';
+    guid?: string;
+    ord?: number;
+    /**
+     * The revlog id, for a review.
+     */
+    id?: number;
+    /**
+     * `UNKNOWN_NOTE`: a card or review for a guid Shirabe does not hold; send the
+     * note first. `NOTE_DELETED`: the note was deleted in Shirabe, and deletion
+     * wins. `FIELD_NOT_EDITABLE`: a field Shirabe derives, which only travels
+     * from Shirabe. `DECK_NOT_IN_TREE`: the card sits outside the Shirabe deck
+     * tree; this response's `cards` carries it with its Shirabe deck.
+     * `NOT_A_GRADED_REVIEW`: a cram, manual or rescheduled row.
+     *
+     */
+    code: 'UNKNOWN_NOTE' | 'NOTE_DELETED' | 'FIELD_NOT_EDITABLE' | 'DECK_NOT_IN_TREE' | 'NOT_A_GRADED_REVIEW';
+    detail: string;
+};
+
+/**
+ * What Shirabe applied from the page, and one page of Shirabe's changes since the
+ * request's cursor. The add-on applies the pull, then stores `cursor`; while
+ * `more` is true it sends another request (with its next push rows, or none).
+ *
+ */
+export type AnkiSyncResponse = {
+    /**
+     * Opaque. Store it and send it back.
+     */
+    cursor: string;
+    /**
+     * Shirabe has more changes after this cursor.
+     */
+    more: boolean;
+    /**
+     * Shirabe's study day for the account. On a collection's first sync Shirabe
+     * adopts the collection's rollover and zone; `diverged` is true when they
+     * differ later, and both apps warn.
+     *
+     */
+    clock: {
+        rollover: number;
+        timeZone: string;
+        diverged: boolean;
+    };
+    /**
+     * The FSRS preset the add-on keeps on the Shirabe deck tree, so both apps schedule with the same parameters.
+     */
+    preset: {
+        params: [
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number
+        ];
+        retention: number;
+        /**
+         * Minutes.
+         */
+        learningSteps: Array<number>;
+        /**
+         * Minutes.
+         */
+        relearningSteps: Array<number>;
+        maxInterval: number;
+    };
+    noteTypes: Array<AnkiSyncNoteType>;
+    decks: Array<AnkiSyncDeck>;
+    notes: Array<AnkiSyncNote>;
+    cards: Array<AnkiSyncCard>;
+    reviews: Array<AnkiSyncReview>;
+    graves: Array<AnkiSyncGrave>;
+    refused: Array<AnkiSyncRefusedRow>;
+};
+
+/**
+ * The whole page was refused and nothing in it was applied. These codes move
+ * into `Error409`, `Error413` and `Error422` when the endpoint emits them.
+ *
+ */
+export type AnkiSyncProblem = {
+    type: string;
+    title: string;
+    status: 409 | 413 | 422;
+    detail?: string;
+    /**
+     * `ANKI_NOTE_TYPE_CHANGED` (409): a Shirabe note type's fields in Anki are not
+     * Shirabe's, by name and order (a rename leaves Anki's schema stamp
+     * unchanged, so names are compared). The add-on stops syncing that kind and
+     * offers Repair. `SYNC_PAGE_TOO_LARGE` (413): over 500 rows, or a body over
+     * 2 MiB. `ANKI_VERSION_UNSUPPORTED` (422): Anki older than 26.08.1.
+     *
+     */
+    code: 'ANKI_NOTE_TYPE_CHANGED' | 'SYNC_PAGE_TOO_LARGE' | 'ANKI_VERSION_UNSUPPORTED';
+    instance: string;
+    /**
+     * For `ANKI_NOTE_TYPE_CHANGED`, the field names Shirabe expects and the ones the add-on reported.
+     */
+    noteTypes?: Array<{
+        kind: string;
+        expected: Array<string>;
+        seen: Array<string>;
+    }>;
 };
 
 /**
@@ -2918,8 +3247,10 @@ export type AcceptLanguage = string;
 
 /**
  * Unique retry key, scoped to this credential and operation for 24 hours.
- * Repeating the same request returns the original response without applying it
- * again. Reusing the key with another body returns `409`.
+ * Repeating the same request returns the original successful response without
+ * applying it again. Reusing the key for a different request (its query string
+ * or body), or while the first request is still running, returns `409`. A
+ * request that did not succeed keeps no receipt, so its retry runs again.
  *
  */
 export type IdempotencyKey = string;
@@ -3522,8 +3853,10 @@ export type SaveCardData = {
     headers?: {
         /**
          * Unique retry key, scoped to this credential and operation for 24 hours.
-         * Repeating the same request returns the original response without applying it
-         * again. Reusing the key with another body returns `409`.
+         * Repeating the same request returns the original successful response without
+         * applying it again. Reusing the key for a different request (its query string
+         * or body), or while the first request is still running, returns `409`. A
+         * request that did not succeed keeps no receipt, so its retry runs again.
          *
          */
         'Idempotency-Key'?: string;
@@ -3604,8 +3937,10 @@ export type GradeCardData = {
     headers?: {
         /**
          * Unique retry key, scoped to this credential and operation for 24 hours.
-         * Repeating the same request returns the original response without applying it
-         * again. Reusing the key with another body returns `409`.
+         * Repeating the same request returns the original successful response without
+         * applying it again. Reusing the key for a different request (its query string
+         * or body), or while the first request is still running, returns `409`. A
+         * request that did not succeed keeps no receipt, so its retry runs again.
          *
          */
         'Idempotency-Key'?: string;
@@ -3689,8 +4024,10 @@ export type StartStudySessionData = {
     headers?: {
         /**
          * Unique retry key, scoped to this credential and operation for 24 hours.
-         * Repeating the same request returns the original response without applying it
-         * again. Reusing the key with another body returns `409`.
+         * Repeating the same request returns the original successful response without
+         * applying it again. Reusing the key for a different request (its query string
+         * or body), or while the first request is still running, returns `409`. A
+         * request that did not succeed keeps no receipt, so its retry runs again.
          *
          */
         'Idempotency-Key'?: string;
@@ -4049,8 +4386,10 @@ export type MarkWordKnownData = {
     headers?: {
         /**
          * Unique retry key, scoped to this credential and operation for 24 hours.
-         * Repeating the same request returns the original response without applying it
-         * again. Reusing the key with another body returns `409`.
+         * Repeating the same request returns the original successful response without
+         * applying it again. Reusing the key for a different request (its query string
+         * or body), or while the first request is still running, returns `409`. A
+         * request that did not succeed keeps no receipt, so its retry runs again.
          *
          */
         'Idempotency-Key'?: string;
@@ -4233,8 +4572,10 @@ export type CreateDeckData = {
     headers?: {
         /**
          * Unique retry key, scoped to this credential and operation for 24 hours.
-         * Repeating the same request returns the original response without applying it
-         * again. Reusing the key with another body returns `409`.
+         * Repeating the same request returns the original successful response without
+         * applying it again. Reusing the key for a different request (its query string
+         * or body), or while the first request is still running, returns `409`. A
+         * request that did not succeed keeps no receipt, so its retry runs again.
          *
          */
         'Idempotency-Key'?: string;
@@ -4815,6 +5156,294 @@ export type UpdateCardResponses = {
 
 export type UpdateCardResponse = UpdateCardResponses[keyof UpdateCardResponses];
 
+export type ResumeCardData = {
+    body?: never;
+    path: {
+        /**
+         * The card id.
+         */
+        card_id: number;
+    };
+    query?: never;
+    url: '/api/v1/srs/cards/{card_id}/suspension';
+};
+
+export type ResumeCardErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
+     */
+    402: Error402;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
+};
+
+export type ResumeCardError = ResumeCardErrors[keyof ResumeCardErrors];
+
+export type ResumeCardResponses = {
+    /**
+     * The card as it now stands.
+     */
+    200: CardResponse;
+};
+
+export type ResumeCardResponse = ResumeCardResponses[keyof ResumeCardResponses];
+
+export type SuspendCardData = {
+    body?: never;
+    path: {
+        /**
+         * The card id.
+         */
+        card_id: number;
+    };
+    query?: never;
+    url: '/api/v1/srs/cards/{card_id}/suspension';
+};
+
+export type SuspendCardErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
+     */
+    402: Error402;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
+};
+
+export type SuspendCardError = SuspendCardErrors[keyof SuspendCardErrors];
+
+export type SuspendCardResponses = {
+    /**
+     * The card as it now stands.
+     */
+    200: CardResponse;
+};
+
+export type SuspendCardResponse = SuspendCardResponses[keyof SuspendCardResponses];
+
+export type RescopeCardData = {
+    body: CardSensesRequest;
+    path: {
+        /**
+         * The card id.
+         */
+        card_id: number;
+    };
+    query?: never;
+    url: '/api/v1/srs/cards/{card_id}/senses';
+};
+
+export type RescopeCardErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
+     */
+    402: Error402;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
+};
+
+export type RescopeCardError = RescopeCardErrors[keyof RescopeCardErrors];
+
+export type RescopeCardResponses = {
+    /**
+     * The card as it now stands.
+     */
+    200: CardResponse;
+};
+
+export type RescopeCardResponse = RescopeCardResponses[keyof RescopeCardResponses];
+
+export type SetCardSourcesData = {
+    body: CardSourcesRequest;
+    path: {
+        /**
+         * The card id.
+         */
+        card_id: number;
+    };
+    query?: never;
+    url: '/api/v1/srs/cards/{card_id}/sources';
+};
+
+export type SetCardSourcesErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
+     */
+    402: Error402;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * Resource not found.
+     */
+    404: Error404;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
+};
+
+export type SetCardSourcesError = SetCardSourcesErrors[keyof SetCardSourcesErrors];
+
+export type SetCardSourcesResponses = {
+    /**
+     * The card as it now stands.
+     */
+    200: CardResponse;
+};
+
+export type SetCardSourcesResponse = SetCardSourcesResponses[keyof SetCardSourcesResponses];
+
 export type DueQueueData = {
     body?: never;
     path?: never;
@@ -5381,8 +6010,10 @@ export type IgnoreWordData = {
     headers?: {
         /**
          * Unique retry key, scoped to this credential and operation for 24 hours.
-         * Repeating the same request returns the original response without applying it
-         * again. Reusing the key with another body returns `409`.
+         * Repeating the same request returns the original successful response without
+         * applying it again. Reusing the key for a different request (its query string
+         * or body), or while the first request is still running, returns `409`. A
+         * request that did not succeed keeps no receipt, so its retry runs again.
          *
          */
         'Idempotency-Key'?: string;
@@ -5478,8 +6109,10 @@ export type BulkAddSearchData = {
     headers?: {
         /**
          * Unique retry key, scoped to this credential and operation for 24 hours.
-         * Repeating the same request returns the original response without applying it
-         * again. Reusing the key with another body returns `409`.
+         * Repeating the same request returns the original successful response without
+         * applying it again. Reusing the key for a different request (its query string
+         * or body), or while the first request is still running, returns `409`. A
+         * request that did not succeed keeps no receipt, so its retry runs again.
          *
          */
         'Idempotency-Key'?: string;
@@ -5555,6 +6188,83 @@ export type BulkAddSearchResponses = {
 };
 
 export type BulkAddSearchResponse = BulkAddSearchResponses[keyof BulkAddSearchResponses];
+
+export type SyncAnkiCollectionData = {
+    body: AnkiSyncRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/srs/anki/sync';
+};
+
+export type SyncAnkiCollectionErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
+     */
+    402: Error402;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * A Shirabe note type in the collection was changed in Anki; nothing in the page was applied.
+     */
+    409: AnkiSyncProblem;
+    /**
+     * Over 500 rows or 2 MiB (`SYNC_PAGE_TOO_LARGE`): send smaller pages.
+     */
+    413: AnkiSyncProblem;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * Anki older than 26.08.1 (`ANKI_VERSION_UNSUPPORTED`).
+     */
+    422: AnkiSyncProblem;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
+};
+
+export type SyncAnkiCollectionError = SyncAnkiCollectionErrors[keyof SyncAnkiCollectionErrors];
+
+export type SyncAnkiCollectionResponses = {
+    /**
+     * The page was applied, apart from any `refused` rows, and here is the next page of Shirabe's changes.
+     */
+    200: AnkiSyncResponse;
+};
+
+export type SyncAnkiCollectionResponse = SyncAnkiCollectionResponses[keyof SyncAnkiCollectionResponses];
 
 export type IdentifyWordsData = {
     body: WordIdentifyRequest;

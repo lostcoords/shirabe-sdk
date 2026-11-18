@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { BulkAddSearchData, BulkAddSearchErrors, BulkAddSearchResponses, BulkUpdateCardsData, BulkUpdateCardsErrors, BulkUpdateCardsResponses, CallMcpData, CallMcpErrors, CallMcpResponses, CreateDeckData, CreateDeckErrors, CreateDeckResponses, DeleteCardData, DeleteCardErrors, DeleteCardResponses, DeleteDeckData, DeleteDeckErrors, DeleteDeckResponses, DeleteDictionaryData, DeleteDictionaryErrors, DeleteDictionaryImportData, DeleteDictionaryImportErrors, DeleteDictionaryImportResponses, DeleteDictionaryResponses, DeleteWordNoteData, DeleteWordNoteErrors, DeleteWordNoteResponses, DownloadShirabeDictionaryPackData, DownloadShirabeDictionaryPackErrors, DownloadShirabeDictionaryPackResponses, DueQueueData, DueQueueErrors, DueQueueResponses, EndStudySessionData, EndStudySessionErrors, EndStudySessionResponses, GetCardData, GetCardErrors, GetCardResponses, GetCurrentDictionaryPackData, GetCurrentDictionaryPackErrors, GetCurrentDictionaryPackResponses, GetDictionaryImportData, GetDictionaryImportErrors, GetDictionaryImportResponses, GetDictionaryPackData, GetDictionaryPackErrors, GetDictionaryPackResponses, GetDictionaryStackData, GetDictionaryStackErrors, GetDictionaryStackResponses, GetForecastData, GetForecastErrors, GetForecastResponses, GetKanjiData, GetKanjiErrors, GetKanjiRadicalData, GetKanjiRadicalErrors, GetKanjiRadicalResponses, GetKanjiResponses, GetMeData, GetMeErrors, GetMeResponses, GetParseOperationData, GetParseOperationErrors, GetParseOperationResponses, GetPreferencesData, GetPreferencesErrors, GetPreferencesResponses, GetReaderHostRulesData, GetReaderHostRulesErrors, GetReaderHostRulesResponses, GetSentenceData, GetSentenceErrors, GetSentenceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetStudySessionData, GetStudySessionErrors, GetStudySessionResponses, GetWordData, GetWordErrors, GetWordResponses, GradeCardData, GradeCardErrors, GradeCardResponses, IdentifyWordData, IdentifyWordErrors, IdentifyWordResponses, IdentifyWordsData, IdentifyWordsErrors, IdentifyWordsResponses, IgnoreWordData, IgnoreWordErrors, IgnoreWordResponses, InspectMcpTransportData, InspectMcpTransportErrors, ListCardsData, ListCardsErrors, ListCardsResponses, ListDecksData, ListDecksErrors, ListDecksResponses, ListDictionariesData, ListDictionariesErrors, ListDictionariesResponses, ListDictionaryImportsData, ListDictionaryImportsErrors, ListDictionaryImportsResponses, ListDictionaryPacksData, ListDictionaryPacksErrors, ListDictionaryPacksResponses, ListKanjiComponentMatchesData, ListKanjiComponentMatchesErrors, ListKanjiComponentMatchesResponses, ListKanjiComponentsData, ListKanjiComponentsErrors, ListKanjiComponentsResponses, ListKanjiData, ListKanjiErrors, ListKanjiRadicalsData, ListKanjiRadicalsErrors, ListKanjiRadicalsResponses, ListKanjiResponses, ListSentencesData, ListSentencesErrors, ListSentencesResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListWordNotesData, ListWordNotesErrors, ListWordNotesResponses, LookupWordStatesData, LookupWordStatesErrors, LookupWordStatesResponses, MarkWordKnownData, MarkWordKnownErrors, MarkWordKnownResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, ParseData, ParseErrors, ParseResponses, ReplaceDictionaryStackData, ReplaceDictionaryStackErrors, ReplaceDictionaryStackResponses, RevokeOwnKeyData, RevokeOwnKeyErrors, RevokeOwnKeyResponses, SaveCardData, SaveCardErrors, SaveCardResponses, SearchData, SearchErrors, SearchResponses, StartStudySessionData, StartStudySessionErrors, StartStudySessionResponses, StudyStatsData, StudyStatsErrors, StudyStatsResponses, UndoLatestReviewData, UndoLatestReviewErrors, UndoLatestReviewResponses, UnignoreWordData, UnignoreWordErrors, UnignoreWordResponses, UnmarkWordKnownData, UnmarkWordKnownErrors, UnmarkWordKnownResponses, UnsaveWordData, UnsaveWordErrors, UnsaveWordResponses, UpdateCardData, UpdateCardErrors, UpdateCardResponses, UpdateDeckData, UpdateDeckErrors, UpdateDeckResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpsertWordNoteData, UpsertWordNoteErrors, UpsertWordNoteResponses } from './types.gen.js';
+import type { BulkAddSearchData, BulkAddSearchErrors, BulkAddSearchResponses, BulkUpdateCardsData, BulkUpdateCardsErrors, BulkUpdateCardsResponses, CallMcpData, CallMcpErrors, CallMcpResponses, CreateDeckData, CreateDeckErrors, CreateDeckResponses, DeleteCardData, DeleteCardErrors, DeleteCardResponses, DeleteDeckData, DeleteDeckErrors, DeleteDeckResponses, DeleteDictionaryData, DeleteDictionaryErrors, DeleteDictionaryImportData, DeleteDictionaryImportErrors, DeleteDictionaryImportResponses, DeleteDictionaryResponses, DeleteWordNoteData, DeleteWordNoteErrors, DeleteWordNoteResponses, DownloadShirabeDictionaryPackData, DownloadShirabeDictionaryPackErrors, DownloadShirabeDictionaryPackResponses, DueQueueData, DueQueueErrors, DueQueueResponses, EndStudySessionData, EndStudySessionErrors, EndStudySessionResponses, GetCardData, GetCardErrors, GetCardResponses, GetCurrentDictionaryPackData, GetCurrentDictionaryPackErrors, GetCurrentDictionaryPackResponses, GetDictionaryImportData, GetDictionaryImportErrors, GetDictionaryImportResponses, GetDictionaryPackData, GetDictionaryPackErrors, GetDictionaryPackResponses, GetDictionaryStackData, GetDictionaryStackErrors, GetDictionaryStackResponses, GetForecastData, GetForecastErrors, GetForecastResponses, GetKanjiData, GetKanjiErrors, GetKanjiRadicalData, GetKanjiRadicalErrors, GetKanjiRadicalResponses, GetKanjiResponses, GetMeData, GetMeErrors, GetMeResponses, GetParseOperationData, GetParseOperationErrors, GetParseOperationResponses, GetPreferencesData, GetPreferencesErrors, GetPreferencesResponses, GetReaderHostRulesData, GetReaderHostRulesErrors, GetReaderHostRulesResponses, GetSentenceData, GetSentenceErrors, GetSentenceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetStudySessionData, GetStudySessionErrors, GetStudySessionResponses, GetWordData, GetWordErrors, GetWordResponses, GradeCardData, GradeCardErrors, GradeCardResponses, IdentifyWordData, IdentifyWordErrors, IdentifyWordResponses, IdentifyWordsData, IdentifyWordsErrors, IdentifyWordsResponses, IgnoreWordData, IgnoreWordErrors, IgnoreWordResponses, InspectMcpTransportData, InspectMcpTransportErrors, ListCardsData, ListCardsErrors, ListCardsResponses, ListDecksData, ListDecksErrors, ListDecksResponses, ListDictionariesData, ListDictionariesErrors, ListDictionariesResponses, ListDictionaryImportsData, ListDictionaryImportsErrors, ListDictionaryImportsResponses, ListDictionaryPacksData, ListDictionaryPacksErrors, ListDictionaryPacksResponses, ListKanjiComponentMatchesData, ListKanjiComponentMatchesErrors, ListKanjiComponentMatchesResponses, ListKanjiComponentsData, ListKanjiComponentsErrors, ListKanjiComponentsResponses, ListKanjiData, ListKanjiErrors, ListKanjiRadicalsData, ListKanjiRadicalsErrors, ListKanjiRadicalsResponses, ListKanjiResponses, ListSentencesData, ListSentencesErrors, ListSentencesResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListWordNotesData, ListWordNotesErrors, ListWordNotesResponses, LookupWordStatesData, LookupWordStatesErrors, LookupWordStatesResponses, MarkWordKnownData, MarkWordKnownErrors, MarkWordKnownResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, ParseData, ParseErrors, ParseResponses, ReplaceDictionaryStackData, ReplaceDictionaryStackErrors, ReplaceDictionaryStackResponses, RescopeCardData, RescopeCardErrors, RescopeCardResponses, ResumeCardData, ResumeCardErrors, ResumeCardResponses, RevokeOwnKeyData, RevokeOwnKeyErrors, RevokeOwnKeyResponses, SaveCardData, SaveCardErrors, SaveCardResponses, SearchData, SearchErrors, SearchResponses, SetCardSourcesData, SetCardSourcesErrors, SetCardSourcesResponses, StartStudySessionData, StartStudySessionErrors, StartStudySessionResponses, StudyStatsData, StudyStatsErrors, StudyStatsResponses, SuspendCardData, SuspendCardErrors, SuspendCardResponses, SyncAnkiCollectionData, SyncAnkiCollectionErrors, SyncAnkiCollectionResponses, UndoLatestReviewData, UndoLatestReviewErrors, UndoLatestReviewResponses, UnignoreWordData, UnignoreWordErrors, UnignoreWordResponses, UnmarkWordKnownData, UnmarkWordKnownErrors, UnmarkWordKnownResponses, UnsaveWordData, UnsaveWordErrors, UnsaveWordResponses, UpdateCardData, UpdateCardErrors, UpdateCardResponses, UpdateDeckData, UpdateDeckErrors, UpdateDeckResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpsertWordNoteData, UpsertWordNoteErrors, UpsertWordNoteResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -642,13 +642,12 @@ export const getCard = <ThrowOnError extends boolean = false>(options: Options<G
 });
 
 /**
- * Edit a card
+ * Edit a card's definition
  *
- * Edit the card's definition or resolve a definition-drift flag (`refresh` to
- * take the dictionary's current text, `keepMine` to keep yours). Whether a card
- * follows a dictionary entry is derived from its word, not set here. Every
- * mutation of an owned card requires SRS entitlement (a lapsed subscriber is
- * read-only, docs/srs.md §10).
+ * Replace the card's definition with your own. Suspending a card, the senses
+ * it covers and where its fields come from are resources of their own under
+ * this path. Every mutation of an owned card requires SRS entitlement (a
+ * lapsed subscriber is read-only, docs/srs.md §10).
  *
  */
 export const updateCard = <ThrowOnError extends boolean = false>(options: Options<UpdateCardData, ThrowOnError>): RequestResult<UpdateCardResponses, UpdateCardErrors, ThrowOnError> => (options.client ?? client).patch<UpdateCardResponses, UpdateCardErrors, ThrowOnError>({
@@ -658,6 +657,87 @@ export const updateCard = <ThrowOnError extends boolean = false>(options: Option
             type: 'http'
         }],
     url: '/api/v1/srs/cards/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resume a suspended card
+ *
+ * Returns a suspended card to review. Requires SRS entitlement, like every card
+ * mutation (docs/srs.md §10).
+ *
+ */
+export const resumeCard = <ThrowOnError extends boolean = false>(options: Options<ResumeCardData, ThrowOnError>): RequestResult<ResumeCardResponses, ResumeCardErrors, ThrowOnError> => (options.client ?? client).delete<ResumeCardResponses, ResumeCardErrors, ThrowOnError>({
+    security: [{
+            key: 'BearerAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/srs/cards/{card_id}/suspension',
+    ...options
+});
+
+/**
+ * Suspend a card
+ *
+ * Shelves the card out of review: off the queue and the free card cap. Only this
+ * card changes, not its siblings. Suspending a suspended card is a no-op. Requires
+ * SRS entitlement, like every card mutation (docs/srs.md §10).
+ *
+ */
+export const suspendCard = <ThrowOnError extends boolean = false>(options: Options<SuspendCardData, ThrowOnError>): RequestResult<SuspendCardResponses, SuspendCardErrors, ThrowOnError> => (options.client ?? client).post<SuspendCardResponses, SuspendCardErrors, ThrowOnError>({
+    security: [{
+            key: 'BearerAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/srs/cards/{card_id}/suspension',
+    ...options
+});
+
+/**
+ * Choose which senses a card covers
+ *
+ * Re-scopes the card's note to the listed senses of its dictionary word. Every
+ * sibling card of the note changes with it. Requires SRS entitlement, like every
+ * card mutation (docs/srs.md §10).
+ *
+ */
+export const rescopeCard = <ThrowOnError extends boolean = false>(options: Options<RescopeCardData, ThrowOnError>): RequestResult<RescopeCardResponses, RescopeCardErrors, ThrowOnError> => (options.client ?? client).patch<RescopeCardResponses, RescopeCardErrors, ThrowOnError>({
+    security: [{
+            key: 'BearerAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/srs/cards/{card_id}/senses',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Choose where a card's fields come from
+ *
+ * For each field named, keep your own value (`mine`) or follow the dictionary
+ * (`shirabe`). Either choice for `meaning` settles a definition-drift flag:
+ * `shirabe` takes the dictionary's current text, `mine` keeps yours. The note
+ * changes for every sibling card. Requires SRS entitlement, like every card
+ * mutation (docs/srs.md §10).
+ *
+ */
+export const setCardSources = <ThrowOnError extends boolean = false>(options: Options<SetCardSourcesData, ThrowOnError>): RequestResult<SetCardSourcesResponses, SetCardSourcesErrors, ThrowOnError> => (options.client ?? client).patch<SetCardSourcesResponses, SetCardSourcesErrors, ThrowOnError>({
+    security: [{
+            key: 'BearerAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/srs/cards/{card_id}/sources',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -869,6 +949,68 @@ export const bulkAddSearch = <ThrowOnError extends boolean = false>(options: Opt
             type: 'http'
         }],
     url: '/api/v1/srs/search-additions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Sync an Anki collection
+ *
+ * Two-way study sync with the Shirabe add-on for Anki, modelled on how Anki syncs
+ * between its own devices. One request pushes a page of the collection's changes
+ * and pulls a page of Shirabe's. Only notes of a Shirabe note type, in the Shirabe
+ * deck tree, take part.
+ *
+ * **Planned (unit U8): this operation is the contract; the endpoint is not served yet.**
+ *
+ * **Merge rules, per row kind.** Every rule converges, so a page applied twice, or
+ * re-sent from a restored backup, changes nothing the first apply did not.
+ *
+ * | Rows | Rule | Why a repeat is harmless |
+ * |---|---|---|
+ * | Reviews | Union by revlog `id`. | A known id is ignored (`INSERT OR IGNORE`). |
+ * | Card, reviewed on one side since the last sync | That side's state, verbatim. | The same state again is no change. |
+ * | Card, reviewed on both sides | Replay the merged log as Anki recomputes it (only the last run of learning rows counts; days are 86,400-second steps back from the next rollover), keeping the step of the side that reviewed last; the result goes to both. | The replay is a pure function of the log, which the union keeps fixed. |
+ * | Card, no review (suspend, forget, set due, deck move) | Newest `modifiedAt` wins; a tie keeps Shirabe's. | An older or equal stamp loses. |
+ * | Card outside the Shirabe tree | Shirabe keeps its deck and sends the card back (`DECK_NOT_IN_TREE`). | Same answer every time. |
+ * | Note fields a learner edits | Per field, the side whose change is newer wins, both ways. | An older or equal stamp loses. |
+ * | Derived fields (pitch, audio, sentences, furigana) | Shirabe's, overwritten in Anki. | Same values again. |
+ * | Note type and templates | Shirabe's, restored on every sync; fields that differ by name or order refuse the page (`ANKI_NOTE_TYPE_CHANGED`). | Read-only check. |
+ * | Decks | Created, renamed and deleted in Shirabe only. Membership within the tree: newest wins. | Read-only on the Shirabe side. |
+ * | Deletions | A grave wins over any edit. A note deleted in Anki is trashed in Shirabe; a note or deck deleted in Shirabe is removed in Anki. | Trashing a trashed note, or an unknown guid, is no change. |
+ *
+ * **Cursor.** Opaque to the add-on. Shirabe pages its pull by `updated_at` and id
+ * across notes, cards, reviews, decks and graves, and starts each read 10 seconds
+ * before the last row it sent, so a write that committed after a later-stamped one
+ * is not skipped; the overlap re-sends a few rows, which the rules above make
+ * harmless. Every bulk write to those tables stamps `updated_at`.
+ *
+ * **Paging and limits.** At most 500 rows per request across the push arrays and
+ * per response across the pull arrays; a body of at most 2 MiB. Shirabe applies a
+ * page in one transaction with bulk inserts and upserts, holding SQLite's single
+ * writer under 250 ms. A first sync is pulled in pages while `more` is true; the
+ * push rows of later pages ride on the same requests.
+ *
+ * **Authentication.** An OAuth token from device authorization for the first-party
+ * public client `shirabe-anki`, granted `user:study:sync` (and `user:profile:read`
+ * to show the account). `user:study:sync` is granted to that client only: a token
+ * lifted from the add-on can sync study data and do nothing else, and no other
+ * client can sync. Pro is required, as for every study write.
+ *
+ * **Anki version.** 26.08.1 or newer: older releases score a same-day Hard
+ * differently and clear `last_review_time` when a card is written.
+ *
+ */
+export const syncAnkiCollection = <ThrowOnError extends boolean = false>(options: Options<SyncAnkiCollectionData, ThrowOnError>): RequestResult<SyncAnkiCollectionResponses, SyncAnkiCollectionErrors, ThrowOnError> => (options.client ?? client).post<SyncAnkiCollectionResponses, SyncAnkiCollectionErrors, ThrowOnError>({
+    security: [{
+            key: 'BearerAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/srs/anki/sync',
     ...options,
     headers: {
         'Content-Type': 'application/json',

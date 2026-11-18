@@ -113,6 +113,9 @@ export type StudyPort = {
   states(lemmas: string[]): Promise<Record<string, StudyDetails> | null>;
   urlForWord(word: HTMLElement): Promise<string | undefined>;
   apply(word: HTMLElement, details: StudyDetails): void;
+  /** The decks a saved word sits in, for the card's "Saved in" line. Asked of the
+      host rather than read off the span, which the page's own scripts can read. */
+  deckNames?(word: HTMLElement): string[];
 
   /** Every write is optional, and a host that cannot do one gets no button for
       it rather than a button that refuses. An Anki card has none of them: the

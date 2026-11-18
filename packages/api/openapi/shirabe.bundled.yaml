@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Shirabe API
-  version: 0.9.0
+  version: 0.10.0
   x-logo:
     url: '%LOGO_URL%'
     altText: Shirabe
@@ -104,6 +104,8 @@ tags:
     description: Review sessions, grading, undo, due cards, and word-state lookup.
   - name: Cards
     description: Saved cards and their lifecycle, including bulk card updates.
+  - name: Anki sync
+    description: Two-way study sync with the Shirabe add-on for Anki.
   - name: Decks
     description: Deck management and adding search results to a deck.
   - name: Progress
@@ -1416,13 +1418,12 @@ paths:
           $ref: '#/components/responses/RateLimited'
     patch:
       operationId: updateCard
-      summary: Edit a card
+      summary: Edit a card's definition
       description: |
-        Edit the card's definition or resolve a definition-drift flag (`refresh` to
-        take the dictionary's current text, `keepMine` to keep yours). Whether a card
-        follows a dictionary entry is derived from its word, not set here. Every
-        mutation of an owned card requires SRS entitlement (a lapsed subscriber is
-        read-only, docs/srs.md §10).
+        Replace the card's definition with your own. Suspending a card, the senses
+        it covers and where its fields come from are resources of their own under
+        this path. Every mutation of an owned card requires SRS entitlement (a
+        lapsed subscriber is read-only, docs/srs.md §10).
       tags:
         - Cards
       security:
@@ -1495,6 +1496,186 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
+  /api/v1/srs/cards/{card_id}/suspension:
+    post:
+      operationId: suspendCard
+      summary: Suspend a card
+      description: |
+        Shelves the card out of review: off the queue and the free card cap. Only this
+        card changes, not its siblings. Suspending a suspended card is a no-op. Requires
+        SRS entitlement, like every card mutation (docs/srs.md §10).
+      tags:
+        - Cards
+      security:
+        - BearerAuth:
+            - user:study:write
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          description: The card id.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: The card as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
+    delete:
+      operationId: resumeCard
+      summary: Resume a suspended card
+      description: |
+        Returns a suspended card to review. Requires SRS entitlement, like every card
+        mutation (docs/srs.md §10).
+      tags:
+        - Cards
+      security:
+        - BearerAuth:
+            - user:study:write
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          description: The card id.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: The card as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
+  /api/v1/srs/cards/{card_id}/senses:
+    patch:
+      operationId: rescopeCard
+      summary: Choose which senses a card covers
+      description: |
+        Re-scopes the card's note to the listed senses of its dictionary word. Every
+        sibling card of the note changes with it. Requires SRS entitlement, like every
+        card mutation (docs/srs.md §10).
+      tags:
+        - Cards
+      security:
+        - BearerAuth:
+            - user:study:write
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          description: The card id.
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardSensesRequest'
+      responses:
+        '200':
+          description: The card as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
+  /api/v1/srs/cards/{card_id}/sources:
+    patch:
+      operationId: setCardSources
+      summary: Choose where a card's fields come from
+      description: |
+        For each field named, keep your own value (`mine`) or follow the dictionary
+        (`shirabe`). Either choice for `meaning` settles a definition-drift flag:
+        `shirabe` takes the dictionary's current text, `mine` keeps yours. The note
+        changes for every sibling card. Requires SRS entitlement, like every card
+        mutation (docs/srs.md §10).
+      tags:
+        - Cards
+      security:
+        - BearerAuth:
+            - user:study:write
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          description: The card id.
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardSourcesRequest'
+      responses:
+        '200':
+          description: The card as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
         '503':
@@ -1995,6 +2176,781 @@ paths:
           $ref: '#/components/responses/Conflict'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
+  /api/v1/srs/anki/sync:
+    post:
+      operationId: syncAnkiCollection
+      summary: Sync an Anki collection
+      description: |
+        Two-way study sync with the Shirabe add-on for Anki, modelled on how Anki syncs
+        between its own devices. One request pushes a page of the collection's changes
+        and pulls a page of Shirabe's. Only notes of a Shirabe note type, in the Shirabe
+        deck tree, take part.
+
+        **Planned (unit U8): this operation is the contract; the endpoint is not served yet.**
+
+        **Merge rules, per row kind.** Every rule converges, so a page applied twice, or
+        re-sent from a restored backup, changes nothing the first apply did not.
+
+        | Rows | Rule | Why a repeat is harmless |
+        |---|---|---|
+        | Reviews | Union by revlog `id`. | A known id is ignored (`INSERT OR IGNORE`). |
+        | Card, reviewed on one side since the last sync | That side's state, verbatim. | The same state again is no change. |
+        | Card, reviewed on both sides | Replay the merged log as Anki recomputes it (only the last run of learning rows counts; days are 86,400-second steps back from the next rollover), keeping the step of the side that reviewed last; the result goes to both. | The replay is a pure function of the log, which the union keeps fixed. |
+        | Card, no review (suspend, forget, set due, deck move) | Newest `modifiedAt` wins; a tie keeps Shirabe's. | An older or equal stamp loses. |
+        | Card outside the Shirabe tree | Shirabe keeps its deck and sends the card back (`DECK_NOT_IN_TREE`). | Same answer every time. |
+        | Note fields a learner edits | Per field, the side whose change is newer wins, both ways. | An older or equal stamp loses. |
+        | Derived fields (pitch, audio, sentences, furigana) | Shirabe's, overwritten in Anki. | Same values again. |
+        | Note type and templates | Shirabe's, restored on every sync; fields that differ by name or order refuse the page (`ANKI_NOTE_TYPE_CHANGED`). | Read-only check. |
+        | Decks | Created, renamed and deleted in Shirabe only. Membership within the tree: newest wins. | Read-only on the Shirabe side. |
+        | Deletions | A grave wins over any edit. A note deleted in Anki is trashed in Shirabe; a note or deck deleted in Shirabe is removed in Anki. | Trashing a trashed note, or an unknown guid, is no change. |
+
+        **Cursor.** Opaque to the add-on. Shirabe pages its pull by `updated_at` and id
+        across notes, cards, reviews, decks and graves, and starts each read 10 seconds
+        before the last row it sent, so a write that committed after a later-stamped one
+        is not skipped; the overlap re-sends a few rows, which the rules above make
+        harmless. Every bulk write to those tables stamps `updated_at`.
+
+        **Paging and limits.** At most 500 rows per request across the push arrays and
+        per response across the pull arrays; a body of at most 2 MiB. Shirabe applies a
+        page in one transaction with bulk inserts and upserts, holding SQLite's single
+        writer under 250 ms. A first sync is pulled in pages while `more` is true; the
+        push rows of later pages ride on the same requests.
+
+        **Authentication.** An OAuth token from device authorization for the first-party
+        public client `shirabe-anki`, granted `user:study:sync` (and `user:profile:read`
+        to show the account). `user:study:sync` is granted to that client only: a token
+        lifted from the add-on can sync study data and do nothing else, and no other
+        client can sync. Pro is required, as for every study write.
+
+        **Anki version.** 26.08.1 or newer: older releases score a same-day Hard
+        differently and clear `last_review_time` when a card is written.
+      x-planned: U8
+      tags:
+        - Anki sync
+      security:
+        - BearerAuth:
+            - user:study:sync
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnkiSyncRequest'
+            examples:
+              firstSync:
+                summary: First sync of a paired account
+                description: 'The collection has never synced: no cursor, no Shirabe note type yet, nothing to push. Shirabe answers with its note type, preset, deck tree and the first page of notes, cards and reviews; `more` asks for the next page.'
+                value:
+                  collection:
+                    id: 6f1c2a4e-8b7d-4c1e-9a3f-2d5b7e9c1a40
+                    ankiVersion: 26.08.1
+                    rollover: 4
+                    timeZone: Europe/Madrid
+                  cursor: null
+                  noteTypes: []
+                  reviews: []
+                  cards: []
+                  notes: []
+                  graves: []
+              reviewOnEachSide:
+                summary: A review made on each side
+                description: Anki reviewed 犬 and Shirabe reviewed 猫 since the last sync. Each side's card state is taken verbatim by the other; both review rows join both logs.
+                value:
+                  collection:
+                    id: 6f1c2a4e-8b7d-4c1e-9a3f-2d5b7e9c1a40
+                    ankiVersion: 26.08.1
+                    rollover: 4
+                    timeZone: Europe/Madrid
+                  cursor: djE6MTc2MzQ1NjAwMDAwMDo0MTI3
+                  noteTypes:
+                    - kind: vocab
+                      version: 3
+                      fields:
+                        - Word
+                        - Reading
+                        - Meaning
+                        - Notes
+                        - Pitch
+                        - Audio
+                        - Sentence
+                  reviews:
+                    - id: 1763457312000
+                      guid: Sh3pV7cTn1
+                      ord: 0
+                      ease: 3
+                      type: 1
+                      ivl: 9
+                      lastIvl: 4
+                      factor: 498
+                      timeMs: 4200
+                  cards:
+                    - guid: Sh3pV7cTn1
+                      ord: 0
+                      deckId: 41
+                      state: review
+                      suspended: false
+                      dueDate: '2026-11-27'
+                      dueAt: null
+                      stability: 9.3
+                      difficulty: 4.98
+                      reps: 4
+                      lapses: 0
+                      lastReviewAt: '2026-11-18T09:15:12Z'
+                      modifiedAt: '2026-11-18T09:15:12Z'
+                  notes: []
+                  graves: []
+              reviewedOnBothSides:
+                summary: One card reviewed on both sides between syncs
+                description: Shirabe graded 猫 Good at 10:15 and Anki graded it Again at 21:40, neither knowing of the other. Shirabe stores Anki's row, replays the merged log of 猫 the way Anki recomputes it, and sends back its row and the replayed card; the add-on writes both, so the two apps hold the same state Anki would compute from the same log.
+                value:
+                  collection:
+                    id: 6f1c2a4e-8b7d-4c1e-9a3f-2d5b7e9c1a40
+                    ankiVersion: 26.08.1
+                    rollover: 4
+                    timeZone: Europe/Madrid
+                  cursor: djE6MTc2MzQ1NjAwMDAwMDo0MTI3
+                  noteTypes:
+                    - kind: vocab
+                      version: 3
+                      fields:
+                        - Word
+                        - Reading
+                        - Meaning
+                        - Notes
+                        - Pitch
+                        - Audio
+                        - Sentence
+                  reviews:
+                    - id: 1763498412000
+                      guid: Sh9k2LmQ4x
+                      ord: 0
+                      ease: 1
+                      type: 1
+                      ivl: -600
+                      lastIvl: 12
+                      factor: 621
+                      timeMs: 4200
+                  cards:
+                    - guid: Sh9k2LmQ4x
+                      ord: 0
+                      deckId: 41
+                      state: relearning
+                      suspended: false
+                      dueDate: null
+                      dueAt: '2026-11-18T20:50:12Z'
+                      stability: 2.31
+                      difficulty: 6.21
+                      reps: 4
+                      lapses: 1
+                      lastReviewAt: '2026-11-18T20:40:12Z'
+                      modifiedAt: '2026-11-18T20:40:12Z'
+                  notes: []
+                  graves: []
+              fieldEditedInAnki:
+                summary: A field edited in Anki
+                description: The learner rewrote Meaning and Notes in Anki's editor. Shirabe has not changed those fields since, so Anki's newer values win; the note comes back with every field, derived ones recomputed.
+                value:
+                  collection:
+                    id: 6f1c2a4e-8b7d-4c1e-9a3f-2d5b7e9c1a40
+                    ankiVersion: 26.08.1
+                    rollover: 4
+                    timeZone: Europe/Madrid
+                  cursor: djE6MTc2MzQ1NjAwMDAwMDo0MTI3
+                  noteTypes:
+                    - kind: vocab
+                      version: 3
+                      fields:
+                        - Word
+                        - Reading
+                        - Meaning
+                        - Notes
+                        - Pitch
+                        - Audio
+                        - Sentence
+                  reviews: []
+                  cards: []
+                  notes:
+                    - guid: Sh9k2LmQ4x
+                      kind: vocab
+                      deckId: 41
+                      modifiedAt: '2026-11-18T08:02:44Z'
+                      fields:
+                        Meaning: cat; feline
+                        Notes: Not 描.
+                  graves: []
+              noteDeletedInAnki:
+                summary: A note deleted in Anki
+                description: 犬 was deleted in Anki. Shirabe moves its cards to the trash; its reviews stay. Restoring it in Shirabe mints a new guid, so it reaches Anki as a new note.
+                value:
+                  collection:
+                    id: 6f1c2a4e-8b7d-4c1e-9a3f-2d5b7e9c1a40
+                    ankiVersion: 26.08.1
+                    rollover: 4
+                    timeZone: Europe/Madrid
+                  cursor: djE6MTc2MzQ1NjAwMDAwMDo0MTI3
+                  noteTypes:
+                    - kind: vocab
+                      version: 3
+                      fields:
+                        - Word
+                        - Reading
+                        - Meaning
+                        - Notes
+                        - Pitch
+                        - Audio
+                        - Sentence
+                  reviews: []
+                  cards: []
+                  notes: []
+                  graves:
+                    - kind: note
+                      guid: Sh3pV7cTn1
+              cardDraggedOutOfTree:
+                summary: A card dragged out of the Shirabe deck tree
+                description: The learner moved 猫 to their own `Japanese::Misc` deck in Anki. The card keeps syncing and keeps its Shirabe deck; the response carries it back with `deckId` 41 and the add-on moves it there.
+                value:
+                  collection:
+                    id: 6f1c2a4e-8b7d-4c1e-9a3f-2d5b7e9c1a40
+                    ankiVersion: 26.08.1
+                    rollover: 4
+                    timeZone: Europe/Madrid
+                  cursor: djE6MTc2MzQ1NjAwMDAwMDo0MTI3
+                  noteTypes:
+                    - kind: vocab
+                      version: 3
+                      fields:
+                        - Word
+                        - Reading
+                        - Meaning
+                        - Notes
+                        - Pitch
+                        - Audio
+                        - Sentence
+                  reviews: []
+                  cards:
+                    - guid: Sh9k2LmQ4x
+                      ord: 0
+                      deckId: null
+                      state: review
+                      suspended: false
+                      dueDate: '2026-11-24'
+                      dueAt: null
+                      stability: 8.41
+                      difficulty: 5.12
+                      reps: 3
+                      lapses: 0
+                      lastReviewAt: '2026-11-12T19:02:11Z'
+                      modifiedAt: '2026-11-18T07:30:00Z'
+                  notes: []
+                  graves: []
+              fieldRenamedInAnki:
+                summary: A field renamed in the Shirabe note type inside Anki
+                description: The learner renamed Meaning to Definition in Anki. A rename leaves Anki's schema stamp unchanged, so the add-on reports field names and Shirabe compares them. The page is refused whole and nothing in it is applied; the add-on stops syncing vocab notes and offers Repair.
+                value:
+                  collection:
+                    id: 6f1c2a4e-8b7d-4c1e-9a3f-2d5b7e9c1a40
+                    ankiVersion: 26.08.1
+                    rollover: 4
+                    timeZone: Europe/Madrid
+                  cursor: djE6MTc2MzQ1NjAwMDAwMDo0MTI3
+                  noteTypes:
+                    - kind: vocab
+                      version: 3
+                      fields:
+                        - Word
+                        - Reading
+                        - Definition
+                        - Notes
+                        - Pitch
+                        - Audio
+                        - Sentence
+                  reviews: []
+                  cards: []
+                  notes:
+                    - guid: Sh9k2LmQ4x
+                      kind: vocab
+                      deckId: 41
+                      modifiedAt: '2026-11-18T08:02:44Z'
+                      fields:
+                        Definition: cat
+                  graves: []
+      responses:
+        '200':
+          description: The page was applied, apart from any `refused` rows, and here is the next page of Shirabe's changes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnkiSyncResponse'
+              examples:
+                firstSync:
+                  summary: First sync of a paired account
+                  value:
+                    cursor: djE6MTc2MzQ1NjAwMDAwMDo0MTI3
+                    more: true
+                    clock:
+                      rollover: 4
+                      timeZone: Europe/Madrid
+                      diverged: false
+                    preset:
+                      params:
+                        - 0.212
+                        - 1.2931
+                        - 2.3065
+                        - 8.2956
+                        - 6.4133
+                        - 0.8334
+                        - 3.0194
+                        - 0.001
+                        - 1.8722
+                        - 0.1666
+                        - 0.796
+                        - 1.4835
+                        - 0.0614
+                        - 0.2629
+                        - 1.6483
+                        - 0.6014
+                        - 1.8729
+                        - 0.5425
+                        - 0.0912
+                        - 0.0658
+                        - 0.1542
+                      retention: 0.9
+                      learningSteps: []
+                      relearningSteps:
+                        - 10
+                      maxInterval: 36500
+                    noteTypes:
+                      - kind: vocab
+                        version: 3
+                        name: Shirabe Vocab
+                        fields:
+                          - Word
+                          - Reading
+                          - Meaning
+                          - Notes
+                          - Pitch
+                          - Audio
+                          - Sentence
+                        templates:
+                          - name: Recognition
+                            front: '{{Word}}'
+                            back: '{{FrontSide}}<hr id=answer>{{Reading}} {{Meaning}}'
+                        css: '.card { font-family: system-ui; }'
+                    decks:
+                      - id: 41
+                        name: Shirabe::Core 2k
+                        modifiedAt: '2026-11-02T09:14:00Z'
+                    notes:
+                      - guid: Sh9k2LmQ4x
+                        kind: vocab
+                        deckId: 41
+                        modifiedAt: '2026-11-02T09:14:00Z'
+                        fields:
+                          Word: 猫
+                          Reading: ねこ
+                          Meaning: cat
+                          Notes: ''
+                          Pitch: LHH
+                          Audio: '[sound:shirabe-Sh9k2LmQ4x.mp3]'
+                          Sentence: ''
+                    cards:
+                      - guid: Sh9k2LmQ4x
+                        ord: 0
+                        deckId: 41
+                        state: review
+                        suspended: false
+                        dueDate: '2026-11-24'
+                        dueAt: null
+                        stability: 8.41
+                        difficulty: 5.12
+                        reps: 3
+                        lapses: 0
+                        lastReviewAt: '2026-11-12T19:02:11Z'
+                        modifiedAt: '2026-11-12T19:02:11Z'
+                    reviews:
+                      - id: 1762107252000
+                        guid: Sh9k2LmQ4x
+                        ord: 0
+                        ease: 3
+                        type: 0
+                        ivl: 1
+                        lastIvl: 0
+                        factor: 512
+                        timeMs: 4200
+                      - id: 1762193701000
+                        guid: Sh9k2LmQ4x
+                        ord: 0
+                        ease: 3
+                        type: 1
+                        ivl: 3
+                        lastIvl: 1
+                        factor: 508
+                        timeMs: 4200
+                      - id: 1762974131000
+                        guid: Sh9k2LmQ4x
+                        ord: 0
+                        ease: 3
+                        type: 1
+                        ivl: 12
+                        lastIvl: 3
+                        factor: 512
+                        timeMs: 4200
+                    graves: []
+                    refused: []
+                reviewOnEachSide:
+                  summary: A review made on each side
+                  value:
+                    cursor: djE6MTc2MzQ2MzIwMDAwMDo0MTU1
+                    more: false
+                    clock:
+                      rollover: 4
+                      timeZone: Europe/Madrid
+                      diverged: false
+                    preset:
+                      params:
+                        - 0.212
+                        - 1.2931
+                        - 2.3065
+                        - 8.2956
+                        - 6.4133
+                        - 0.8334
+                        - 3.0194
+                        - 0.001
+                        - 1.8722
+                        - 0.1666
+                        - 0.796
+                        - 1.4835
+                        - 0.0614
+                        - 0.2629
+                        - 1.6483
+                        - 0.6014
+                        - 1.8729
+                        - 0.5425
+                        - 0.0912
+                        - 0.0658
+                        - 0.1542
+                      retention: 0.9
+                      learningSteps: []
+                      relearningSteps:
+                        - 10
+                      maxInterval: 36500
+                    noteTypes: []
+                    decks: []
+                    notes: []
+                    cards:
+                      - guid: Sh9k2LmQ4x
+                        ord: 0
+                        deckId: 41
+                        state: review
+                        suspended: false
+                        dueDate: '2026-12-09'
+                        dueAt: null
+                        stability: 21.7
+                        difficulty: 5.05
+                        reps: 4
+                        lapses: 0
+                        lastReviewAt: '2026-11-18T10:15:05Z'
+                        modifiedAt: '2026-11-18T10:15:05Z'
+                    reviews:
+                      - id: 1763460905000
+                        guid: Sh9k2LmQ4x
+                        ord: 0
+                        ease: 3
+                        type: 1
+                        ivl: 21
+                        lastIvl: 12
+                        factor: 505
+                        timeMs: 4200
+                    graves: []
+                    refused: []
+                reviewedOnBothSides:
+                  summary: One card reviewed on both sides between syncs
+                  value:
+                    cursor: djE6MTc2MzQ2MzIwMDAwMDo0MTU1
+                    more: false
+                    clock:
+                      rollover: 4
+                      timeZone: Europe/Madrid
+                      diverged: false
+                    preset:
+                      params:
+                        - 0.212
+                        - 1.2931
+                        - 2.3065
+                        - 8.2956
+                        - 6.4133
+                        - 0.8334
+                        - 3.0194
+                        - 0.001
+                        - 1.8722
+                        - 0.1666
+                        - 0.796
+                        - 1.4835
+                        - 0.0614
+                        - 0.2629
+                        - 1.6483
+                        - 0.6014
+                        - 1.8729
+                        - 0.5425
+                        - 0.0912
+                        - 0.0658
+                        - 0.1542
+                      retention: 0.9
+                      learningSteps: []
+                      relearningSteps:
+                        - 10
+                      maxInterval: 36500
+                    noteTypes: []
+                    decks: []
+                    notes: []
+                    cards:
+                      - guid: Sh9k2LmQ4x
+                        ord: 0
+                        deckId: 41
+                        state: relearning
+                        suspended: false
+                        dueDate: null
+                        dueAt: '2026-11-18T20:50:12Z'
+                        stability: 2.58
+                        difficulty: 6.03
+                        reps: 5
+                        lapses: 1
+                        lastReviewAt: '2026-11-18T20:40:12Z'
+                        modifiedAt: '2026-11-18T20:40:12Z'
+                    reviews:
+                      - id: 1763460905000
+                        guid: Sh9k2LmQ4x
+                        ord: 0
+                        ease: 3
+                        type: 1
+                        ivl: 21
+                        lastIvl: 12
+                        factor: 505
+                        timeMs: 4200
+                    graves: []
+                    refused: []
+                fieldEditedInAnki:
+                  summary: A field edited in Anki
+                  value:
+                    cursor: djE6MTc2MzQ2MzIwMDAwMDo0MTU1
+                    more: false
+                    clock:
+                      rollover: 4
+                      timeZone: Europe/Madrid
+                      diverged: false
+                    preset:
+                      params:
+                        - 0.212
+                        - 1.2931
+                        - 2.3065
+                        - 8.2956
+                        - 6.4133
+                        - 0.8334
+                        - 3.0194
+                        - 0.001
+                        - 1.8722
+                        - 0.1666
+                        - 0.796
+                        - 1.4835
+                        - 0.0614
+                        - 0.2629
+                        - 1.6483
+                        - 0.6014
+                        - 1.8729
+                        - 0.5425
+                        - 0.0912
+                        - 0.0658
+                        - 0.1542
+                      retention: 0.9
+                      learningSteps: []
+                      relearningSteps:
+                        - 10
+                      maxInterval: 36500
+                    noteTypes: []
+                    decks: []
+                    notes:
+                      - guid: Sh9k2LmQ4x
+                        kind: vocab
+                        deckId: 41
+                        modifiedAt: '2026-11-18T08:02:44Z'
+                        fields:
+                          Word: 猫
+                          Reading: ねこ
+                          Meaning: cat; feline
+                          Notes: Not 描.
+                          Pitch: LHH
+                          Audio: '[sound:shirabe-Sh9k2LmQ4x.mp3]'
+                          Sentence: ''
+                    cards: []
+                    reviews: []
+                    graves: []
+                    refused: []
+                noteDeletedInAnki:
+                  summary: A note deleted in Anki
+                  value:
+                    cursor: djE6MTc2MzQ2MzIwMDAwMDo0MTU1
+                    more: false
+                    clock:
+                      rollover: 4
+                      timeZone: Europe/Madrid
+                      diverged: false
+                    preset:
+                      params:
+                        - 0.212
+                        - 1.2931
+                        - 2.3065
+                        - 8.2956
+                        - 6.4133
+                        - 0.8334
+                        - 3.0194
+                        - 0.001
+                        - 1.8722
+                        - 0.1666
+                        - 0.796
+                        - 1.4835
+                        - 0.0614
+                        - 0.2629
+                        - 1.6483
+                        - 0.6014
+                        - 1.8729
+                        - 0.5425
+                        - 0.0912
+                        - 0.0658
+                        - 0.1542
+                      retention: 0.9
+                      learningSteps: []
+                      relearningSteps:
+                        - 10
+                      maxInterval: 36500
+                    noteTypes: []
+                    decks: []
+                    notes: []
+                    cards: []
+                    reviews: []
+                    graves: []
+                    refused: []
+                cardDraggedOutOfTree:
+                  summary: A card dragged out of the Shirabe deck tree
+                  value:
+                    cursor: djE6MTc2MzQ2MzIwMDAwMDo0MTU1
+                    more: false
+                    clock:
+                      rollover: 4
+                      timeZone: Europe/Madrid
+                      diverged: false
+                    preset:
+                      params:
+                        - 0.212
+                        - 1.2931
+                        - 2.3065
+                        - 8.2956
+                        - 6.4133
+                        - 0.8334
+                        - 3.0194
+                        - 0.001
+                        - 1.8722
+                        - 0.1666
+                        - 0.796
+                        - 1.4835
+                        - 0.0614
+                        - 0.2629
+                        - 1.6483
+                        - 0.6014
+                        - 1.8729
+                        - 0.5425
+                        - 0.0912
+                        - 0.0658
+                        - 0.1542
+                      retention: 0.9
+                      learningSteps: []
+                      relearningSteps:
+                        - 10
+                      maxInterval: 36500
+                    noteTypes: []
+                    decks: []
+                    notes: []
+                    cards:
+                      - guid: Sh9k2LmQ4x
+                        ord: 0
+                        deckId: 41
+                        state: review
+                        suspended: false
+                        dueDate: '2026-11-24'
+                        dueAt: null
+                        stability: 8.41
+                        difficulty: 5.12
+                        reps: 3
+                        lapses: 0
+                        lastReviewAt: '2026-11-12T19:02:11Z'
+                        modifiedAt: '2026-11-18T07:30:00Z'
+                    reviews: []
+                    graves: []
+                    refused:
+                      - kind: card
+                        guid: Sh9k2LmQ4x
+                        ord: 0
+                        code: DECK_NOT_IN_TREE
+                        detail: The card is outside the Shirabe deck tree in Anki; it stays in deck 41.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: A Shirabe note type in the collection was changed in Anki; nothing in the page was applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnkiSyncProblem'
+              examples:
+                fieldRenamedInAnki:
+                  summary: A field renamed in the Shirabe note type inside Anki
+                  value:
+                    type: https://shirabe.org/docs/errors/anki-note-type-changed
+                    title: Anki note type changed
+                    status: 409
+                    detail: The vocab note type in this collection does not have Shirabe's fields. Repair it in the add-on, then sync again.
+                    code: ANKI_NOTE_TYPE_CHANGED
+                    instance: 0f9b6c1e-7c1d-4b8a-9e55-1d2c3b4a5f60
+                    noteTypes:
+                      - kind: vocab
+                        expected:
+                          - Word
+                          - Reading
+                          - Meaning
+                          - Notes
+                          - Pitch
+                          - Audio
+                          - Sentence
+                        seen:
+                          - Word
+                          - Reading
+                          - Definition
+                          - Notes
+                          - Pitch
+                          - Audio
+                          - Sentence
+        '413':
+          description: 'Over 500 rows or 2 MiB (`SYNC_PAGE_TOO_LARGE`): send smaller pages.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnkiSyncProblem'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: Anki older than 26.08.1 (`ANKI_VERSION_UNSUPPORTED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnkiSyncProblem'
         '429':
           $ref: '#/components/responses/RateLimited'
         '503':
@@ -3985,6 +4941,11 @@ components:
           type: string
           description: Preferred dictionary form when one is available.
           example: 今日
+        wordId:
+          type: string
+          description: |
+            The entry this token opens, as a word handle `GET /api/v1/words/{id}` accepts: the same entry the website opens for a click on this word. Absent on punctuation and on a word no enabled dictionary lists.
+          example: jmdict:1579110
         reading:
           type: string
           description: Katakana reading of this occurrence when available.
@@ -4282,7 +5243,7 @@ components:
       example: retired
     Card:
       type: object
-      description: One generated card with its own schedule and review revision. Siblings share a note, not progress.
+      description: One card of a note, drawn by one of its kind's layouts, with its own schedule and review revision. Siblings share a note, not progress.
       additionalProperties: false
       required:
         - id
@@ -4306,8 +5267,7 @@ components:
           required:
             - id
             - title
-            - type
-            - fields
+            - kind
             - tags
             - driftFlagged
           properties:
@@ -4315,52 +5275,29 @@ components:
               type: integer
             title:
               type: string
-              description: Plain-text label from the mapped expression, first nonempty text field, or note-type name. Not a rendered card face.
-            type:
-              type: object
-              required:
-                - id
-                - name
-                - kind
-              properties:
-                id:
-                  type: integer
-                name:
-                  type: string
-                kind:
-                  type: string
-                  enum:
-                    - standard
-                    - cloze
-            fields:
-              type: array
-              description: Ordered source fields, preserving HTML and media references. These values are not rendered card faces.
-              items:
-                type: object
-                additionalProperties: false
-                required:
-                  - name
-                  - value
-                properties:
-                  name:
-                    type: string
-                  value:
-                    type: string
+              description: Plain-text label, the note's headword. Not a rendered card face.
+            kind:
+              type: string
+              enum:
+                - vocab
+                - kanji
+                - writing
+              description: What the note studies, which decides its fields and the layouts its cards are drawn with.
             tags:
               type: array
               items:
                 type: string
             headword:
               type: string
-              description: Mapped expression field. Omitted when empty or unmapped; may contain source HTML.
+              description: The word or character the note studies. Omitted when empty.
               example: 勉強
             reading:
               type: string
-              description: Mapped reading field. Omitted when empty or unmapped; may contain source HTML.
+              description: The note's own reading. Omitted when empty.
               example: ベンキョウ
             meaning:
               type: string
-              description: Mapped meaning field, not the rendered answer. Omitted when empty or unmapped; may contain source HTML.
+              description: The note's stored meaning, not the rendered answer. Omitted when empty.
               example: study; diligence
             driftFlagged:
               type: boolean
@@ -4374,23 +5311,18 @@ components:
                 - jmdict#2
         template:
           type: object
+          description: The layout that draws this card.
           required:
-            - id
             - name
             - ordinal
           properties:
-            id:
-              type: integer
             name:
               type: string
+              example: Recognition
             ordinal:
               type: integer
               minimum: 0
-              description: Zero-based template ordinal within the note type, not the cloze number.
-        clozeNumber:
-          type: integer
-          minimum: 1
-          description: The card's one-based cloze number (c1, c3, etc.). Omitted for standard cards.
+              description: Zero-based layout ordinal within the note's kind. A note has at most one card per ordinal.
         state:
           $ref: '#/components/schemas/WordState'
         srsStage:
@@ -4690,46 +5622,19 @@ components:
     CardUpdateRequest:
       type: object
       additionalProperties: false
-      minProperties: 1
-      maxProperties: 1
+      required:
+        - meaning
       description: |
-        Edit the addressed card's shared note or its individual lifecycle. `meaning`,
-        `refresh`, `keepMine`, and `senses` change the note for every sibling card.
-        `lifecycle` changes only the addressed card. Imported source fields use the
-        note editor; these definition commands apply to dictionary-backed notes.
-        Send exactly one command per request.
+        The card's own fields. Its note changes for every sibling card. Suspending a
+        card, the senses it covers and where its fields come from each have their own
+        resource under `/api/v1/srs/cards/{card_id}`.
       properties:
         meaning:
           type: string
+          minLength: 1
           description: |
             Your definition text. Stored as a meaning of your own and marks the note
             user-owned, which stops drift tracking.
-        refresh:
-          type: boolean
-          description: Take the dictionary's current definition and clear the drift flag.
-        keepMine:
-          type: boolean
-          description: Keep your definition and clear the drift flag.
-        senses:
-          type: array
-          description: |
-            Which senses this note covers, each `"<dictionary slug>#<that dictionary's
-            own 0-based sense number>"` (e.g. `"jmdict#2"`). A bare number would not
-            say which book counted it, and a note may cover senses from any dictionary
-            the reader has stacked. Send an empty list to cover the whole word; omit
-            this property to leave the note's scope unchanged.
-          items:
-            type: string
-          example:
-            - jmdict#2
-        lifecycle:
-          type: string
-          description: |
-            Move the card through its lifecycle: `suspend` shelves it out of review
-            (off the queue and the free card cap), `resume` returns it.
-          enum:
-            - suspend
-            - resume
     WordNote:
       type: object
       description: A personal annotation on a word, separate from a study note and its cards.
@@ -7513,6 +8418,40 @@ components:
           minimum: 1
           example: 731
           description: The reviewId returned by the grade being undone.
+    CardSensesRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - senses
+      description: Which senses of its dictionary word the card's note covers.
+      properties:
+        senses:
+          type: array
+          description: |
+            Each `"<dictionary slug>#<that dictionary's own 0-based sense number>"`
+            (e.g. `"jmdict#2"`). A bare number would not say which book counted it,
+            and a note may cover senses from any dictionary the reader has stacked.
+            Send an empty list to cover the whole word.
+          items:
+            type: string
+          example:
+            - jmdict#2
+    CardSourcesRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Where each named field's value comes from. Fields left out keep their source.
+      properties:
+        meaning:
+          type: string
+          enum:
+            - mine
+            - shirabe
+        reading:
+          type: string
+          enum:
+            - mine
+            - shirabe
     SrsSettings:
       type: object
       description: The API key owner's FSRS study settings (docs/srs.md §4, §7).
@@ -7604,6 +8543,574 @@ components:
           type: integer
           minimum: 0
           maximum: 23
+    AnkiSyncNoteType:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - version
+        - fields
+      description: |
+        A Shirabe note type. From the add-on: what the collection holds for each note
+        type carrying the `shirabe` marker, field names in order. From Shirabe: the
+        canonical definition, sent when the add-on's version is older or its templates
+        differ, which the add-on applies with `models.update_dict`.
+      properties:
+        kind:
+          type: string
+          enum:
+            - vocab
+        version:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          description: The note type's name in Anki. Shirabe only.
+        fields:
+          type: array
+          maxItems: 32
+          items:
+            type: string
+            minLength: 1
+        templates:
+          type: array
+          description: Shirabe only.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - name
+              - front
+              - back
+            properties:
+              name:
+                type: string
+              front:
+                type: string
+              back:
+                type: string
+        css:
+          type: string
+          description: Shirabe only.
+    AnkiSyncReview:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - guid
+        - ord
+        - ease
+        - type
+        - ivl
+        - lastIvl
+        - factor
+        - timeMs
+      description: |
+        One graded review, as a row of Anki's `revlog`. Both apps keep the union of
+        both logs by `id`, so a row sent twice is stored once.
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: |
+            The revlog id: milliseconds since the epoch when the review was made. Anki
+            mints it for its own reviews; Shirabe mints it for its own and keeps it, so a
+            review has one id in both apps.
+          example: 1792952340000
+        guid:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: The note's guid.
+        ord:
+          type: integer
+          minimum: 0
+          description: The card's template ordinal within the note.
+        ease:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: 1 Again, 2 Hard, 3 Good, 4 Easy.
+        type:
+          type: integer
+          enum:
+            - 0
+            - 1
+            - 2
+            - 3
+          description: |
+            Anki's revlog type when the card was answered: 0 learning, 1 review,
+            2 relearning, 3 filtered deck that reschedules. Cram rows (filtered, no
+            rescheduling), manual rows (Set Due Date, Forget) and rescheduled rows never
+            reach the scheduler and are not sent.
+        ivl:
+          type: integer
+          description: The interval the answer set, in days when positive, in seconds when negative. A learning step that crossed the rollover is in days.
+        lastIvl:
+          type: integer
+          description: The interval before the answer, in the units of `ivl`.
+        factor:
+          type: integer
+          minimum: 0
+          description: Anki's stored factor (FSRS difficulty scaled to 100 to 1000).
+        timeMs:
+          type: integer
+          minimum: 0
+          maximum: 86400000
+          description: Time taken to answer.
+    AnkiSyncCard:
+      type: object
+      additionalProperties: false
+      required:
+        - guid
+        - ord
+        - deckId
+        - state
+        - suspended
+        - dueDate
+        - dueAt
+        - stability
+        - difficulty
+        - reps
+        - lapses
+        - lastReviewAt
+        - modifiedAt
+      description: |
+        A card's schedule and deck. A due crosses as a calendar date or an exact
+        instant, never as an Anki day number, so neither app's rollover or time zone
+        moves it: a card in review and a learning step that crossed the rollover have
+        `dueDate`; a learning step within the day has `dueAt`; a new card has neither.
+      properties:
+        guid:
+          type: string
+          minLength: 1
+          maxLength: 64
+        ord:
+          type: integer
+          minimum: 0
+        deckId:
+          type:
+            - integer
+            - 'null'
+          description: |
+            The Shirabe deck the card is in. From the add-on, null when the card sits
+            outside the Shirabe deck tree in Anki (dragged out, or into a deck made in
+            Anki): Shirabe keeps its own deck and sends the card back with it.
+        state:
+          type: string
+          enum:
+            - new
+            - learning
+            - review
+            - relearning
+        suspended:
+          type: boolean
+        dueDate:
+          type:
+            - string
+            - 'null'
+          format: date
+        dueAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        stability:
+          type:
+            - number
+            - 'null'
+          exclusiveMinimum: 0
+        difficulty:
+          type:
+            - number
+            - 'null'
+          minimum: 1
+          maximum: 10
+        reps:
+          type: integer
+          minimum: 0
+        lapses:
+          type: integer
+          minimum: 0
+        lastReviewAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        modifiedAt:
+          type: string
+          format: date-time
+          description: When the card last changed on the sending side (Anki's card `mtime`, Shirabe's `updated_at`). The newer change wins when neither side reviewed.
+    AnkiSyncNote:
+      type: object
+      additionalProperties: false
+      required:
+        - guid
+        - kind
+        - fields
+        - modifiedAt
+      description: |
+        A Shirabe-type note. From the add-on: the Shirabe-owned fields a learner may
+        edit, with the note's modification time; a guid Shirabe has never seen is a
+        note created in Anki with a Shirabe note type, and is created (in `deckId`).
+        From Shirabe: every field, derived ones included, which the add-on writes
+        over whatever Anki holds.
+      properties:
+        guid:
+          type: string
+          minLength: 1
+          maxLength: 64
+        kind:
+          type: string
+          enum:
+            - vocab
+          description: The Shirabe note kind, read from the note type's `shirabe` marker.
+        deckId:
+          type:
+            - integer
+            - 'null'
+          description: 'Where a note created in Anki goes: the Shirabe deck its first card is in.'
+        fields:
+          type: object
+          maxProperties: 32
+          additionalProperties:
+            type: string
+            maxLength: 65536
+          description: Field values keyed by field name.
+        modifiedAt:
+          type: string
+          format: date-time
+          description: The note's last change on the sending side (Anki's note `mtime`). Each field that differs takes the side whose change is newer.
+    AnkiSyncGrave:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+      description: |
+        A deletion marker. A note deleted in Anki (or moved to a note type that is not
+        Shirabe's) is trashed in Shirabe; a note or deck deleted in Shirabe is removed
+        from Anki. A deletion wins over any edit; a restored note comes back with a new
+        guid. Only Shirabe sends deck graves.
+      properties:
+        kind:
+          type: string
+          enum:
+            - note
+            - deck
+        guid:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: The note's guid, for a note grave.
+        deckId:
+          type: integer
+          description: The Shirabe deck id, for a deck grave.
+    AnkiSyncRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - collection
+        - cursor
+        - noteTypes
+        - reviews
+        - cards
+        - notes
+        - graves
+      description: |
+        One page of the add-on's changes since its last sync, and the cursor of what it
+        has already pulled. At most 500 rows across `reviews`, `cards`, `notes` and
+        `graves`. A card's reviews travel in the same page as the card or an earlier one,
+        and a note created in Anki before its cards.
+      properties:
+        collection:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - ankiVersion
+            - rollover
+            - timeZone
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: Minted by the add-on at pairing and kept in the collection's config, so it travels with the collection through AnkiWeb and backups.
+            ankiVersion:
+              type: string
+              pattern: ^\d+\.\d+(\.\d+)?$
+              example: 26.08.1
+            rollover:
+              type: integer
+              minimum: 0
+              maximum: 23
+              description: Anki's `rollover` hour.
+            timeZone:
+              type: string
+              description: The desktop's IANA zone.
+              example: Europe/Madrid
+        cursor:
+          type:
+            - string
+            - 'null'
+          maxLength: 512
+          description: The `cursor` of the last response, stored verbatim. Null on a collection's first sync.
+        noteTypes:
+          type: array
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/AnkiSyncNoteType'
+        reviews:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AnkiSyncReview'
+        cards:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AnkiSyncCard'
+        notes:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AnkiSyncNote'
+        graves:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AnkiSyncGrave'
+    AnkiSyncDeck:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - modifiedAt
+      description: A Shirabe deck, mirrored under the one Shirabe deck tree in Anki. Decks are created, renamed and deleted in Shirabe only.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          description: The full Anki deck name, `::` between levels, under the tree's root.
+          example: Shirabe::Core 2k
+        modifiedAt:
+          type: string
+          format: date-time
+    AnkiSyncRefusedRow:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - code
+        - detail
+      description: |
+        A row of the page Shirabe did not apply, and why. The rest of the page was
+        applied. Every refusal is final for that row as sent: sending it again is
+        refused again.
+      properties:
+        kind:
+          type: string
+          enum:
+            - review
+            - card
+            - note
+            - grave
+        guid:
+          type: string
+        ord:
+          type: integer
+        id:
+          type: integer
+          format: int64
+          description: The revlog id, for a review.
+        code:
+          type: string
+          enum:
+            - UNKNOWN_NOTE
+            - NOTE_DELETED
+            - FIELD_NOT_EDITABLE
+            - DECK_NOT_IN_TREE
+            - NOT_A_GRADED_REVIEW
+          description: |
+            `UNKNOWN_NOTE`: a card or review for a guid Shirabe does not hold; send the
+            note first. `NOTE_DELETED`: the note was deleted in Shirabe, and deletion
+            wins. `FIELD_NOT_EDITABLE`: a field Shirabe derives, which only travels
+            from Shirabe. `DECK_NOT_IN_TREE`: the card sits outside the Shirabe deck
+            tree; this response's `cards` carries it with its Shirabe deck.
+            `NOT_A_GRADED_REVIEW`: a cram, manual or rescheduled row.
+        detail:
+          type: string
+    AnkiSyncResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - cursor
+        - more
+        - clock
+        - preset
+        - noteTypes
+        - decks
+        - notes
+        - cards
+        - reviews
+        - graves
+        - refused
+      description: |
+        What Shirabe applied from the page, and one page of Shirabe's changes since the
+        request's cursor. The add-on applies the pull, then stores `cursor`; while
+        `more` is true it sends another request (with its next push rows, or none).
+      properties:
+        cursor:
+          type: string
+          description: Opaque. Store it and send it back.
+        more:
+          type: boolean
+          description: Shirabe has more changes after this cursor.
+        clock:
+          type: object
+          additionalProperties: false
+          required:
+            - rollover
+            - timeZone
+            - diverged
+          description: |
+            Shirabe's study day for the account. On a collection's first sync Shirabe
+            adopts the collection's rollover and zone; `diverged` is true when they
+            differ later, and both apps warn.
+          properties:
+            rollover:
+              type: integer
+              minimum: 0
+              maximum: 23
+            timeZone:
+              type: string
+            diverged:
+              type: boolean
+        preset:
+          type: object
+          additionalProperties: false
+          required:
+            - params
+            - retention
+            - learningSteps
+            - relearningSteps
+            - maxInterval
+          description: The FSRS preset the add-on keeps on the Shirabe deck tree, so both apps schedule with the same parameters.
+          properties:
+            params:
+              type: array
+              minItems: 21
+              maxItems: 21
+              items:
+                type: number
+            retention:
+              type: number
+              minimum: 0.7
+              maximum: 0.99
+            learningSteps:
+              type: array
+              items:
+                type: number
+              description: Minutes.
+            relearningSteps:
+              type: array
+              items:
+                type: number
+              description: Minutes.
+            maxInterval:
+              type: integer
+              minimum: 1
+              maximum: 36500
+        noteTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnkiSyncNoteType'
+        decks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnkiSyncDeck'
+        notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnkiSyncNote'
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnkiSyncCard'
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnkiSyncReview'
+        graves:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnkiSyncGrave'
+        refused:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnkiSyncRefusedRow'
+    AnkiSyncProblem:
+      type: object
+      description: |
+        The whole page was refused and nothing in it was applied. These codes move
+        into `Error409`, `Error413` and `Error422` when the endpoint emits them.
+      required:
+        - type
+        - title
+        - status
+        - code
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          enum:
+            - 409
+            - 413
+            - 422
+        detail:
+          type: string
+        code:
+          type: string
+          enum:
+            - ANKI_NOTE_TYPE_CHANGED
+            - SYNC_PAGE_TOO_LARGE
+            - ANKI_VERSION_UNSUPPORTED
+          description: |
+            `ANKI_NOTE_TYPE_CHANGED` (409): a Shirabe note type's fields in Anki are not
+            Shirabe's, by name and order (a rename leaves Anki's schema stamp
+            unchanged, so names are compared). The add-on stops syncing that kind and
+            offers Repair. `SYNC_PAGE_TOO_LARGE` (413): over 500 rows, or a body over
+            2 MiB. `ANKI_VERSION_UNSUPPORTED` (422): Anki older than 26.08.1.
+        instance:
+          type: string
+        noteTypes:
+          type: array
+          description: For `ANKI_NOTE_TYPE_CHANGED`, the field names Shirabe expects and the ones the add-on reported.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - kind
+              - expected
+              - seen
+            properties:
+              kind:
+                type: string
+              expected:
+                type: array
+                items:
+                  type: string
+              seen:
+                type: array
+                items:
+                  type: string
     DictionarySelection:
       type: array
       minItems: 1
@@ -8166,8 +9673,10 @@ components:
       required: false
       description: |
         Unique retry key, scoped to this credential and operation for 24 hours.
-        Repeating the same request returns the original response without applying it
-        again. Reusing the key with another body returns `409`.
+        Repeating the same request returns the original successful response without
+        applying it again. Reusing the key for a different request (its query string
+        or body), or while the first request is still running, returns `409`. A
+        request that did not succeed keeps no receipt, so its retry runs again.
       schema:
         type: string
         minLength: 1
@@ -8502,6 +10011,7 @@ x-tagGroups:
       - Decks
       - Progress
       - Notes
+      - Anki sync
   - name: User
     tags:
       - Account

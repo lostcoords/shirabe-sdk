@@ -2448,10 +2448,11 @@ function renderActions(word: HTMLElement, wrap: HTMLElement, def: Definition | n
   // An ignored word has no card, so it can still be saved or marked known.
   const saved = state !== "none" && state !== "ignored";
 
-  if (saved && word.dataset.deckNames) {
+  const decks = saved ? backend().study?.deckNames?.(word) ?? [] : [];
+  if (decks.length) {
     const membership = document.createElement("div");
     membership.className = "sb-membership";
-    membership.textContent = `Saved in ${word.dataset.deckNames}`;
+    membership.textContent = `Saved in ${decks.join(", ")}`;
     wrap.append(membership);
   }
   if (state === "ignored") {

@@ -296,8 +296,9 @@ export function createLink(options: LinkOptions): Link {
 
     // The server states the polling interval and RFC 8628 says to obey it,
     // including the `slow_down` that widens it: polling faster gets the whole
-    // attempt rejected rather than answered sooner.
-    let interval = live.interval * 1000;
+    // attempt rejected rather than answered sooner. A server answering 0 still
+    // gets one poll a second, so a bad answer cannot turn the card into a loop.
+    let interval = Math.max(live.interval, 1) * 1000;
 
     while (now() < live.expiresAt) {
       await sleep(interval, signal);
