@@ -196,14 +196,8 @@ function applyCustomCss(css: string): void {
   style.textContent = css;
 }
 
-// The ticked sense positions to save, or undefined for the whole word (no
-// picker, or every sense left ticked). Only a genuine subset scopes the card.
-// A sense the API served names its own dictionary. The offline pack does not,
-// and it ships JMdict alone, so that is the book its numbering belongs to.
-function senseRef(sense: Sense): string {
-  return sense.ref ?? `jmdict#${sense.position}`;
-}
-
+// The ticked sense refs to save, or undefined for the whole word (no picker, or
+// every sense left ticked). Only a genuine subset scopes the card.
 function pickedSenses(): string[] | undefined {
   if (!sensePicks.length) return undefined;
   const ticked = sensePicks.filter((box) => box.checked).map((box) => box.dataset.ref!).filter(Boolean);
@@ -1941,14 +1935,14 @@ function senseItem(def: Definition, sense: Sense, marker: string, pickable: bool
   // would land on the card that exists, so the row says so instead of inviting
   // a second click. `pickedSenses` reads only the boxes that are left, so an
   // all-covered word simply has no picker to disagree with.
-  const saved = covered === "all" || covered.has(senseRef(sense));
+  const saved = covered === "all" || covered.has(sense.ref);
   if (saved) li.classList.add("sb-sense-saved");
   if (pickable && !saved) {
     const box = document.createElement("input");
     box.type = "checkbox";
     box.checked = !sense.covered;
     box.className = "sb-sense-pick";
-    box.dataset.ref = senseRef(sense);
+    box.dataset.ref = sense.ref;
     // Reference the gloss, not a sense number: the picker hides the list's
     // ordinals, so a number here would have no visible counterpart.
     box.setAttribute("aria-label", `Include "${senseText(sense)}" when saving`);

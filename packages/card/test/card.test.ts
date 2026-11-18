@@ -1422,7 +1422,7 @@ test("choosing a noun homophone replaces the copula study base and explanation",
   const conditional = { ...taberu, headword: "なら", reading: "なら", entry: "jmdict:1009470",
     sourceForm: "なら", inflection: ["conditional (〜なら)"], inflectionBase: "だ" };
   const oak: typeof kimi = { ...kimi, headword: "楢", reading: "なら", entry: "jmdict:oak",
-    senses: [{ position: 0, glosses: [{ lang: "eng", tag: "EN", text: "oak" }],
+    senses: [{ ref: "jmdict#0", position: 0, glosses: [{ lang: "eng", tag: "EN", text: "oak" }],
       partsOfSpeech: [{ label: "Noun", code: "n", category: "pos" }], tags: [] }] };
   const host = fakeHost({ definitions: { "なら": conditional, "楢": oak }, details: { "だ": studied } });
   host.lookup = async () => ({ status: "found", definition: conditional, candidates: [
@@ -1947,4 +1947,43 @@ test("only one word is marked at a time", async () => {
 
   assert.equal(first.classList.contains("sb-word-open"), false, "the word you moved off is released");
   assert.ok(second.classList.contains("sb-word-open"));
+});
+
+// Two dictionaries both number their senses from 0, so a sense is only
+// identified by its ref. The picker must send the ref it was drawn with and read
+// the word's saved refs the same way: JMdict ① saved says nothing about the
+// second book's ①.
+test("the sense picker saves and marks senses by their own dictionary's ref", async () => {
+  const { card, window } = await page();
+  const gloss = (text: string) => [{ lang: "eng" as const, tag: "EN", text }];
+  const definition = { ...taberu, senses: [
+    { ref: "jmdict#0", position: 0, dictionary: "JMdict", sourceEntry: "jmdict:1358280", glosses: gloss("to eat"), partsOfSpeech: [], tags: [] },
+    { ref: "jmdict#1", position: 1, dictionary: "JMdict", sourceEntry: "jmdict:1358280", glosses: gloss("to live on"), partsOfSpeech: [], tags: [] },
+    { ref: "yomitan-c89af#0", position: 0, dictionary: "大辞林", sourceEntry: "yomitan-c89af:42", glosses: gloss("食物を口に入れる"), partsOfSpeech: [], tags: [] },
+  ] };
+  const host = fakeHost({ definitions: { "食べる": definition } });
+  const saved: Array<string[] | undefined> = [];
+  host.study!.save = async (_word, senses) => {
+    saved.push(senses);
+    return { ok: true, message: "Saved" };
+  };
+  card.setCardHost(host);
+  card.setWriteState({ connected: true, canWrite: true });
+  try {
+    const target = await word("食べる");
+    target.dataset.savedSenses = "jmdict#0";
+    card.showNow(target);
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    const boxes = [...shadow.querySelectorAll(".sb-sense-pick")] as unknown as HTMLInputElement[];
+    assert.deepEqual(boxes.map((box) => box.dataset.ref), ["jmdict#1", "yomitan-c89af#0"], "JMdict ① is saved; the other book's ① is not");
+    assert.equal(shadow.querySelectorAll(".sb-sense-saved").length, 1);
+    boxes[0]!.checked = false;
+    (shadow.querySelector(".sb-btn-save") as unknown as HTMLElement).click();
+    await settle();
+    assert.deepEqual(saved, [["yomitan-c89af#0"]]);
+  } finally {
+    card.setWriteState({ connected: false, canWrite: false });
+    card.dismissPopup();
+  }
 });

@@ -15,12 +15,14 @@ export const taberu: Definition = {
   pitch: [{ downstep: 2, audioUrl: "https://cdn.shirabe.org/audio/abc123.opus" }],
   senses: [
     {
+      ref: "jmdict#0",
       position: 0,
       glosses: [{ lang: "eng", tag: "EN", text: "to eat" }],
       partsOfSpeech: [{ label: "Ichidan verb", code: "v1", category: "pos" }],
       tags: [],
     },
     {
+      ref: "jmdict#1",
       position: 1,
       glosses: [{ lang: "eng", tag: "EN", text: "to live on (e.g. a salary)" }],
       partsOfSpeech: [{ label: "Ichidan verb", code: "v1", category: "pos" }],
@@ -43,6 +45,7 @@ export const kimi: Definition = {
   frequency: 205,
   pitch: [{ downstep: 0, audioUrl: null }],
   senses: [{
+    ref: "jmdict#0",
     position: 0,
     glosses: [{ lang: "eng", tag: "EN", text: "you" }],
     partsOfSpeech: [{ label: "Pronoun", code: "pn", category: "pos" }],

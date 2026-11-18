@@ -49,8 +49,9 @@ export type UsageRow = GlossRow;
 // One dictionary sense, mirroring how shirabe.org renders a meaning: POS chips,
 // misc/field/dialect chips, and the meaning in each language on its own row.
 export type Sense = {
-  /** How a save names this sense: `"<dictionary slug>#<its own number>"`, sent back in `senses`. */
-  ref?: string;
+  /** How a save names this sense: `"<dictionary slug>#<its own number>"`, sent back in `senses`
+      and compared against a word's `savedSenses`. */
+  ref: string;
   /** 0-based sense position within its own entry, for display and ordering. */
   position: number;
   /** The publisher's marker, when it supplied one (for example `一㋐`). */

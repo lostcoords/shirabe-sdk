@@ -5,7 +5,7 @@ import type { Sense } from "../src/word-card/types.js";
 
 test("definition export escapes dictionary content and keeps language, usage, and note rows", () => {
   const sense = {
-    position: 0, partsOfSpeech: [], tags: [],
+    ref: "jmdict#0", position: 0, partsOfSpeech: [], tags: [],
     glosses: [{ lang: "jpn", tag: "JA", text: "<script>bad</script>", title: "意味" }],
     usages: [{ lang: "jpn", tag: "JA", text: "用例 & 説明" }],
     notes: ["<note>"],

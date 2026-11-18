@@ -1,6 +1,7 @@
 import type { Definition } from "../src/word-card/types.js";
 
 const sense = (text: string, pos: string, code: string, position = 0) => ({
+  ref: `jmdict#${position}`,
   position,
   glosses: [{ lang: "eng" as const, tag: "EN", text }],
   partsOfSpeech: [{ label: pos, code, category: "pos" as const }],
