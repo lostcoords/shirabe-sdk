@@ -6,10 +6,13 @@ import type { GlossLanguage } from "./languages.js";
 import type { TagPresentation } from "./legend.js";
 export type { GlossLanguage };
 
-export type WordState = "none" | "new" | "learning" | "due" | "suspended" | "retired";
+/** `ignored` is a word with no card that the learner chose never to study. */
+export type WordState = "none" | "new" | "learning" | "due" | "suspended" | "retired" | "ignored";
+
+const WORD_STATES: ReadonlySet<string> = new Set<WordState>(["new", "learning", "due", "suspended", "retired", "ignored"]);
 
 export function cardWordState(raw: string | undefined): WordState {
-  return raw === "new" || raw === "learning" || raw === "due" || raw === "suspended" || raw === "retired" ? raw : "none";
+  return raw && WORD_STATES.has(raw) ? raw as WordState : "none";
 }
 
 // One token as the content script needs it: where it sits in the source text

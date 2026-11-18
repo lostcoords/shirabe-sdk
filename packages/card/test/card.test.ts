@@ -1987,3 +1987,31 @@ test("the sense picker saves and marks senses by their own dictionary's ref", as
     card.dismissPopup();
   }
 });
+
+test("an unsaved word offers Ignore beside Known, and an ignored word can still be saved", async () => {
+  const { card, window } = await page();
+  const host = fakeHost({ definitions: { "君": kimi } });
+  const ignored: string[] = [];
+  host.study!.ignore = async (target) => {
+    ignored.push(target.dataset.lemma ?? "");
+    target.dataset.state = "ignored";
+    return { ok: true, message: "Ignored 君" };
+  };
+  card.setCardHost(host);
+  card.setWriteState({ connected: true, canWrite: true });
+  try {
+    card.showNow(await word("君"));
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    const labels = () => [...shadow.querySelectorAll(".sb-extra button")].map((control) => control.textContent?.replace(/[A-Z]$/, "").trim());
+    assert.deepEqual(labels(), ["＋ Save", "Add details…", "✓ Known", "Ignore"]);
+    (shadow.querySelector(".sb-extra .sb-btn-ghost:last-child") as unknown as HTMLElement).click();
+    await settle();
+    assert.deepEqual(ignored, ["君"]);
+    assert.deepEqual(labels(), ["＋ Save", "Add details…", "✓ Known"], "ignoring is done; saving it later is not");
+    assert.match(shadow.querySelector(".sb-membership")?.textContent ?? "", /Ignored/);
+  } finally {
+    card.setWriteState({ connected: false, canWrite: false });
+    card.dismissPopup();
+  }
+});

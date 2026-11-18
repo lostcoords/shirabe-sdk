@@ -72,6 +72,7 @@ export type CardEvent =
   | "lookup_link_opened"
   | "word_saved"
   | "word_known"
+  | "word_ignored"
   | "save_refused";     // the write came back refused, `reason` says which
 
 export type LookupContext = {
@@ -113,12 +114,14 @@ export type StudyPort = {
   urlForWord(word: HTMLElement): Promise<string | undefined>;
   apply(word: HTMLElement, details: StudyDetails): void;
 
-  /** All three are optional, and a host that cannot do one gets no button for
+  /** Every write is optional, and a host that cannot do one gets no button for
       it rather than a button that refuses. An Anki card has none of them: the
       collection is where its reviews live, and the client it signs in as is
       refused a write by the server whatever it asks for. */
   save?(word: HTMLElement, senses?: string[]): Promise<Outcome>;
   markKnown?(word: HTMLElement): Promise<Outcome>;
+  /** Never study this word: no card, and no mark on the page. */
+  ignore?(word: HTMLElement): Promise<Outcome>;
   grade?(word: HTMLElement, rating: Rating): Promise<Outcome>;
 
   /** The full save form, which needs decks, a screenshot and the account: all

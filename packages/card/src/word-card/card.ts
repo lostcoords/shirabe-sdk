@@ -823,7 +823,7 @@ async function refreshReadOnlyStudy(target: PopupTarget, mine: number, status: H
     }
     study.apply(target.word, details);
     const labels: Record<StudyDetails["state"], string> = {
-      none: "Not saved", new: "New", learning: "Learning", due: "Due", suspended: "Suspended", retired: "Retired",
+      none: "Not saved", new: "New", learning: "Learning", due: "Due", suspended: "Suspended", retired: "Retired", ignored: "Ignored",
     };
     status.textContent = `${study.source ?? "Shirabe"} · ${labels[details.state]}`;
     status.setAttribute("aria-label", "Study status");
@@ -2443,12 +2443,20 @@ async function openCardForm(word: HTMLElement, wrap: HTMLElement, def: Definitio
 
 function renderActions(word: HTMLElement, wrap: HTMLElement, def: Definition | null = null): void {
   wrap.replaceChildren();
-  const saved = (word.dataset.state ?? "none") !== "none";
+  const state = word.dataset.state ?? "none";
+  // An ignored word has no card, so it can still be saved or marked known.
+  const saved = state !== "none" && state !== "ignored";
 
   if (saved && word.dataset.deckNames) {
     const membership = document.createElement("div");
     membership.className = "sb-membership";
     membership.textContent = `Saved in ${word.dataset.deckNames}`;
+    wrap.append(membership);
+  }
+  if (state === "ignored") {
+    const membership = document.createElement("div");
+    membership.className = "sb-membership";
+    membership.textContent = "Ignored: you chose not to study this word";
     wrap.append(membership);
   }
 
@@ -2477,6 +2485,9 @@ function renderActions(word: HTMLElement, wrap: HTMLElement, def: Definition | n
   // Only a host that can actually mark a word known offers it.
   if (backend().study?.markKnown) {
     extra.append(button("✓ Known", "sb-btn-known", "K", () => run(word, wrap, () => backend().study!.markKnown!(word), def, "word_known")));
+  }
+  if (state === "none" && backend().study?.ignore) {
+    extra.append(button("Ignore", "sb-btn-ghost", "I", () => run(word, wrap, () => backend().study!.ignore!(word), def, "word_ignored")));
   }
   wrap.append(extra);
 
