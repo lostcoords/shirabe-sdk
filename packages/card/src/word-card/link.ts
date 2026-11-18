@@ -286,7 +286,7 @@ export function createLink(options: LinkOptions): Link {
         device_code: started.device_code,
         user_code: started.user_code,
         verification_uri: started.verification_uri_complete || started.verification_uri,
-        interval: Number(started.interval || 5),
+        interval: Number(started.interval ?? 5),
         expiresAt: now() + Number(started.expires_in || 600) * 1000,
       };
       remember(live);
