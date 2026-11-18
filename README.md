@@ -19,6 +19,8 @@ npm run check
 npx playwright install chromium
 npm run test:theme --workspace @shirabe-org/card
 npm run test:lookup --workspace @shirabe-org/card
+npm run test:review --workspace @shirabe-org/card
+npm run test:sign-in --workspace @shirabe-org/card
 ```
 
 `packages/api/openapi/shirabe.bundled.yaml` is the reviewed service contract snapshot used for client generation. Update it from a file or URL with:

@@ -1,19 +1,14 @@
 import assert from "node:assert/strict";
 import test, { before } from "node:test";
-import { Window } from "happy-dom";
 import { apiHost } from "../src/word-card/api-host.js";
 import type { LookupResult } from "../src/word-card/host.js";
 import { fakeHost } from "./fake-host.js";
 import { kimi, taberu } from "./fixtures.js";
+import { installWindow, settle } from "./dom.js";
 
-const window = new Window({ url: "https://example.test" });
-Object.assign(globalThis, {
-  window, document: window.document, HTMLElement: window.HTMLElement, Node: window.Node,
-  NodeFilter: window.NodeFilter, DOMRect: window.DOMRect, getComputedStyle: window.getComputedStyle.bind(window),
-});
+installWindow();
 let card: typeof import("../src/word-card/card.js");
 before(async () => { card = await import("../src/word-card/card.js"); });
-const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0)); };
 const shadow = () => document.querySelector(".sb-host")!.shadowRoot!;
 function button(root: ParentNode, name: string): HTMLButtonElement {
   const found = [...root.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === name || button.getAttribute("aria-label") === name);

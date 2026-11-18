@@ -2,13 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createLink } from "../src/word-card/link.js";
 import { apiHost } from "../src/word-card/api-host.js";
+import { installWindow } from "./dom.js";
 
 // The sign-in prompt is a node the reader taps, so building it needs a document.
-test.before(async () => {
-  const { Window } = await import("happy-dom");
-  const window = new Window({ url: "https://example.test/card" });
-  Object.assign(globalThis, { window, document: window.document, Node: window.Node });
-});
+test.before(() => { installWindow("https://example.test/card"); });
 
 // A `localStorage` in a Map, so a test can watch what is kept as well as what
 // is sent.
@@ -315,13 +312,7 @@ test("a 401 becomes a step the reader can take, not a failed lookup", async () =
 // script runs again on every flip and every card. Attaching twice used to mean
 // two sets of listeners, and after ten cards a hover opened ten.
 test("attaching again processes the page without stacking listeners", async () => {
-  const { Window } = await import("happy-dom");
-  const window = new Window({ url: "https://example.test/card" });
-  Object.assign(globalThis, {
-    window, document: window.document, HTMLElement: window.HTMLElement, Document: window.Document,
-    Node: window.Node, NodeFilter: window.NodeFilter, DOMRect: window.DOMRect,
-    getComputedStyle: window.getComputedStyle.bind(window),
-  });
+  const window = installWindow("https://example.test/card");
   const { default: ShirabeCard } = await import("../src/standalone.js");
 
   let lookups = 0;

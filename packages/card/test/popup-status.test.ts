@@ -1,18 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Window } from "happy-dom";
 import type { StudyDetails } from "../src/word-card/types.js";
 import { fakeHost } from "./fake-host.js";
 import { taberu } from "./fixtures.js";
+import { installWindow, settle } from "./dom.js";
 
-const window = new Window({ url: "https://example.test" });
-Object.assign(globalThis, {
-  window, document: window.document, HTMLElement: window.HTMLElement,
-  Node: window.Node, NodeFilter: window.NodeFilter, DOMRect: window.DOMRect,
-  getComputedStyle: window.getComputedStyle.bind(window),
-});
-
-const settle = async () => { for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setTimeout(resolve, 0)); };
+installWindow();
 
 test("prepared lookup badge shows its saved date online or offline without inventing freshness or an upsell", async () => {
   const card = await import("../src/word-card/card.js");

@@ -27,7 +27,7 @@ const bundle = await build({
       window.begin = theme => {
         const link = createLink({apiBase: location.origin, clientId: "test-client", storage: localStorage,
           fetch: async url => {
-            if (String(url).endsWith("/device_authorization")) {
+            if ((url instanceof Request ? url.url : String(url)).endsWith("/device_authorization")) {
               window.starts += 1;
               return Response.json({device_code: "private-device-code", user_code: "FST7-4RZ3",
                 verification_uri_complete: location.origin + "/link?code=FST7-4RZ3", expires_in: 600, interval: 0.05});

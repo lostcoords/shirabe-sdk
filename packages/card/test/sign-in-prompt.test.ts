@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Window } from "happy-dom";
+import { installWindow } from "./dom.js";
 import { createLink } from "../src/word-card/link.js";
 
 test("each device-flow prompt exposes selectable URL and code without clipboard or app launching", async () => {
-  const window = new Window({ url: "https://example.test" });
-  Object.assign(globalThis, { document: window.document, window, Node: window.Node });
+  const window = installWindow();
   Object.defineProperty(window.navigator, "clipboard", { value: undefined });
   const verification = "https://shirabe.org/link?code=FST7-4RZ3";
   const link = createLink({ apiBase: "https://shirabe.org", clientId: "c", storage: window.localStorage, fetch: async (url) => Response.json(

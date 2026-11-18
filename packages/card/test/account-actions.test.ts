@@ -1,17 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Window } from "happy-dom";
 import { accountActions } from "../src/word-card/account-actions.js";
 import { fakeHost } from "./fake-host.js";
 import { taberu } from "./fixtures.js";
+import { installWindow, settle } from "./dom.js";
 
-const window = new Window({ url: "https://example.test" });
-Object.assign(globalThis, {
-  window, document: window.document, HTMLElement: window.HTMLElement,
-  Node: window.Node, NodeFilter: window.NodeFilter, DOMRect: window.DOMRect,
-  getComputedStyle: window.getComputedStyle.bind(window),
-});
-const settle = async () => { for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setTimeout(resolve, 0)); };
+installWindow();
 
 test("sign-out requires explicit confirmation; Cancel changes no account state and restores summary focus", () => {
   let calls = 0;

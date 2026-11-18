@@ -1,19 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { CardToken, WordCardHost } from "../src/word-card/host.js";
+import { installWindow } from "./dom.js";
 
 // Wrapping edits a real DOM, so the test needs one.
 let shared: Promise<typeof import("../src/word-card/wrap.js")> | null = null;
 async function load() {
   if (!shared) {
     shared = (async () => {
-      const { Window } = await import("happy-dom");
-      const window = new Window({ url: "https://anki.test/card" });
-      Object.assign(globalThis, {
-        window, document: window.document, HTMLElement: window.HTMLElement,
-        Node: window.Node, NodeFilter: window.NodeFilter, DocumentFragment: window.DocumentFragment,
-        getComputedStyle: window.getComputedStyle.bind(window),
-      });
+      installWindow("https://anki.test/card");
       return import("../src/word-card/wrap.js");
     })();
   }

@@ -1,16 +1,11 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { Window } from "happy-dom";
 import { MAX_SNAPSHOT_BYTES, snapshotHash, snapshotHost, validateSnapshot } from "../src/word-card/snapshot-host.js";
 import { fakeHost } from "./fake-host.js";
+import { installWindow, settle } from "./dom.js";
 
-const window = new Window({ url: "https://example.test" });
+const window = installWindow();
 let card: typeof import("../src/word-card/card.js") | undefined;
-Object.assign(globalThis, {
-  window, document: window.document, HTMLElement: window.HTMLElement, Node: window.Node,
-  DOMRect: window.DOMRect, getComputedStyle: window.getComputedStyle.bind(window),
-});
-const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(resolve => setTimeout(resolve, 0)); };
 const notice = "Sentences and translations from Tatoeba contributors (CC BY 2.0 FR).";
 const references = ["https://tatoeba.org/en/sentences/show/7", "https://tatoeba.org/en/sentences/show/8"];
 const licenseUrl = "https://creativecommons.org/licenses/by/2.0/fr/";

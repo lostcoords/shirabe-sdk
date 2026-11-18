@@ -47,7 +47,8 @@
     "build:playground": "node -e \"import(\"esbuild\").then(e=>e.build({entryPoints:{main:\"playground/main.ts\"},bundle:true,format:\"esm\",outdir:\"playground\"}))\"",
     "build:cdn": "esbuild src/standalone.ts --bundle --format=iife --minify --outfile=dist/shirabe-card.js",
     "prepack": "npm run build",
-    "test:review": "node test/lookup-review-browser.mjs"
+    "test:review": "node test/lookup-review-browser.mjs",
+    "test:sign-in": "node test/sign-in-browser.mjs"
   },
   "dependencies": {
     "@shirabe-org/api": "0.8.0"
