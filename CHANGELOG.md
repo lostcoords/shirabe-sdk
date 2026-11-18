@@ -1,12 +1,25 @@
 # Changelog
 
-## Unreleased
+## API 0.9.0
 
-- API 0.8.0: `setWordState` is gone. Mark a word known with `markWordKnown` and take it back with `unmarkWordKnown`; stop ignoring a word with `unignoreWord`. `ignoreWord`, `markWordKnown` and `gradeCard` take an `Idempotency-Key`. `saveCard` and `markWordKnown` no longer take `newDeckName`: create the deck first with `createDeck`. A parsed token's `study` block is typed as the word state it carries.
-- Card: `escapeHtml`, `renderDefinitionHtml`, `renderPitchHtml` and `pitchCategory` are gone. Nothing called them.
-- Card 0.3.0: a host with `study.unmarkKnown` offers Not known on a known word, and one with `study.unignore` offers Stop ignoring on an ignored word, each in place of the button that set it.
-- Card: a host with `study.ignore` gets an Ignore button beside Known for an unsaved word. `WordState` gains `ignored`, a word with no card the learner chose never to study; it is unmarked and can still be saved.
-- Card: `Sense.ref` is required, and the sense picker no longer guesses `jmdict#<position>` for a sense without one. A host names each sense by its own dictionary, so a pick from a second stacked dictionary saves and shows as saved under that dictionary.
+Generated from Shirabe contract 0.9.0. This is the first API release since 0.6.1, and it breaks callers.
+
+- The Anki sync operations are gone: all 25 calls under `/srs/anki/profiles`, among them `pairAnkiProfile`, `unlinkAnkiProfile`, `startAnkiSnapshot`, `applyAnkiBatch`, `deliverAnkiChanges`, `acknowledgeAnkiChanges` and the media, conflict, note deletion and review undo calls, with their types (`AnkiSyncProfile`, `AnkiSyncBatchRequest`, `AnkiMediaFile`, `AnkiNoteDeletion`, `AnkiReviewUndo` and the rest).
+- `saveCard` no longer answers 409, `Error409.code` no longer includes `SYNC_CONFLICT`, and `StudySession` no longer has `limited`.
+- `setWordState` is gone. Mark a word known with `markWordKnown` and take it back with `unmarkWordKnown`; stop ignoring a word with `unignoreWord`. `ignoreWord`, `markWordKnown` and `gradeCard` take an `Idempotency-Key`. `saveCard` and `markWordKnown` no longer take `newDeckName`: create the deck first with `createDeck`. A parsed token's `study` block is typed as the word state it carries.
+
+## Card 0.3.0
+
+Depends on exactly `@shirabe-org/api` 0.9.0. Breaks hosts that relied on a guessed sense ref or the removed helpers.
+
+- `Sense.ref` is required, and the sense picker no longer guesses `jmdict#<position>` for a sense without one. A host names each sense by its own dictionary, so a pick from a second stacked dictionary saves and shows as saved under that dictionary.
+- A host with `study.ignore` gets an Ignore button beside Known for an unsaved word. `WordState` gains `ignored`, a word with no card the learner chose never to study; it is unmarked and can still be saved.
+- A host with `study.unmarkKnown` offers Not known on a known word, and one with `study.unignore` offers Stop ignoring on an ignored word, each in place of the button that set it.
+- `escapeHtml`, `renderDefinitionHtml`, `renderPitchHtml` and `pitchCategory` are gone. Nothing called them.
+- Sign-in polls the device flow at the interval the server states. An interval of 0 no longer waits 5 seconds; the 5 second default applies only when the server gives none.
+
+## Release workflow
+
 - Publish API and card SDK releases from a verified Shirabe production commit when its OpenAPI version increases. Backend dispatch replaces daily spec polling; manual package releases remain available.
 - Reject contract edits without an API version bump, wait for the API dependency before publishing the card, and resume partially completed releases without bumping versions again.
 

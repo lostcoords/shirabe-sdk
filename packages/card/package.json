@@ -51,7 +51,7 @@
     "test:sign-in": "node test/sign-in-browser.mjs"
   },
   "dependencies": {
-    "@shirabe-org/api": "0.8.0"
+    "@shirabe-org/api": "0.9.0"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
