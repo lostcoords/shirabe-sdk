@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AcknowledgeAnkiChangesData, AcknowledgeAnkiChangesErrors, AcknowledgeAnkiChangesResponses, ApplyAnkiBatchData, ApplyAnkiBatchErrors, ApplyAnkiBatchResponses, BulkAddSearchData, BulkAddSearchErrors, BulkAddSearchResponses, BulkUpdateCardsData, BulkUpdateCardsErrors, BulkUpdateCardsResponses, CallMcpData, CallMcpErrors, CallMcpResponses, CancelAnkiNoteDeletionData, CancelAnkiNoteDeletionErrors, CancelAnkiNoteDeletionResponses, CancelAnkiReviewUndoData, CancelAnkiReviewUndoErrors, CancelAnkiReviewUndoResponses, CreateDeckData, CreateDeckErrors, CreateDeckResponses, DeleteAnkiMediaFileData, DeleteAnkiMediaFileErrors, DeleteAnkiMediaFileResponses, DeleteCardData, DeleteCardErrors, DeleteCardResponses, DeleteDeckData, DeleteDeckErrors, DeleteDeckResponses, DeleteDictionaryData, DeleteDictionaryErrors, DeleteDictionaryImportData, DeleteDictionaryImportErrors, DeleteDictionaryImportResponses, DeleteDictionaryResponses, DeleteWordNoteData, DeleteWordNoteErrors, DeleteWordNoteResponses, DeliverAnkiChangesData, DeliverAnkiChangesErrors, DeliverAnkiChangesResponses, DownloadAnkiMediaFileData, DownloadAnkiMediaFileErrors, DownloadAnkiMediaFileResponses, DownloadShirabeDictionaryPackData, DownloadShirabeDictionaryPackErrors, DownloadShirabeDictionaryPackResponses, DueQueueData, DueQueueErrors, DueQueueResponses, EndStudySessionData, EndStudySessionErrors, EndStudySessionResponses, FinishAnkiSnapshotData, FinishAnkiSnapshotErrors, FinishAnkiSnapshotResponses, GetAnkiBatchReceiptData, GetAnkiBatchReceiptErrors, GetAnkiBatchReceiptResponses, GetAnkiCardConflictComparisonData, GetAnkiCardConflictComparisonErrors, GetAnkiCardConflictComparisonResponses, GetAnkiCardConflictData, GetAnkiCardConflictErrors, GetAnkiCardConflictResponses, GetAnkiDeliveryReceiptData, GetAnkiDeliveryReceiptErrors, GetAnkiDeliveryReceiptResponses, GetAnkiNoteConflictData, GetAnkiNoteConflictErrors, GetAnkiNoteConflictResponses, GetAnkiNoteDeletionData, GetAnkiNoteDeletionErrors, GetAnkiNoteDeletionResponses, GetAnkiReviewUndoData, GetAnkiReviewUndoErrors, GetAnkiReviewUndoResponses, GetCardData, GetCardErrors, GetCardResponses, GetCurrentDictionaryPackData, GetCurrentDictionaryPackErrors, GetCurrentDictionaryPackResponses, GetDictionaryImportData, GetDictionaryImportErrors, GetDictionaryImportResponses, GetDictionaryPackData, GetDictionaryPackErrors, GetDictionaryPackResponses, GetDictionaryStackData, GetDictionaryStackErrors, GetDictionaryStackResponses, GetForecastData, GetForecastErrors, GetForecastResponses, GetKanjiData, GetKanjiErrors, GetKanjiRadicalData, GetKanjiRadicalErrors, GetKanjiRadicalResponses, GetKanjiResponses, GetMeData, GetMeErrors, GetMeResponses, GetParseOperationData, GetParseOperationErrors, GetParseOperationResponses, GetPreferencesData, GetPreferencesErrors, GetPreferencesResponses, GetReaderHostRulesData, GetReaderHostRulesErrors, GetReaderHostRulesResponses, GetSentenceData, GetSentenceErrors, GetSentenceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetStudySessionData, GetStudySessionErrors, GetStudySessionResponses, GetWordData, GetWordErrors, GetWordResponses, GradeCardData, GradeCardErrors, GradeCardResponses, IdentifyWordData, IdentifyWordErrors, IdentifyWordResponses, IdentifyWordsData, IdentifyWordsErrors, IdentifyWordsResponses, IgnoreWordData, IgnoreWordErrors, IgnoreWordResponses, InspectMcpTransportData, InspectMcpTransportErrors, ListAnkiMediaFilesData, ListAnkiMediaFilesErrors, ListAnkiMediaFilesResponses, ListCardsData, ListCardsErrors, ListCardsResponses, ListDecksData, ListDecksErrors, ListDecksResponses, ListDictionariesData, ListDictionariesErrors, ListDictionariesResponses, ListDictionaryImportsData, ListDictionaryImportsErrors, ListDictionaryImportsResponses, ListDictionaryPacksData, ListDictionaryPacksErrors, ListDictionaryPacksResponses, ListKanjiComponentMatchesData, ListKanjiComponentMatchesErrors, ListKanjiComponentMatchesResponses, ListKanjiComponentsData, ListKanjiComponentsErrors, ListKanjiComponentsResponses, ListKanjiData, ListKanjiErrors, ListKanjiRadicalsData, ListKanjiRadicalsErrors, ListKanjiRadicalsResponses, ListKanjiResponses, ListSentencesData, ListSentencesErrors, ListSentencesResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListWordNotesData, ListWordNotesErrors, ListWordNotesResponses, LookupWordStatesData, LookupWordStatesErrors, LookupWordStatesResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, PairAnkiProfileData, PairAnkiProfileErrors, PairAnkiProfileResponses, ParseData, ParseErrors, ParseResponses, PrepareAnkiPublicationsData, PrepareAnkiPublicationsErrors, PrepareAnkiPublicationsResponses, RefreshAnkiCollectionSettingsData, RefreshAnkiCollectionSettingsErrors, RefreshAnkiCollectionSettingsResponses, ReplaceDictionaryStackData, ReplaceDictionaryStackErrors, ReplaceDictionaryStackResponses, RequestAnkiNoteDeletionData, RequestAnkiNoteDeletionErrors, RequestAnkiNoteDeletionResponses, RequestAnkiReviewUndoData, RequestAnkiReviewUndoErrors, RequestAnkiReviewUndoResponses, RevokeOwnKeyData, RevokeOwnKeyErrors, RevokeOwnKeyResponses, SaveCardData, SaveCardErrors, SaveCardResponses, SearchData, SearchErrors, SearchResponses, SelectAnkiDeckData, SelectAnkiDeckErrors, SelectAnkiDeckResponses, SetWordStateData, SetWordStateErrors, SetWordStateResponses, StartAnkiSnapshotData, StartAnkiSnapshotErrors, StartAnkiSnapshotResponses, StartStudySessionData, StartStudySessionErrors, StartStudySessionResponses, StudyStatsData, StudyStatsErrors, StudyStatsResponses, UndoLatestReviewData, UndoLatestReviewErrors, UndoLatestReviewResponses, UnlinkAnkiProfileData, UnlinkAnkiProfileErrors, UnlinkAnkiProfileResponses, UnsaveWordData, UnsaveWordErrors, UnsaveWordResponses, UpdateCardData, UpdateCardErrors, UpdateCardResponses, UpdateDeckData, UpdateDeckErrors, UpdateDeckResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UploadAnkiMediaFileData, UploadAnkiMediaFileErrors, UploadAnkiMediaFileResponses, UpsertWordNoteData, UpsertWordNoteErrors, UpsertWordNoteResponses } from './types.gen.js';
+import type { AcknowledgeAnkiChangesData, AcknowledgeAnkiChangesErrors, AcknowledgeAnkiChangesResponses, ApplyAnkiBatchData, ApplyAnkiBatchErrors, ApplyAnkiBatchResponses, BulkAddSearchData, BulkAddSearchErrors, BulkAddSearchResponses, BulkUpdateCardsData, BulkUpdateCardsErrors, BulkUpdateCardsResponses, CallMcpData, CallMcpErrors, CallMcpResponses, CancelAnkiNoteDeletionData, CancelAnkiNoteDeletionErrors, CancelAnkiNoteDeletionResponses, CancelAnkiReviewUndoData, CancelAnkiReviewUndoErrors, CancelAnkiReviewUndoResponses, CreateDeckData, CreateDeckErrors, CreateDeckResponses, DeleteAnkiMediaFileData, DeleteAnkiMediaFileErrors, DeleteAnkiMediaFileResponses, DeleteCardData, DeleteCardErrors, DeleteCardResponses, DeleteDeckData, DeleteDeckErrors, DeleteDeckResponses, DeleteDictionaryData, DeleteDictionaryErrors, DeleteDictionaryImportData, DeleteDictionaryImportErrors, DeleteDictionaryImportResponses, DeleteDictionaryResponses, DeleteWordNoteData, DeleteWordNoteErrors, DeleteWordNoteResponses, DeliverAnkiChangesData, DeliverAnkiChangesErrors, DeliverAnkiChangesResponses, DownloadAnkiMediaFileData, DownloadAnkiMediaFileErrors, DownloadAnkiMediaFileResponses, DownloadShirabeDictionaryPackData, DownloadShirabeDictionaryPackErrors, DownloadShirabeDictionaryPackResponses, DueQueueData, DueQueueErrors, DueQueueResponses, EndStudySessionData, EndStudySessionErrors, EndStudySessionResponses, FinishAnkiSnapshotData, FinishAnkiSnapshotErrors, FinishAnkiSnapshotResponses, GetAnkiBatchReceiptData, GetAnkiBatchReceiptErrors, GetAnkiBatchReceiptResponses, GetAnkiCardConflictComparisonData, GetAnkiCardConflictComparisonErrors, GetAnkiCardConflictComparisonResponses, GetAnkiCardConflictData, GetAnkiCardConflictErrors, GetAnkiCardConflictResponses, GetAnkiDeliveryReceiptData, GetAnkiDeliveryReceiptErrors, GetAnkiDeliveryReceiptResponses, GetAnkiNoteConflictData, GetAnkiNoteConflictErrors, GetAnkiNoteConflictResponses, GetAnkiNoteDeletionData, GetAnkiNoteDeletionErrors, GetAnkiNoteDeletionResponses, GetAnkiReviewUndoData, GetAnkiReviewUndoErrors, GetAnkiReviewUndoResponses, GetCardData, GetCardErrors, GetCardResponses, GetCurrentDictionaryPackData, GetCurrentDictionaryPackErrors, GetCurrentDictionaryPackResponses, GetDictionaryImportData, GetDictionaryImportErrors, GetDictionaryImportResponses, GetDictionaryPackData, GetDictionaryPackErrors, GetDictionaryPackResponses, GetDictionaryStackData, GetDictionaryStackErrors, GetDictionaryStackResponses, GetForecastData, GetForecastErrors, GetForecastResponses, GetKanjiData, GetKanjiErrors, GetKanjiRadicalData, GetKanjiRadicalErrors, GetKanjiRadicalResponses, GetKanjiResponses, GetMeData, GetMeErrors, GetMeResponses, GetParseOperationData, GetParseOperationErrors, GetParseOperationResponses, GetPreferencesData, GetPreferencesErrors, GetPreferencesResponses, GetReaderHostRulesData, GetReaderHostRulesErrors, GetReaderHostRulesResponses, GetSentenceData, GetSentenceErrors, GetSentenceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetStudySessionData, GetStudySessionErrors, GetStudySessionResponses, GetWordData, GetWordErrors, GetWordResponses, GradeCardData, GradeCardErrors, GradeCardResponses, IdentifyWordData, IdentifyWordErrors, IdentifyWordResponses, IdentifyWordsData, IdentifyWordsErrors, IdentifyWordsResponses, IgnoreWordData, IgnoreWordErrors, IgnoreWordResponses, InspectMcpTransportData, InspectMcpTransportErrors, ListAnkiMediaFilesData, ListAnkiMediaFilesErrors, ListAnkiMediaFilesResponses, ListCardsData, ListCardsErrors, ListCardsResponses, ListDecksData, ListDecksErrors, ListDecksResponses, ListDictionariesData, ListDictionariesErrors, ListDictionariesResponses, ListDictionaryImportsData, ListDictionaryImportsErrors, ListDictionaryImportsResponses, ListDictionaryPacksData, ListDictionaryPacksErrors, ListDictionaryPacksResponses, ListKanjiComponentMatchesData, ListKanjiComponentMatchesErrors, ListKanjiComponentMatchesResponses, ListKanjiComponentsData, ListKanjiComponentsErrors, ListKanjiComponentsResponses, ListKanjiData, ListKanjiErrors, ListKanjiRadicalsData, ListKanjiRadicalsErrors, ListKanjiRadicalsResponses, ListKanjiResponses, ListSentencesData, ListSentencesErrors, ListSentencesResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListWordNotesData, ListWordNotesErrors, ListWordNotesResponses, LookupWordStatesData, LookupWordStatesErrors, LookupWordStatesResponses, MarkWordKnownData, MarkWordKnownErrors, MarkWordKnownResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, PairAnkiProfileData, PairAnkiProfileErrors, PairAnkiProfileResponses, ParseData, ParseErrors, ParseResponses, PrepareAnkiPublicationsData, PrepareAnkiPublicationsErrors, PrepareAnkiPublicationsResponses, RefreshAnkiCollectionSettingsData, RefreshAnkiCollectionSettingsErrors, RefreshAnkiCollectionSettingsResponses, ReplaceDictionaryStackData, ReplaceDictionaryStackErrors, ReplaceDictionaryStackResponses, RequestAnkiNoteDeletionData, RequestAnkiNoteDeletionErrors, RequestAnkiNoteDeletionResponses, RequestAnkiReviewUndoData, RequestAnkiReviewUndoErrors, RequestAnkiReviewUndoResponses, RevokeOwnKeyData, RevokeOwnKeyErrors, RevokeOwnKeyResponses, SaveCardData, SaveCardErrors, SaveCardResponses, SearchData, SearchErrors, SearchResponses, SelectAnkiDeckData, SelectAnkiDeckErrors, SelectAnkiDeckResponses, StartAnkiSnapshotData, StartAnkiSnapshotErrors, StartAnkiSnapshotResponses, StartStudySessionData, StartStudySessionErrors, StartStudySessionResponses, StudyStatsData, StudyStatsErrors, StudyStatsResponses, UndoLatestReviewData, UndoLatestReviewErrors, UndoLatestReviewResponses, UnignoreWordData, UnignoreWordErrors, UnignoreWordResponses, UnlinkAnkiProfileData, UnlinkAnkiProfileErrors, UnlinkAnkiProfileResponses, UnmarkWordKnownData, UnmarkWordKnownErrors, UnmarkWordKnownResponses, UnsaveWordData, UnsaveWordErrors, UnsaveWordResponses, UpdateCardData, UpdateCardErrors, UpdateCardResponses, UpdateDeckData, UpdateDeckErrors, UpdateDeckResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UploadAnkiMediaFileData, UploadAnkiMediaFileErrors, UploadAnkiMediaFileResponses, UpsertWordNoteData, UpsertWordNoteErrors, UpsertWordNoteResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -633,16 +633,13 @@ export const identifyWord = <ThrowOnError extends boolean = false>(options: Opti
  * definitions. Resolve a selected span from the local dictionary pack or use
  * `POST /api/v1/identify` with the surrounding text and token offsets.
  *
- * A bearer token is optional for synchronous parsing. Without one, Shirabe
- * uses the public dictionary stack, accepts up to 2,000 characters per
- * request, and applies an IP-based request limit. A bearer token enables the
- * caller's dictionary stack and its configured limits. The `study` include
- * requires its own scope.
+ * Parsing needs a bearer token and uses the caller's dictionary stack and
+ * configured limits. The `study` include requires its own scope.
  *
  * Offsets are UTF-16 and map directly to browser text nodes.
- * Authenticated callers may add `Prefer: respond-async` to queue the same operation and poll the URL in the
+ * Callers may add `Prefer: respond-async` to queue the same operation and poll the URL in the
  * `Location` header. The request and completed result shapes are identical in
- * synchronous and asynchronous use. Anonymous requests remain synchronous.
+ * synchronous and asynchronous use.
  * `results` follows the same order as
  * `texts`, and each result repeats its submitted text.
  *
@@ -705,11 +702,13 @@ export const unsaveWord = <ThrowOnError extends boolean = false>(options: Option
  * Save a word as an SRS card
  *
  * Creates an SRS review card for a word in the API key owner's deck, the
- * `/api/v1` twin of saving from the website. Identity is (deck, front, reading),
- * so re-saving a word you already have is idempotent. `rating` is accepted
- * only for an existing card whose scheduled review is currently due; early,
- * repeated, and save-plus-first-grade submissions are rejected. Subject to
- * the plan's saved-card limit.
+ * `/api/v1` twin of saving from the website. A card is the word's lemma,
+ * reading and the senses it covers, whichever deck holds it, so re-saving a
+ * word you already have answers its card: out of the trash if it was there,
+ * and back into review if you had marked it known. To grade a due card, use
+ * `POST /api/v1/srs/reviews`. Send an `Idempotency-Key` so a retry after a
+ * lost response gets the first save's answer, `created` included. To save
+ * into a new deck, create it first with `POST /api/v1/srs/decks`.
  *
  */
 export const saveCard = <ThrowOnError extends boolean = false>(options: Options<SaveCardData, ThrowOnError>): RequestResult<SaveCardResponses, SaveCardErrors, ThrowOnError> => (options.client ?? client).post<SaveCardResponses, SaveCardErrors, ThrowOnError>({
@@ -732,7 +731,9 @@ export const saveCard = <ThrowOnError extends boolean = false>(options: Options<
  * Submits a review grade (1=Again, 2=Hard, 3=Good, 4=Easy) for one of the
  * API key owner's cards, advancing its FSRS schedule. Include sessionId to
  * grade the next card of an API session and record its Undo identity. Without
- * sessionId, this is a standalone dictionary or reader review.
+ * sessionId, this is a standalone dictionary or reader review. Send an
+ * `Idempotency-Key` so a retry after a lost response gets the first grade's
+ * answer rather than a `409` for a card the first grade already changed.
  *
  */
 export const gradeCard = <ThrowOnError extends boolean = false>(options: Options<GradeCardData, ThrowOnError>): RequestResult<GradeCardResponses, GradeCardErrors, ThrowOnError> => (options.client ?? client).post<GradeCardResponses, GradeCardErrors, ThrowOnError>({
@@ -836,22 +837,46 @@ export const undoLatestReview = <ThrowOnError extends boolean = false>(options: 
 });
 
 /**
- * Set a word's learning state
+ * Take back marking a word known
  *
- * Sets a word's state for the API key owner. `retired` parks it as learned
- * (out of review, still counted toward knowledge); `reviewing` brings it into
- * the SRS rotation. Find-or-creates the word's card, state IS the card, there
- * is no separate word-state record. Retiring is ungated; `reviewing` a
- * brand-new word is subject to the plan's saved-card limit.
+ * A card that exists only because the word was marked known, and was never
+ * reviewed, is deleted for good. A card that was saved or studied goes back to
+ * its schedule with its history. Taking back a word that is not known is not
+ * an error; the answer simply says what the word holds.
  *
  */
-export const setWordState = <ThrowOnError extends boolean = false>(options: Options<SetWordStateData, ThrowOnError>): RequestResult<SetWordStateResponses, SetWordStateErrors, ThrowOnError> => (options.client ?? client).post<SetWordStateResponses, SetWordStateErrors, ThrowOnError>({
+export const unmarkWordKnown = <ThrowOnError extends boolean = false>(options: Options<UnmarkWordKnownData, ThrowOnError>): RequestResult<UnmarkWordKnownResponses, UnmarkWordKnownErrors, ThrowOnError> => (options.client ?? client).delete<UnmarkWordKnownResponses, UnmarkWordKnownErrors, ThrowOnError>({
     security: [{
             key: 'BearerAuth',
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/api/v1/srs/states',
+    url: '/api/v1/srs/knowns',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Mark a word known
+ *
+ * Takes every card the word holds out of review, still counted as known: the
+ * website's Known button. A word with no card gets one, made only for this
+ * claim. Cards are found the way every word endpoint finds them: by lemma and
+ * reading, under any spelling that names only the word's dictionary entry.
+ * Send an `Idempotency-Key` so a retry after a lost response gets the first
+ * request's answer.
+ *
+ */
+export const markWordKnown = <ThrowOnError extends boolean = false>(options: Options<MarkWordKnownData, ThrowOnError>): RequestResult<MarkWordKnownResponses, MarkWordKnownErrors, ThrowOnError> => (options.client ?? client).post<MarkWordKnownResponses, MarkWordKnownErrors, ThrowOnError>({
+    security: [{
+            key: 'BearerAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/srs/knowns',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -864,7 +889,9 @@ export const setWordState = <ThrowOnError extends boolean = false>(options: Opti
  *
  * Returns the API key owner's learning state for each requested word in one
  * round-trip, for re-colouring a page (e.g. a subtitle cue changing) without
- * re-parsing.
+ * re-parsing. Each answer comes back under the spelling that was asked. A
+ * spelling that names a single dictionary entry also finds cards filed under
+ * that entry's other spellings; one shared by several entries matches exactly.
  *
  */
 export const lookupWordStates = <ThrowOnError extends boolean = false>(options: Options<LookupWordStatesData, ThrowOnError>): RequestResult<LookupWordStatesResponses, LookupWordStatesErrors, ThrowOnError> => (options.client ?? client).post<LookupWordStatesResponses, LookupWordStatesErrors, ThrowOnError>({
@@ -1197,10 +1224,37 @@ export const deleteWordNote = <ThrowOnError extends boolean = false>(options: Op
 });
 
 /**
+ * Stop ignoring a word
+ *
+ * Lifts every ignore that covers the word: the one in this `reading` and one
+ * with a blank reading, which covers every reading. Omit `reading` to lift
+ * every ignore of `text`. The word then reads as its cards say, `none` when it
+ * has none. Lifting a word that is not ignored is not an error.
+ *
+ */
+export const unignoreWord = <ThrowOnError extends boolean = false>(options: Options<UnignoreWordData, ThrowOnError>): RequestResult<UnignoreWordResponses, UnignoreWordErrors, ThrowOnError> => (options.client ?? client).delete<UnignoreWordResponses, UnignoreWordErrors, ThrowOnError>({
+    security: [{
+            key: 'BearerAuth',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/v1/srs/word-ignores',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Ignore a word (blacklist)
  *
- * Marks a word "don't study," so bulk seeds / clones skip it (docs/srs.md
- * §13b). No card is created. Requires SRS entitlement.
+ * Marks a word "don't study": no card is created, bulk seeds and deck clones
+ * skip it, and while you hold no card for it every word-state answer reports
+ * it `ignored`. A blank `reading` ignores every reading of `text`. Saving or
+ * marking the word known still works; its cards then decide its state.
+ * Requires SRS entitlement. Send an `Idempotency-Key` so a retry after a lost
+ * response gets the first request's answer.
  *
  */
 export const ignoreWord = <ThrowOnError extends boolean = false>(options: Options<IgnoreWordData, ThrowOnError>): RequestResult<IgnoreWordResponses, IgnoreWordErrors, ThrowOnError> => (options.client ?? client).post<IgnoreWordResponses, IgnoreWordErrors, ThrowOnError>({

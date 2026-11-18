@@ -592,20 +592,49 @@ export type ParseToken = {
         conjugationForm?: string;
     };
     /**
-     * Present only with `include: ["study"]`; requires `user:study:read`.
+     * Present only with `include: ["study"]`; requires `user:study:read`. The word's state exactly as `WordStateEntry` reports it, without `lemma`: the token's own `lemma` names the word. `ignored` matches the token's `reading`.
+     *
      */
     study?: {
-        state: string;
+        state: WordState;
+        /**
+         * Every deck holding a card for this word.
+         */
         decks: Array<{
-            id?: number;
-            name?: string;
+            id: number;
+            name: string;
         }>;
+        /**
+         * The most recently updated card for this word, present whenever `cardCount` is.
+         */
         cardId?: number;
+        /**
+         * How many cards the owner holds for this word.
+         */
         cardCount?: number;
+        /**
+         * The earliest due card, with the revision to submit when grading it. Absent when no card is due.
+         */
+        reviewCard?: {
+            id: number;
+            revision: string;
+        };
+        /**
+         * The senses this word already has cards for, as `senses[]` refs.
+         */
         savedSenses?: Array<string>;
+        /**
+         * True when a card covers the whole word.
+         */
         savedWholeWord?: boolean;
+        /**
+         * What each grade would cost on the card a review would land on. Absent when no card is scheduled.
+         */
         intervals?: {
-            [key: string]: unknown;
+            again: string;
+            hard: string;
+            good: string;
+            easy: string;
         };
     };
 };
@@ -642,12 +671,14 @@ export type ParseOperation = {
 
 /**
  * A word's learning status in the API key owner's SRS, weakest → strongest.
- * `none` means the user has no card for the word yet. `suspended` is a card the
- * user has shelved out of review (off the queue and off the free card cap).
- * `retired` is the terminal tier, done studying, still counted as known.
+ * `none` means the user has no card for the word yet, and `ignored` is a word
+ * with no card that the user chose never to study (`POST /api/v1/srs/word-ignores`);
+ * a card for the word outranks the ignore. `suspended` is a card the user has
+ * shelved out of review (off the queue and off the free card cap). `retired` is
+ * the terminal tier, done studying, still counted as known.
  *
  */
-export type WordState = 'none' | 'new' | 'learning' | 'due' | 'suspended' | 'retired';
+export type WordState = 'none' | 'ignored' | 'new' | 'learning' | 'due' | 'suspended' | 'retired';
 
 /**
  * One generated card with its own schedule and review revision. Siblings share a note, not progress.
@@ -737,11 +768,13 @@ export type CardResponse = {
 };
 
 /**
- * A word to save as a review card. Identity is `(deck, lemma, reading)`, so
- * re-saving a word you already have is idempotent. To pin the exact dictionary
- * entry (rather than let the server auto-link by lemma+reading), pass the
- * portable `(dictionarySlug, sourceId)` handle. This endpoint saves and mines
- * only, to grade a due card, use `POST /api/v1/srs/reviews`.
+ * A word to save as a review card. A card is `(lemma, reading, senses)`, in
+ * whichever deck holds it, so re-saving a word you already have answers its
+ * card. To pin the exact dictionary entry (rather than let the server auto-link
+ * by lemma+reading), pass the portable `(dictionarySlug, sourceId)` handle; a
+ * handle that names no entry is dropped, so the card keeps your `meaning` and
+ * links by lemma+reading. This endpoint saves and mines only, to grade a due
+ * card, use `POST /api/v1/srs/reviews`.
  *
  */
 export type SaveRequest = {
@@ -762,16 +795,9 @@ export type SaveRequest = {
      */
     meaning?: string;
     /**
-     * Target deck. Defaults to the owner's "Saved words" deck.
+     * Target deck. Defaults to the owner's "Saved words" deck; a deck that is not yours is a `422` and nothing is saved.
      */
     deckId?: number;
-    /**
-     * Create a deck with this name and save into it. Wins over `deckId` when both
-     * are sent, matching the web form, a card can arrive with its own deck
-     * without a detour through the decks screen.
-     *
-     */
-    newDeckName?: string;
     /**
      * A nudge shown on the card's front. Omit to leave an existing card's hint alone; send an empty string to clear it.
      */
@@ -802,8 +828,8 @@ export type SaveRequest = {
      * the web form's picker is multi-select. Each entry is mined exactly like the
      * singular `sentence` below (which is shorthand for a one-element list): the
      * owner's sentence bank is reused when the same text is already there, and a
-     * row may carry its own clip and screenshot. Sending this key REPLACES the
-     * card's examples; omit it to leave them alone.
+     * row may carry its own clip and screenshot. Each line is added beside the
+     * examples the card already has; one it already carries is not added twice.
      *
      */
     sentences?: Array<SaveSentence>;
@@ -854,20 +880,24 @@ export type ReviewRequest = {
 };
 
 /**
- * Set a word's learning state. `retired` parks it as learned (out of review);
- * `reviewing` brings it into the SRS rotation; `suspended` shelves it (off the
- * queue and the free card cap). To pin the exact dictionary entry, pass the
- * portable `(dictionarySlug, sourceId)` handle.
+ * A word to mark known. To pin the exact dictionary entry, pass the portable
+ * `(dictionarySlug, sourceId)` handle; a handle that names no entry is
+ * dropped and the word is matched by lemma and reading.
  *
  */
-export type StateRequest = {
+export type KnownRequest = {
     lemma: string;
     /**
-     * One of: retired, reviewing, suspended.
+     * Omit to mark the word known in every reading you hold a card for.
      */
-    state: 'retired' | 'reviewing' | 'suspended';
     reading?: string;
+    /**
+     * Your own definition, used only when the word has no card yet and no dictionary entry to follow.
+     */
     meaning?: string;
+    /**
+     * Deck for the card a word with no card gets. Defaults to "Saved words"; one that is not yours is a `422`.
+     */
     deckId?: number;
     /**
      * With `sourceId`, the portable handle to the exact dictionary entry to link.
@@ -1432,7 +1462,7 @@ export type Me = {
      */
     entitlement: {
         /**
-         * True when the owner may write to the SRS (Pro or a school member).
+         * True when the owner may write to the SRS (Pro or a school member, on an account Study is open to).
          */
         srs: boolean;
         /**
@@ -2053,6 +2083,24 @@ export type Error415 = {
 };
 
 /**
+ * The request was well formed but names something that is not the caller's to use.
+ */
+export type Error422 = {
+    type: string;
+    title: string;
+    status: 422;
+    detail?: string;
+    code: 'UNKNOWN_DECK';
+    instance: string;
+    /**
+     * The refused field, keyed by its request name, with why.
+     */
+    errors?: {
+        [key: string]: string;
+    };
+};
+
+/**
  * Tokenization input exceeds the per-request character limit, which bounds the
  * work and the memory of ONE request.
  *
@@ -2120,6 +2168,18 @@ export type ErrorMediaQuota = {
     status: 413;
     code: 'MEDIA_QUOTA_EXCEEDED';
     detail?: string;
+    instance: string;
+};
+
+/**
+ * The operation is temporarily unavailable.
+ */
+export type Error503 = {
+    type: string;
+    title: string;
+    status: 503;
+    detail?: string;
+    code: 'DICTIONARY_PACK_UNAVAILABLE' | 'RELEASE_READ_ONLY';
     instance: string;
 };
 
@@ -2550,7 +2610,7 @@ export type SaveSentence = {
 };
 
 /**
- * What the API key owner knows about one word, however many cards it holds. Returned by every word-level endpoint, the batch lookup, setting a state, and saving, so a client reads the same shape wherever a word changes.
+ * What the API key owner knows about one word, however many cards it holds. Returned by the batch lookup, saving and removing a word, and marking it known or taking that back, so a client reads the same shape wherever a word changes.
  *
  */
 export type WordStateEntry = {
@@ -2614,6 +2674,11 @@ export type SaveResponse = {
      */
     created: boolean;
     word: WordStateEntry;
+    /**
+     * Present when a mined line's clip or screenshot could not be attached, and why. The card and the line were saved without it.
+     *
+     */
+    mediaError?: string;
 };
 
 /**
@@ -3044,18 +3109,6 @@ export type DictionaryStack2 = {
     sources: Array<DictionaryStackSource>;
 };
 
-/**
- * A dictionary operation is temporarily unavailable.
- */
-export type Error503 = {
-    type: string;
-    title: string;
-    status: 503;
-    detail?: string;
-    code: 'DICTIONARY_PACK_UNAVAILABLE';
-    instance: string;
-};
-
 export type ReaderHostRules = {
     version: number;
     rules: Array<{
@@ -3213,6 +3266,13 @@ export type PairAnkiProfileErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type PairAnkiProfileError = PairAnkiProfileErrors[keyof PairAnkiProfileErrors];
@@ -3277,6 +3337,13 @@ export type UnlinkAnkiProfileErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UnlinkAnkiProfileError = UnlinkAnkiProfileErrors[keyof UnlinkAnkiProfileErrors];
@@ -3347,6 +3414,13 @@ export type FinishAnkiSnapshotErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type FinishAnkiSnapshotError = FinishAnkiSnapshotErrors[keyof FinishAnkiSnapshotErrors];
@@ -3419,6 +3493,13 @@ export type StartAnkiSnapshotErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type StartAnkiSnapshotError = StartAnkiSnapshotErrors[keyof StartAnkiSnapshotErrors];
@@ -3509,6 +3590,13 @@ export type RefreshAnkiCollectionSettingsErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type RefreshAnkiCollectionSettingsError = RefreshAnkiCollectionSettingsErrors[keyof RefreshAnkiCollectionSettingsErrors];
@@ -3589,6 +3677,13 @@ export type PrepareAnkiPublicationsErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type PrepareAnkiPublicationsError = PrepareAnkiPublicationsErrors[keyof PrepareAnkiPublicationsErrors];
@@ -3665,6 +3760,13 @@ export type SelectAnkiDeckErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type SelectAnkiDeckError = SelectAnkiDeckErrors[keyof SelectAnkiDeckErrors];
@@ -3737,6 +3839,13 @@ export type ApplyAnkiBatchErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type ApplyAnkiBatchError = ApplyAnkiBatchErrors[keyof ApplyAnkiBatchErrors];
@@ -3954,6 +4063,13 @@ export type UploadAnkiMediaFileErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UploadAnkiMediaFileError = UploadAnkiMediaFileErrors[keyof UploadAnkiMediaFileErrors];
@@ -4027,6 +4143,13 @@ export type DeleteAnkiMediaFileErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type DeleteAnkiMediaFileError = DeleteAnkiMediaFileErrors[keyof DeleteAnkiMediaFileErrors];
@@ -4365,6 +4488,13 @@ export type RequestAnkiNoteDeletionErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type RequestAnkiNoteDeletionError = RequestAnkiNoteDeletionErrors[keyof RequestAnkiNoteDeletionErrors];
@@ -4431,6 +4561,13 @@ export type CancelAnkiNoteDeletionErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type CancelAnkiNoteDeletionError = CancelAnkiNoteDeletionErrors[keyof CancelAnkiNoteDeletionErrors];
@@ -4560,6 +4697,13 @@ export type RequestAnkiReviewUndoErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type RequestAnkiReviewUndoError = RequestAnkiReviewUndoErrors[keyof RequestAnkiReviewUndoErrors];
@@ -4625,6 +4769,13 @@ export type CancelAnkiReviewUndoErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type CancelAnkiReviewUndoError = CancelAnkiReviewUndoErrors[keyof CancelAnkiReviewUndoErrors];
@@ -4759,9 +4910,11 @@ export type DeliverAnkiChangesErrors = {
      */
     429: Error429;
     /**
-     * Referenced media is not available yet. This attempt does not advance delivery; retry the same cursor.
+     * `MEDIA_NOT_READY`: referenced media is not available yet. This attempt does not advance delivery; retry the same cursor.
+     * `RELEASE_READ_ONLY`: a dictionary release holds the database read-only. Retry after `Retry-After` seconds.
+     *
      */
-    503: ErrorMediaNotReady;
+    503: ErrorMediaNotReady | Error503;
 };
 
 export type DeliverAnkiChangesError = DeliverAnkiChangesErrors[keyof DeliverAnkiChangesErrors];
@@ -4923,6 +5076,13 @@ export type AcknowledgeAnkiChangesErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type AcknowledgeAnkiChangesError = AcknowledgeAnkiChangesErrors[keyof AcknowledgeAnkiChangesErrors];
@@ -4995,6 +5155,13 @@ export type CallMcpErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type CallMcpError = CallMcpErrors[keyof CallMcpErrors];
@@ -5046,6 +5213,13 @@ export type OauthTokenErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type OauthTokenError = OauthTokenErrors[keyof OauthTokenErrors];
@@ -5093,6 +5267,13 @@ export type OauthRevokeErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type OauthRevokeError = OauthRevokeErrors[keyof OauthRevokeErrors];
@@ -5138,6 +5319,13 @@ export type OauthDeviceAuthorizationErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type OauthDeviceAuthorizationError = OauthDeviceAuthorizationErrors[keyof OauthDeviceAuthorizationErrors];
@@ -5339,6 +5527,13 @@ export type ParseErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type ParseError = ParseErrors[keyof ParseErrors];
@@ -5424,7 +5619,7 @@ export type UnsaveWordData = {
          */
         lemma: string;
         /**
-         * The card's reading; omit for a card saved without one.
+         * The cards' reading; omit to remove the word in every reading.
          */
         reading?: string;
     };
@@ -5471,6 +5666,13 @@ export type UnsaveWordErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UnsaveWordError = UnsaveWordErrors[keyof UnsaveWordErrors];
@@ -5489,6 +5691,15 @@ export type UnsaveWordResponse = UnsaveWordResponses[keyof UnsaveWordResponses];
 
 export type SaveCardData = {
     body: SaveRequest;
+    headers?: {
+        /**
+         * Unique retry key, scoped to this credential and operation for 24 hours.
+         * Repeating the same request returns the original response without applying it
+         * again. Reusing the key with another body returns `409`.
+         *
+         */
+        'Idempotency-Key'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/srs/saves';
@@ -5523,6 +5734,10 @@ export type SaveCardErrors = {
      */
     415: Error415;
     /**
+     * A field names something that is not yours; nothing was written.
+     */
+    422: Error422;
+    /**
      * Too many requests; back off and retry after `Retry-After` seconds.
      *
      * There is one kind of 429 now. It comes from in front of the application, which
@@ -5536,6 +5751,13 @@ export type SaveCardErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type SaveCardError = SaveCardErrors[keyof SaveCardErrors];
@@ -5555,6 +5777,15 @@ export type SaveCardResponse = SaveCardResponses[keyof SaveCardResponses];
 
 export type GradeCardData = {
     body: ReviewRequest;
+    headers?: {
+        /**
+         * Unique retry key, scoped to this credential and operation for 24 hours.
+         * Repeating the same request returns the original response without applying it
+         * again. Reusing the key with another body returns `409`.
+         *
+         */
+        'Idempotency-Key'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/srs/reviews';
@@ -5585,7 +5816,8 @@ export type GradeCardErrors = {
      */
     404: Error404;
     /**
-     * The card changed after it was displayed. Read it again before grading.
+     * The card changed after it was displayed (`STALE_REVIEW`): read it again before grading. Or the `Idempotency-Key` was used with another body or is still being processed (`IDEMPOTENCY_CONFLICT`).
+     *
      */
     409: Error409;
     /**
@@ -5606,6 +5838,13 @@ export type GradeCardErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type GradeCardError = GradeCardErrors[keyof GradeCardErrors];
@@ -5683,6 +5922,13 @@ export type StartStudySessionErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type StartStudySessionError = StartStudySessionErrors[keyof StartStudySessionErrors];
@@ -5743,6 +5989,13 @@ export type EndStudySessionErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type EndStudySessionError = EndStudySessionErrors[keyof EndStudySessionErrors];
@@ -5869,6 +6122,13 @@ export type UndoLatestReviewErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UndoLatestReviewError = UndoLatestReviewErrors[keyof UndoLatestReviewErrors];
@@ -5882,14 +6142,25 @@ export type UndoLatestReviewResponses = {
 
 export type UndoLatestReviewResponse = UndoLatestReviewResponses[keyof UndoLatestReviewResponses];
 
-export type SetWordStateData = {
-    body: StateRequest;
+export type UnmarkWordKnownData = {
+    body: {
+        lemma: string;
+        /**
+         * Omit to take the claim back in every reading.
+         */
+        reading?: string;
+        /**
+         * With `sourceId`, the entry the word was marked known from.
+         */
+        dictionarySlug?: string;
+        sourceId?: string;
+    };
     path?: never;
     query?: never;
-    url: '/api/v1/srs/states';
+    url: '/api/v1/srs/knowns';
 };
 
-export type SetWordStateErrors = {
+export type UnmarkWordKnownErrors = {
     /**
      * Malformed request or failed validation.
      */
@@ -5927,20 +6198,111 @@ export type SetWordStateErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
-export type SetWordStateError = SetWordStateErrors[keyof SetWordStateErrors];
+export type UnmarkWordKnownError = UnmarkWordKnownErrors[keyof UnmarkWordKnownErrors];
 
-export type SetWordStateResponses = {
+export type UnmarkWordKnownResponses = {
     /**
-     * The word after the change, every card it holds moved to that state.
+     * The word after the change.
      */
     200: {
         word: WordStateEntry;
     };
 };
 
-export type SetWordStateResponse = SetWordStateResponses[keyof SetWordStateResponses];
+export type UnmarkWordKnownResponse = UnmarkWordKnownResponses[keyof UnmarkWordKnownResponses];
+
+export type MarkWordKnownData = {
+    body: KnownRequest;
+    headers?: {
+        /**
+         * Unique retry key, scoped to this credential and operation for 24 hours.
+         * Repeating the same request returns the original response without applying it
+         * again. Reusing the key with another body returns `409`.
+         *
+         */
+        'Idempotency-Key'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/srs/knowns';
+};
+
+export type MarkWordKnownErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
+     */
+    402: Error402;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * A field names something that is not yours; nothing was written.
+     */
+    422: Error422;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
+};
+
+export type MarkWordKnownError = MarkWordKnownErrors[keyof MarkWordKnownErrors];
+
+export type MarkWordKnownResponses = {
+    /**
+     * The word after the change; its `lemma` is the headword its cards are filed under.
+     */
+    200: {
+        word: WordStateEntry;
+    };
+};
+
+export type MarkWordKnownResponse = MarkWordKnownResponses[keyof MarkWordKnownResponses];
 
 export type LookupWordStatesData = {
     body: StateLookupRequest;
@@ -6100,6 +6462,13 @@ export type CreateDeckErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type CreateDeckError = CreateDeckErrors[keyof CreateDeckErrors];
@@ -6160,6 +6529,13 @@ export type DeleteDeckErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type DeleteDeckError = DeleteDeckErrors[keyof DeleteDeckErrors];
@@ -6224,6 +6600,13 @@ export type UpdateDeckErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UpdateDeckError = UpdateDeckErrors[keyof UpdateDeckErrors];
@@ -6389,6 +6772,13 @@ export type BulkUpdateCardsErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type BulkUpdateCardsError = BulkUpdateCardsErrors[keyof BulkUpdateCardsErrors];
@@ -6454,6 +6844,13 @@ export type DeleteCardErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type DeleteCardError = DeleteCardErrors[keyof DeleteCardErrors];
@@ -6574,6 +6971,13 @@ export type UpdateCardErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UpdateCardError = UpdateCardErrors[keyof UpdateCardErrors];
@@ -6781,6 +7185,13 @@ export type UpdateSettingsErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UpdateSettingsError = UpdateSettingsErrors[keyof UpdateSettingsErrors];
@@ -6979,6 +7390,13 @@ export type UpsertWordNoteErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UpsertWordNoteError = UpsertWordNoteErrors[keyof UpsertWordNoteErrors];
@@ -7043,6 +7461,13 @@ export type DeleteWordNoteErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type DeleteWordNoteError = DeleteWordNoteErrors[keyof DeleteWordNoteErrors];
@@ -7056,7 +7481,7 @@ export type DeleteWordNoteResponses = {
 
 export type DeleteWordNoteResponse = DeleteWordNoteResponses[keyof DeleteWordNoteResponses];
 
-export type IgnoreWordData = {
+export type UnignoreWordData = {
     body: {
         text: string;
         reading?: string;
@@ -7066,7 +7491,7 @@ export type IgnoreWordData = {
     url: '/api/v1/srs/word-ignores';
 };
 
-export type IgnoreWordErrors = {
+export type UnignoreWordErrors = {
     /**
      * Malformed request or failed validation.
      */
@@ -7104,6 +7529,94 @@ export type IgnoreWordErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
+};
+
+export type UnignoreWordError = UnignoreWordErrors[keyof UnignoreWordErrors];
+
+export type UnignoreWordResponses = {
+    /**
+     * The word is not ignored.
+     */
+    204: void;
+};
+
+export type UnignoreWordResponse = UnignoreWordResponses[keyof UnignoreWordResponses];
+
+export type IgnoreWordData = {
+    body: {
+        text: string;
+        reading?: string;
+    };
+    headers?: {
+        /**
+         * Unique retry key, scoped to this credential and operation for 24 hours.
+         * Repeating the same request returns the original response without applying it
+         * again. Reusing the key with another body returns `409`.
+         *
+         */
+        'Idempotency-Key'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/srs/word-ignores';
+};
+
+export type IgnoreWordErrors = {
+    /**
+     * Malformed request or failed validation.
+     */
+    400: Error400;
+    /**
+     * Missing, invalid, expired, or revoked bearer token. Carries a
+     * `WWW-Authenticate: Bearer` challenge (RFC 6750); an OAuth client that reads
+     * `error="invalid_token"` should renew with its refresh token and retry once.
+     *
+     */
+    401: Error401;
+    /**
+     * This action requires Pro, the SRS is the paid product (docs/srs.md §10).
+     */
+    402: Error402;
+    /**
+     * The API key lacks a scope required for this operation.
+     */
+    403: Error403;
+    /**
+     * The request conflicts with the current resource state.
+     */
+    409: Error409;
+    /**
+     * The request body uses an unsupported media type.
+     */
+    415: Error415;
+    /**
+     * Too many requests; back off and retry after `Retry-After` seconds.
+     *
+     * There is one kind of 429 now. It comes from in front of the application, which
+     * is why the answer is a wait and nothing else: the budget it names refills on a
+     * fixed 60-second window, so retrying after the header says is enough. There is
+     * no monthly quota and no `RateLimit-*` fields to read.
+     *
+     * A request that is too LARGE is not this: that answers 413 with no
+     * `Retry-After`, because waiting cannot make it acceptable. `GET /api/v1/me` reports
+     * both ceilings, under `rateLimit` and `payloadLimit`.
+     *
+     */
+    429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type IgnoreWordError = IgnoreWordErrors[keyof IgnoreWordErrors];
@@ -7194,6 +7707,13 @@ export type BulkAddSearchErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type BulkAddSearchError = BulkAddSearchErrors[keyof BulkAddSearchErrors];
@@ -7700,6 +8220,13 @@ export type DeleteDictionaryErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type DeleteDictionaryError = DeleteDictionaryErrors[keyof DeleteDictionaryErrors];
@@ -7810,6 +8337,13 @@ export type ReplaceDictionaryStackErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type ReplaceDictionaryStackError = ReplaceDictionaryStackErrors[keyof ReplaceDictionaryStackErrors];
@@ -7938,6 +8472,13 @@ export type DeleteDictionaryImportErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type DeleteDictionaryImportError = DeleteDictionaryImportErrors[keyof DeleteDictionaryImportErrors];
@@ -8298,6 +8839,13 @@ export type RevokeOwnKeyErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type RevokeOwnKeyError = RevokeOwnKeyErrors[keyof RevokeOwnKeyErrors];
@@ -8413,6 +8961,13 @@ export type UpdatePreferencesErrors = {
      *
      */
     429: Error429;
+    /**
+     * A dictionary release holds the database read-only for a few minutes, so
+     * nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+     * working through the window.
+     *
+     */
+    503: Error503;
 };
 
 export type UpdatePreferencesError = UpdatePreferencesErrors[keyof UpdatePreferencesErrors];

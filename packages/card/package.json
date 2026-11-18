@@ -1,6 +1,6 @@
 {
   "name": "@shirabe-org/card",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Shirabe's word card renderer for browsers, extensions, and Anki templates.",
   "license": "MIT",
   "repository": {
@@ -50,7 +50,7 @@
     "test:review": "node test/lookup-review-browser.mjs"
   },
   "dependencies": {
-    "@shirabe-org/api": "0.6.1"
+    "@shirabe-org/api": "0.8.0"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

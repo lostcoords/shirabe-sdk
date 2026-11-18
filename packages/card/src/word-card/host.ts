@@ -120,8 +120,12 @@ export type StudyPort = {
       refused a write by the server whatever it asks for. */
   save?(word: HTMLElement, senses?: string[]): Promise<Outcome>;
   markKnown?(word: HTMLElement): Promise<Outcome>;
+  /** Take back Known on a retired word. */
+  unmarkKnown?(word: HTMLElement): Promise<Outcome>;
   /** Never study this word: no card, and no mark on the page. */
   ignore?(word: HTMLElement): Promise<Outcome>;
+  /** Take back Ignore on an ignored word. */
+  unignore?(word: HTMLElement): Promise<Outcome>;
   grade?(word: HTMLElement, rating: Rating): Promise<Outcome>;
 
   /** The full save form, which needs decks, a screenshot and the account: all

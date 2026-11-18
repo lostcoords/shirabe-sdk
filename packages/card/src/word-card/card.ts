@@ -2406,8 +2406,9 @@ async function playAudio(url: string): Promise<string | undefined> {
 }
 
 // Mining controls, gated by whether the word is already a card. An untracked word
-// (state "none") offers Save + Known; a saved one offers Manage, the same control
-// the site's dictionary results carry. Reviewing is not here: see
+// (state "none") offers Save, Known and Ignore; a saved one offers Manage, the
+// same control the site's dictionary results carry. A known or ignored word
+// offers taking that back. Reviewing is not here: see
 // REVIEW_IN_READER. Each action recolours every occurrence and surfaces any error
 // (e.g. the Pro card cap) inline rather than pretend.
 function actions(word: HTMLElement, def: Definition | null = null): HTMLElement {
@@ -2482,12 +2483,18 @@ function renderActions(word: HTMLElement, wrap: HTMLElement, def: Definition | n
     // full is another item there, not a second button competing with it.
     if (def) extra.append(button("Add details…", "sb-btn-ghost", "D", () => void openCardForm(word, wrap, def)));
   }
-  // Only a host that can actually mark a word known offers it.
-  if (backend().study?.markKnown) {
-    extra.append(button("✓ Known", "sb-btn-known", "K", () => run(word, wrap, () => backend().study!.markKnown!(word), def, "word_known")));
+  // Only a host that can actually do a write offers it, and a word that is
+  // already known or ignored offers taking that back in its place.
+  const study = backend().study;
+  if (state === "retired" && study?.unmarkKnown) {
+    extra.append(button("Not known", "sb-btn-ghost", "K", () => run(word, wrap, () => study.unmarkKnown!(word), def)));
+  } else if (study?.markKnown) {
+    extra.append(button("✓ Known", "sb-btn-known", "K", () => run(word, wrap, () => study.markKnown!(word), def, "word_known")));
   }
-  if (state === "none" && backend().study?.ignore) {
-    extra.append(button("Ignore", "sb-btn-ghost", "I", () => run(word, wrap, () => backend().study!.ignore!(word), def, "word_ignored")));
+  if (state === "ignored" && study?.unignore) {
+    extra.append(button("Stop ignoring", "sb-btn-ghost", "I", () => run(word, wrap, () => study.unignore!(word), def)));
+  } else if (state === "none" && study?.ignore) {
+    extra.append(button("Ignore", "sb-btn-ghost", "I", () => run(word, wrap, () => study.ignore!(word), def, "word_ignored")));
   }
   wrap.append(extra);
 

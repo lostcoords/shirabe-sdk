@@ -1988,6 +1988,49 @@ test("the sense picker saves and marks senses by their own dictionary's ref", as
   }
 });
 
+test("a known word offers Not known and an ignored word offers Stop ignoring, each in place of what set it", async () => {
+  const { card, window } = await page();
+  const host = fakeHost({ definitions: { "君": kimi } });
+  const undone: string[] = [];
+  host.study!.ignore = (target) => outcome(target, "ignored", "Ignored 君");
+  host.study!.unignore = (target) => { undone.push("unignore"); return outcome(target, "none", "No longer ignored"); };
+  host.study!.markKnown = (target) => outcome(target, "retired", "Marked known");
+  host.study!.unmarkKnown = (target) => { undone.push("unmarkKnown"); return outcome(target, "none", "No longer known"); };
+  card.setCardHost(host);
+  card.setWriteState({ connected: true, canWrite: true });
+  try {
+    card.showNow(await word("君"));
+    await settle();
+    const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    const labels = () => [...shadow.querySelectorAll(".sb-extra button")].map((control) => control.textContent?.replace(/[A-Z]$/, "").trim());
+    const press = async (label: string) => {
+      const control = [...shadow.querySelectorAll(".sb-extra button")].find((b) => b.textContent?.startsWith(label)) as unknown as HTMLElement | undefined;
+      assert.ok(control, `${label} is offered`);
+      control.click();
+      await settle();
+    };
+
+    await press("Ignore");
+    assert.deepEqual(labels(), ["＋ Save", "Add details…", "✓ Known", "Stop ignoring"]);
+    await press("Stop ignoring");
+    assert.deepEqual(labels(), ["＋ Save", "Add details…", "✓ Known", "Ignore"]);
+
+    await press("✓ Known");
+    assert.deepEqual(labels(), ["Not known"]);
+    await press("Not known");
+    assert.deepEqual(labels(), ["＋ Save", "Add details…", "✓ Known", "Ignore"]);
+    assert.deepEqual(undone, ["unignore", "unmarkKnown"]);
+  } finally {
+    card.setWriteState({ connected: false, canWrite: false });
+    card.dismissPopup();
+  }
+
+  async function outcome(target: HTMLElement, state: string, message: string) {
+    target.dataset.state = state;
+    return { ok: true, message };
+  }
+});
+
 test("an unsaved word offers Ignore beside Known, and an ignored word can still be saved", async () => {
   const { card, window } = await page();
   const host = fakeHost({ definitions: { "君": kimi } });

@@ -1,6 +1,6 @@
 {
   "name": "@shirabe-org/api",
-  "version": "0.6.1",
+  "version": "0.8.0",
   "description": "Typed client for the Shirabe API, generated from its OpenAPI contract.",
   "license": "MIT",
   "repository": {

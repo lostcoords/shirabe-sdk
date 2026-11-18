@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Shirabe API
-  version: 0.6.1
+  version: 0.8.0
   x-logo:
     url: '%LOGO_URL%'
     altText: Shirabe
@@ -22,8 +22,7 @@ info:
       details or example sentences to each match.
     - **`POST /api/v1/parse`**: the preferred dictionary-aware segmentation of
       one or more Japanese texts into positioned tokens. Optional enrichments
-      add furigana, morphology, or the caller's study state. Synchronous public
-      parsing is available without an account.
+      add furigana, morphology, or the caller's study state.
     - **`POST /api/v1/identify`**: popup lookup from surrounding text and a
       clicked UTF-16 position. It returns overlapping dictionary expressions
       beginning there, with the same ranked word cards as search.
@@ -234,6 +233,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}:
     parameters:
       - name: profile_id
@@ -268,6 +269,8 @@ paths:
           $ref: '#/components/responses/AnkiSyncConflict'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/snapshot:
     parameters:
       - name: profile_id
@@ -328,6 +331,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
     patch:
       operationId: finishAnkiSnapshot
       summary: Finish an Anki snapshot epoch
@@ -372,6 +377,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/collection_settings:
     parameters:
       - name: profile_id
@@ -476,6 +483,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/publications:
     parameters:
       - name: profile_id
@@ -562,6 +571,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/deck_links:
     parameters:
       - name: profile_id
@@ -631,6 +642,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/batches:
     parameters:
       - name: profile_id
@@ -679,6 +692,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/batches/{id}:
     parameters:
       - name: profile_id
@@ -868,6 +883,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/media_files/{id}:
     parameters:
       - name: profile_id
@@ -972,6 +989,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/note_conflicts/{id}:
     parameters:
       - name: profile_id
@@ -1214,6 +1233,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/notes/{note_id}/deletions/{id}:
     parameters:
       - name: profile_id
@@ -1289,6 +1310,8 @@ paths:
           $ref: '#/components/responses/AnkiSyncConflict'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/review_undos:
     parameters:
       - name: profile_id
@@ -1351,6 +1374,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/review_undos/{id}:
     parameters:
       - name: profile_id
@@ -1420,6 +1445,8 @@ paths:
           $ref: '#/components/responses/AnkiSyncConflict'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/anki/profiles/{profile_id}/deliveries:
     parameters:
       - name: profile_id
@@ -1533,7 +1560,9 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimited'
         '503':
-          description: Referenced media is not available yet. This attempt does not advance delivery; retry the same cursor.
+          description: |
+            `MEDIA_NOT_READY`: referenced media is not available yet. This attempt does not advance delivery; retry the same cursor.
+            `RELEASE_READ_ONLY`: a dictionary release holds the database read-only. Retry after `Retry-After` seconds.
           headers:
             Retry-After:
               schema:
@@ -1542,7 +1571,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorMediaNotReady'
+                oneOf:
+                  - $ref: '#/components/schemas/ErrorMediaNotReady'
+                  - $ref: '#/components/schemas/Error503'
   /api/v1/srs/anki/profiles/{profile_id}/deliveries/{id}:
     parameters:
       - name: profile_id
@@ -1673,6 +1704,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/mcp:
     get:
       operationId: inspectMcpTransport
@@ -1731,6 +1764,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/oauth/token:
     post:
       operationId: oauthToken
@@ -1796,6 +1831,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/oauth/revoke:
     post:
       operationId: oauthRevoke
@@ -1834,6 +1871,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/oauth/device_authorization:
     post:
       operationId: oauthDeviceAuthorization
@@ -1876,6 +1915,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/search:
     post:
       operationId: search
@@ -1989,22 +2030,18 @@ paths:
         definitions. Resolve a selected span from the local dictionary pack or use
         `POST /api/v1/identify` with the surrounding text and token offsets.
 
-        A bearer token is optional for synchronous parsing. Without one, Shirabe
-        uses the public dictionary stack, accepts up to 2,000 characters per
-        request, and applies an IP-based request limit. A bearer token enables the
-        caller's dictionary stack and its configured limits. The `study` include
-        requires its own scope.
+        Parsing needs a bearer token and uses the caller's dictionary stack and
+        configured limits. The `study` include requires its own scope.
 
         Offsets are UTF-16 and map directly to browser text nodes.
-        Authenticated callers may add `Prefer: respond-async` to queue the same operation and poll the URL in the
+        Callers may add `Prefer: respond-async` to queue the same operation and poll the URL in the
         `Location` header. The request and completed result shapes are identical in
-        synchronous and asynchronous use. Anonymous requests remain synchronous.
+        synchronous and asynchronous use.
         `results` follows the same order as
         `texts`, and each result repeats its submitted text.
       tags:
         - Search
       security:
-        - {}
         - BearerAuth:
             - dictionary:read
       parameters:
@@ -2073,6 +2110,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/parse/{id}:
     get:
       operationId: getParseOperation
@@ -2113,16 +2152,20 @@ paths:
       summary: Save a word as an SRS card
       description: |
         Creates an SRS review card for a word in the API key owner's deck, the
-        `/api/v1` twin of saving from the website. Identity is (deck, front, reading),
-        so re-saving a word you already have is idempotent. `rating` is accepted
-        only for an existing card whose scheduled review is currently due; early,
-        repeated, and save-plus-first-grade submissions are rejected. Subject to
-        the plan's saved-card limit.
+        `/api/v1` twin of saving from the website. A card is the word's lemma,
+        reading and the senses it covers, whichever deck holds it, so re-saving a
+        word you already have answers its card: out of the trash if it was there,
+        and back into review if you had marked it known. To grade a due card, use
+        `POST /api/v1/srs/reviews`. Send an `Idempotency-Key` so a retry after a
+        lost response gets the first save's answer, `created` included. To save
+        into a new deck, create it first with `POST /api/v1/srs/decks`.
       tags:
         - Cards
       security:
         - BearerAuth:
             - user:study:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -2154,8 +2197,12 @@ paths:
           $ref: '#/components/responses/AnkiSyncConflict'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
     delete:
       operationId: unsaveWord
       summary: Remove a word from the owner's reviews
@@ -2187,7 +2234,7 @@ paths:
                   example: 今日
                 reading:
                   type: string
-                  description: The card's reading; omit for a card saved without one.
+                  description: The cards' reading; omit to remove the word in every reading.
                   example: キョウ
       responses:
         '200':
@@ -2215,6 +2262,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/reviews:
     post:
       operationId: gradeCard
@@ -2223,12 +2272,16 @@ paths:
         Submits a review grade (1=Again, 2=Hard, 3=Good, 4=Easy) for one of the
         API key owner's cards, advancing its FSRS schedule. Include sessionId to
         grade the next card of an API session and record its Undo identity. Without
-        sessionId, this is a standalone dictionary or reader review.
+        sessionId, this is a standalone dictionary or reader review. Send an
+        `Idempotency-Key` so a retry after a lost response gets the first grade's
+        answer rather than a `409` for a card the first grade already changed.
       tags:
         - Review
       security:
         - BearerAuth:
             - user:study:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -2253,7 +2306,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: The card changed after it was displayed. Read it again before grading.
+          description: |
+            The card changed after it was displayed (`STALE_REVIEW`): read it again before grading. Or the `Idempotency-Key` was used with another body or is still being processed (`IDEMPOTENCY_CONFLICT`).
           content:
             application/json:
               schema:
@@ -2262,6 +2316,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/sessions:
     post:
       operationId: startStudySession
@@ -2318,6 +2374,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/sessions/{id}:
     parameters:
       - name: id
@@ -2386,6 +2444,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/reviews/latest:
     delete:
       operationId: undoLatestReview
@@ -2437,16 +2497,71 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
-  /api/v1/srs/states:
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
+  /api/v1/srs/knowns:
     post:
-      operationId: setWordState
-      summary: Set a word's learning state
+      operationId: markWordKnown
+      summary: Mark a word known
       description: |
-        Sets a word's state for the API key owner. `retired` parks it as learned
-        (out of review, still counted toward knowledge); `reviewing` brings it into
-        the SRS rotation. Find-or-creates the word's card, state IS the card, there
-        is no separate word-state record. Retiring is ungated; `reviewing` a
-        brand-new word is subject to the plan's saved-card limit.
+        Takes every card the word holds out of review, still counted as known: the
+        website's Known button. A word with no card gets one, made only for this
+        claim. Cards are found the way every word endpoint finds them: by lemma and
+        reading, under any spelling that names only the word's dictionary entry.
+        Send an `Idempotency-Key` so a retry after a lost response gets the first
+        request's answer.
+      tags:
+        - Review
+      security:
+        - BearerAuth:
+            - user:study:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnownRequest'
+      responses:
+        '200':
+          description: The word after the change; its `lemma` is the headword its cards are filed under.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - word
+                properties:
+                  word:
+                    $ref: '#/components/schemas/WordStateEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
+    delete:
+      operationId: unmarkWordKnown
+      summary: Take back marking a word known
+      description: |
+        A card that exists only because the word was marked known, and was never
+        reviewed, is deleted for good. A card that was saved or studied goes back to
+        its schedule with its history. Taking back a word that is not known is not
+        an error; the answer simply says what the word holds.
       tags:
         - Review
       security:
@@ -2457,10 +2572,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StateRequest'
+              type: object
+              additionalProperties: false
+              required:
+                - lemma
+              properties:
+                lemma:
+                  type: string
+                  example: 猫
+                reading:
+                  type: string
+                  description: Omit to take the claim back in every reading.
+                dictionarySlug:
+                  type: string
+                  description: With `sourceId`, the entry the word was marked known from.
+                sourceId:
+                  type: string
       responses:
         '200':
-          description: The word after the change, every card it holds moved to that state.
+          description: The word after the change.
           content:
             application/json:
               schema:
@@ -2483,6 +2613,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/states/lookup:
     post:
       operationId: lookupWordStates
@@ -2490,7 +2622,9 @@ paths:
       description: |
         Returns the API key owner's learning state for each requested word in one
         round-trip, for re-colouring a page (e.g. a subtitle cue changing) without
-        re-parsing.
+        re-parsing. Each answer comes back under the spelling that was asked. A
+        spelling that names a single dictionary entry also finds cards filed under
+        that entry's other spellings; one shared by several entries matches exactly.
       tags:
         - Review
       security:
@@ -2582,6 +2716,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/decks/{id}:
     patch:
       operationId: updateDeck
@@ -2625,6 +2761,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
     delete:
       operationId: deleteDeck
       summary: Delete a deck
@@ -2655,6 +2793,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/cards:
     get:
       operationId: listCards
@@ -2818,6 +2958,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/cards/{id}:
     get:
       operationId: getCard
@@ -2898,6 +3040,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
     delete:
       operationId: deleteCard
       summary: Delete (un-save) a card
@@ -2932,6 +3076,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/due:
     get:
       operationId: dueQueue
@@ -3058,6 +3204,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/forecast:
     get:
       operationId: getForecast
@@ -3201,6 +3349,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/word_notes/{id}:
     delete:
       operationId: deleteWordNote
@@ -3232,18 +3382,26 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/word-ignores:
     post:
       operationId: ignoreWord
       summary: Ignore a word (blacklist)
       description: |
-        Marks a word "don't study," so bulk seeds / clones skip it (docs/srs.md
-        §13b). No card is created. Requires SRS entitlement.
+        Marks a word "don't study": no card is created, bulk seeds and deck clones
+        skip it, and while you hold no card for it every word-state answer reports
+        it `ignored`. A blank `reading` ignores every reading of `text`. Saving or
+        marking the word known still works; its cards then decide its state.
+        Requires SRS entitlement. Send an `Idempotency-Key` so a retry after a lost
+        response gets the first request's answer.
       tags:
         - Notes
       security:
         - BearerAuth:
             - user:study:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -3289,10 +3447,61 @@ paths:
           $ref: '#/components/responses/PaymentRequired'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
+    delete:
+      operationId: unignoreWord
+      summary: Stop ignoring a word
+      description: |
+        Lifts every ignore that covers the word: the one in this `reading` and one
+        with a blank reading, which covers every reading. Omit `reading` to lift
+        every ignore of `text`. The word then reads as its cards say, `none` when it
+        has none. Lifting a word that is not ignored is not an error.
+      tags:
+        - Notes
+      security:
+        - BearerAuth:
+            - user:study:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 512
+                reading:
+                  type: string
+                  maxLength: 512
+      responses:
+        '204':
+          description: The word is not ignored.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/srs/search-additions:
     post:
       operationId: bulkAddSearch
@@ -3368,6 +3577,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/words/identify:
     post:
       operationId: identifyWords
@@ -3761,6 +3972,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/dictionary-stack:
     get:
       operationId: getDictionaryStack
@@ -3834,6 +4047,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/dictionary-imports:
     get:
       operationId: listDictionaryImports
@@ -3937,6 +4152,8 @@ paths:
                 $ref: '#/components/schemas/Error409'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/dictionary-packs:
     get:
       operationId: listDictionaryPacks
@@ -4151,6 +4368,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/preferences:
     get:
       operationId: getPreferences
@@ -4277,6 +4496,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ReleaseReadOnly'
   /api/v1/kanji:
     get:
       operationId: listKanji
@@ -5448,18 +5669,24 @@ components:
               type: string
         study:
           type: object
-          description: 'Present only with `include: ["study"]`; requires `user:study:read`.'
+          additionalProperties: false
+          description: |
+            Present only with `include: ["study"]`; requires `user:study:read`. The word's state exactly as `WordStateEntry` reports it, without `lemma`: the token's own `lemma` names the word. `ignored` matches the token's `reading`.
           required:
             - state
             - decks
           properties:
             state:
-              type: string
-              example: learning
+              $ref: '#/components/schemas/WordState'
             decks:
               type: array
+              description: Every deck holding a card for this word.
               items:
                 type: object
+                additionalProperties: false
+                required:
+                  - id
+                  - name
                 properties:
                   id:
                     type: integer
@@ -5467,16 +5694,50 @@ components:
                     type: string
             cardId:
               type: integer
+              description: The most recently updated card for this word, present whenever `cardCount` is.
             cardCount:
               type: integer
+              minimum: 1
+              description: How many cards the owner holds for this word.
+            reviewCard:
+              type: object
+              additionalProperties: false
+              required:
+                - id
+                - revision
+              description: The earliest due card, with the revision to submit when grading it. Absent when no card is due.
+              properties:
+                id:
+                  type: integer
+                revision:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
             savedSenses:
               type: array
+              description: The senses this word already has cards for, as `senses[]` refs.
               items:
                 type: string
             savedWholeWord:
               type: boolean
+              description: True when a card covers the whole word.
             intervals:
               type: object
+              additionalProperties: false
+              description: What each grade would cost on the card a review would land on. Absent when no card is scheduled.
+              required:
+                - again
+                - hard
+                - good
+                - easy
+              properties:
+                again:
+                  type: string
+                hard:
+                  type: string
+                good:
+                  type: string
+                easy:
+                  type: string
     ParseOperation:
       oneOf:
         - type: object
@@ -5585,11 +5846,14 @@ components:
       type: string
       description: |
         A word's learning status in the API key owner's SRS, weakest → strongest.
-        `none` means the user has no card for the word yet. `suspended` is a card the
-        user has shelved out of review (off the queue and off the free card cap).
-        `retired` is the terminal tier, done studying, still counted as known.
+        `none` means the user has no card for the word yet, and `ignored` is a word
+        with no card that the user chose never to study (`POST /api/v1/srs/word-ignores`);
+        a card for the word outranks the ignore. `suspended` is a card the user has
+        shelved out of review (off the queue and off the free card cap). `retired` is
+        the terminal tier, done studying, still counted as known.
       enum:
         - none
+        - ignored
         - new
         - learning
         - due
@@ -5746,11 +6010,13 @@ components:
       required:
         - lemma
       description: |
-        A word to save as a review card. Identity is `(deck, lemma, reading)`, so
-        re-saving a word you already have is idempotent. To pin the exact dictionary
-        entry (rather than let the server auto-link by lemma+reading), pass the
-        portable `(dictionarySlug, sourceId)` handle. This endpoint saves and mines
-        only, to grade a due card, use `POST /api/v1/srs/reviews`.
+        A word to save as a review card. A card is `(lemma, reading, senses)`, in
+        whichever deck holds it, so re-saving a word you already have answers its
+        card. To pin the exact dictionary entry (rather than let the server auto-link
+        by lemma+reading), pass the portable `(dictionarySlug, sourceId)` handle; a
+        handle that names no entry is dropped, so the card keeps your `meaning` and
+        links by lemma+reading. This endpoint saves and mines only, to grade a due
+        card, use `POST /api/v1/srs/reviews`.
       properties:
         lemma:
           type: string
@@ -5770,13 +6036,7 @@ components:
             value sent here is ignored for one.
         deckId:
           type: integer
-          description: Target deck. Defaults to the owner's "Saved words" deck.
-        newDeckName:
-          type: string
-          description: |
-            Create a deck with this name and save into it. Wins over `deckId` when both
-            are sent, matching the web form, a card can arrive with its own deck
-            without a detour through the decks screen.
+          description: Target deck. Defaults to the owner's "Saved words" deck; a deck that is not yours is a `422` and nothing is saved.
         hint:
           type: string
           description: A nudge shown on the card's front. Omit to leave an existing card's hint alone; send an empty string to clear it.
@@ -5808,8 +6068,8 @@ components:
             the web form's picker is multi-select. Each entry is mined exactly like the
             singular `sentence` below (which is shorthand for a one-element list): the
             owner's sentence bank is reused when the same text is already there, and a
-            row may carry its own clip and screenshot. Sending this key REPLACES the
-            card's examples; omit it to leave them alone.
+            row may carry its own clip and screenshot. Each line is added beside the
+            examples the card already has; one it already carries is not added twice.
           items:
             $ref: '#/components/schemas/SaveSentence'
         sentence:
@@ -5869,35 +6129,28 @@ components:
           maximum: 4
           description: 1=Again, 2=Hard, 3=Good, 4=Easy.
           example: 3
-    StateRequest:
+    KnownRequest:
       type: object
       additionalProperties: false
       required:
         - lemma
-        - state
       description: |
-        Set a word's learning state. `retired` parks it as learned (out of review);
-        `reviewing` brings it into the SRS rotation; `suspended` shelves it (off the
-        queue and the free card cap). To pin the exact dictionary entry, pass the
-        portable `(dictionarySlug, sourceId)` handle.
+        A word to mark known. To pin the exact dictionary entry, pass the portable
+        `(dictionarySlug, sourceId)` handle; a handle that names no entry is
+        dropped and the word is matched by lemma and reading.
       properties:
         lemma:
           type: string
           example: 猫
-        state:
-          type: string
-          description: 'One of: retired, reviewing, suspended.'
-          enum:
-            - retired
-            - reviewing
-            - suspended
-          example: retired
         reading:
           type: string
+          description: Omit to mark the word known in every reading you hold a card for.
         meaning:
           type: string
+          description: Your own definition, used only when the word has no card yet and no dictionary entry to follow.
         deckId:
           type: integer
+          description: Deck for the card a word with no card gets. Defaults to "Saved words"; one that is not yours is a `422`.
         dictionarySlug:
           type: string
           description: With `sourceId`, the portable handle to the exact dictionary entry to link.
@@ -6948,7 +7201,7 @@ components:
           properties:
             srs:
               type: boolean
-              description: True when the owner may write to the SRS (Pro or a school member).
+              description: True when the owner may write to the SRS (Pro or a school member, on an account Study is open to).
             subscribed:
               type: boolean
               description: True when the owner holds a Pro subscription (excludes school-only entitlement).
@@ -8206,6 +8459,38 @@ components:
             - UNSUPPORTED_MEDIA_TYPE
         instance:
           type: string
+    Error422:
+      type: object
+      description: The request was well formed but names something that is not the caller's to use.
+      required:
+        - type
+        - title
+        - status
+        - code
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          enum:
+            - 422
+        detail:
+          type: string
+        code:
+          type: string
+          enum:
+            - UNKNOWN_DECK
+        instance:
+          type: string
+        errors:
+          type: object
+          description: The refused field, keyed by its request name, with why.
+          additionalProperties:
+            type: string
     Error413:
       type: object
       description: |
@@ -8375,6 +8660,34 @@ components:
             - MEDIA_QUOTA_EXCEEDED
         detail:
           type: string
+        instance:
+          type: string
+    Error503:
+      type: object
+      description: The operation is temporarily unavailable.
+      required:
+        - type
+        - title
+        - status
+        - code
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          enum:
+            - 503
+        detail:
+          type: string
+        code:
+          type: string
+          enum:
+            - DICTIONARY_PACK_UNAVAILABLE
+            - RELEASE_READ_ONLY
         instance:
           type: string
     AnkiSyncBatchRequest:
@@ -9254,7 +9567,7 @@ components:
       type: object
       additionalProperties: false
       description: |
-        What the API key owner knows about one word, however many cards it holds. Returned by every word-level endpoint, the batch lookup, setting a state, and saving, so a client reads the same shape wherever a word changes.
+        What the API key owner knows about one word, however many cards it holds. Returned by the batch lookup, saving and removing a word, and marking it known or taking that back, so a client reads the same shape wherever a word changes.
       required:
         - lemma
         - state
@@ -9354,6 +9667,10 @@ components:
             Whether THIS card was inserted. A word can hold a card per meaning, so saving a second meaning creates a card even though the word was already saved.
         word:
           $ref: '#/components/schemas/WordStateEntry'
+        mediaError:
+          type: string
+          description: |
+            Present when a mined line's clip or screenshot could not be attached, and why. The card and the line were saved without it.
     ReviewResponse:
       type: object
       description: A graded card plus the four next-grade interval previews.
@@ -9970,33 +10287,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DictionaryStackSource'
-    Error503:
-      type: object
-      description: A dictionary operation is temporarily unavailable.
-      required:
-        - type
-        - title
-        - status
-        - code
-        - instance
-      properties:
-        type:
-          type: string
-          format: uri
-        title:
-          type: string
-        status:
-          type: integer
-          enum:
-            - 503
-        detail:
-          type: string
-        code:
-          type: string
-          enum:
-            - DICTIONARY_PACK_UNAVAILABLE
-        instance:
-          type: string
     ReaderHostRules:
       type: object
       additionalProperties: false
@@ -10303,6 +10593,24 @@ components:
             detail: This API key is missing the user:profile:read scope.
             code: INSUFFICIENT_SCOPE
             instance: req-7f3a9b2c
+    UnprocessableContent:
+      description: A field names something that is not yours; nothing was written.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error422'
+          examples:
+            UnknownDeck:
+              summary: deckId is not one of the owner's decks
+              value:
+                type: https://shirabe.org/docs/errors/unknown-deck
+                title: Unknown deck
+                status: 422
+                detail: Deck 999 is not one of yours; nothing was saved.
+                code: UNKNOWN_DECK
+                instance: req-7f3a9b2c
+                errors:
+                  deckId: Deck is not one of your decks
     RateLimited:
       description: |
         Too many requests; back off and retry after `Retry-After` seconds.
@@ -10347,6 +10655,18 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error409'
+    ReleaseReadOnly:
+      description: |
+        A dictionary release holds the database read-only for a few minutes, so
+        nothing that writes can run. Retry after `Retry-After` seconds; reads keep
+        working through the window.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error503'
     Conflict:
       description: The request conflicts with the current resource state.
       content:
