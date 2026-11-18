@@ -76,7 +76,15 @@ document.body.addEventListener("mouseover", (event) => {
 A word is any element with class `sb-word` and a `data-lemma`. Add
 `data-surface` where the text on the page differs from the dictionary form, and
 `data-entry` where you already know which dictionary word it is: the card calls
-`lookupEntry` for those and `lookup` for the rest.
+`lookupEntry` for those and `lookup` for the rest. `data-entry` takes a parse
+token's `wordId` (`開く-ひらく`) or a `slug:sourceId` handle (`jmdict:1202650`).
+`lookupEntry(entry, surface, word, context)` receives the span's token as
+`context` (`lemma`, `surface`, `reading`, `pos`), so a host ranks candidates by
+the whole token and opens the one `entry` names. When no candidate carries that
+entry any more, as after a dictionary re-import renamed it, the built-in hosts
+open the top-ranked candidate. Once a word has opened, the card writes the
+opened entry's `slug:sourceId` back to `data-entry`, which is the handle
+`POST /srs/saves` links by as `dictionarySlug` and `sourceId`.
 `cardTokenAttributes(token, sentence, targetStart, targetEnd)` from
 `word-card/host` writes these attributes from a `CardToken`. The last two
 arguments are sentence-relative offsets when they differ from the token's own
@@ -107,12 +115,17 @@ If your app already performs identify lookups through its own server, use
 `candidateHost({ lookupCandidates, site, languages, displayLocale })`. It maps
 ranked candidates, reuses them for entry selection, and exposes the visible
 definition to host controls. Resolved candidate parts become clickable expression
-parts. Supply `filterDefinitions` for a local language policy and `wordUrl` when
-your word route differs. The transport stays in your
+parts. Supply `filterDefinitions` for a local language policy; it receives each
+sense's glosses and, separately, its usage notes. Supply `wordUrl` when your word
+route differs, and `presentationForTag` or `labelForTag` to label tags in your own
+languages, exactly as `apiHost` takes them. The transport stays in your
 app, so its credentials and cache policy remain there.
 Supply `lookupLinks` for a configurable row of external dictionaries, including
 when the lookup misses. `openHeadword` replaces the default link to Shirabe.
-`hiddenGlossLanguages` keeps glosses available behind a reveal control. The
+`hiddenGlossLanguages` keeps glosses and usage notes in those languages
+available behind a reveal control. Glosses in none of the reader's `languages`
+still show, since a sense needs its meaning; usage notes in none of them are
+dropped. The
 `report` callback receives card, candidate, and lookup-link events without
 choosing an analytics provider for the host.
 
@@ -227,7 +240,7 @@ The card builds into a shadow root, so a host's stylesheet cannot reach inside
 it, including the `!important` a shared Anki deck carries. You set tokens, never
 templates.
 
-There are 33 of them, all named `--sb-*`:
+They are all named `--sb-*`:
 
 ```sh
 grep -o -- "--sb-[a-z0-9-]*" src/word-card/card.ts | sort -u
@@ -243,9 +256,20 @@ The default palette uses white/dark neutral surfaces and Shirabe blue accents.
 
 Pass `theme`, `definitionSize`, and `themeVariables` to `setPopupOptions` to
 style a mounted card. Variables are set on the shadow host, so they win over
-the SDK's light and dark defaults. `--sb-popup-width` and
-`--sb-popup-max-height` control the shell's dimensions. Use `customCss` for
-selected details inside the shadow root.
+the SDK's light and dark defaults. These shape the card's shell, so a host
+never styles the internal `.sb-popup` class:
+
+| Token | Default | Sets |
+| --- | --- | --- |
+| `--sb-popup-width` | `min(480px, calc(100vw - 24px))` | Width |
+| `--sb-popup-max-height` | `min(70vh, 620px)` | Maximum height |
+| `--sb-popup-radius` | `18px` | Corner radius |
+| `--sb-popup-padding` | `16px 18px` | Padding inside the border |
+| `--sb-font-family` | `system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif` | Font of all card text |
+| `--sb-font-japanese` | `"Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif` | Font of Japanese words inside English or Spanish prose |
+| `--sb-font-size` | `15px` | Base size of body text. Headwords, chips and badges keep their own sizes |
+
+Use `customCss` for selected details inside the shadow root.
 
 For host-specific controls, pass a DOM element as `footer`. The card mounts it
 in the bottom row beside the result count and keeps it connected while

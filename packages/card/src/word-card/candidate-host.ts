@@ -1,4 +1,4 @@
-import { candidateToDefinition, type IdentifiedCandidate } from "./api-host.js";
+import { candidateToDefinition, isCandidateEntry, type IdentifiedCandidate, type TagLabeler, type TagPresenter } from "./api-host.js";
 import { applyDictionaryReveal } from "./dictionary-reveal.js";
 import type { CardEvent, LookupContext, LookupResult, WordCardHost } from "./host.js";
 import type { GlossLanguage } from "./languages.js";
@@ -19,6 +19,10 @@ export type CandidateHostOptions = {
   lookupCandidates(query: CandidateQuery, locale: TagDisplayLocale): Promise<CandidateAnswer>;
   dictionaryReveal?(): Readonly<Record<string, "show" | "hover">>;
   filterDefinitions?(definitions: ApiSense["definitions"], dictionary: string): ApiSense["definitions"];
+  /** Replace a tag's label and explanation, as `apiHost` takes it. */
+  presentationForTag?: TagPresenter;
+  /** Override a tag's short chip label, as `apiHost` takes it. */
+  labelForTag?: TagLabeler;
   hiddenGlossLanguages?(): readonly GlossLanguage[];
   wordUrl?(candidate: IdentifiedCandidate, locale: TagDisplayLocale): string;
   onDefinition?(definition: Definition | null): void;
@@ -39,10 +43,11 @@ export function candidateHost(options: CandidateHostOptions): WordCardHost {
       const mapped = candidateToDefinition(item, site, options.languages(), {
         displayLocale: options.displayLocale(),
         filterDefinitions: options.filterDefinitions,
+        presentationForTag: options.presentationForTag,
+        labelForTag: options.labelForTag,
       });
       return applyDictionaryReveal({
         ...mapped,
-        entry: item.id,
         ...(options.wordUrl ? { url: options.wordUrl(item, options.displayLocale()) } : {}),
         sourceForm: surface !== mapped.headword ? surface : undefined,
         baseForm: mapped.headword,
@@ -50,7 +55,7 @@ export function candidateHost(options: CandidateHostOptions): WordCardHost {
         ...(hiddenGlossLanguages.length ? { hiddenGlossLanguages: [...hiddenGlossLanguages] } : {}),
       }, options.dictionaryReveal?.() ?? {});
     });
-    const definition = alternatives.find((item) => item.entry === candidate.id) ?? null;
+    const definition = alternatives[all.indexOf(candidate)] ?? null;
     return { status: "found", definition, alternatives };
   }
 
@@ -59,9 +64,10 @@ export function candidateHost(options: CandidateHostOptions): WordCardHost {
     if (answer.reason === "failed") {
       return { status: "failed", message: "Could not load definitions. Please try again later." };
     }
-    const selected = selectedEntry
-      ? answer.candidates.find((candidate) => candidate.id === selectedEntry)
-      : answer.candidates[0];
+    // A handle no candidate carries any more (a re-import renamed its entry)
+    // opens the top-ranked candidate rather than "no entry".
+    const selected = (selectedEntry ? answer.candidates.find((candidate) => isCandidateEntry(candidate, selectedEntry)) : undefined)
+      ?? answer.candidates[0];
     if (!selected) {
       return { status: "found", definition: null };
     }
@@ -73,9 +79,10 @@ export function candidateHost(options: CandidateHostOptions): WordCardHost {
       if (kind === "kanji") return Promise.resolve({ status: "failed", message: "Kanji lookup is not available in this preview." });
       return ask({ lemma: query, surface: context?.surface ?? query, ...context });
     },
-    lookupEntry(entry, surface) {
-      const cached = latest.find((candidate) => candidate.id === entry);
-      return cached ? Promise.resolve(found(cached, latest, surface)) : ask({ lemma: surface, surface }, entry);
+    lookupEntry(entry, surface, _word, context) {
+      const cached = latest.find((candidate) => isCandidateEntry(candidate, entry));
+      return cached ? Promise.resolve(found(cached, latest, surface))
+        : ask({ ...context, lemma: context?.lemma ?? surface, surface: context?.surface ?? surface }, entry);
     },
     async prefetch(query, kind, context) {
       if (kind !== "kanji") await options.lookupCandidates(

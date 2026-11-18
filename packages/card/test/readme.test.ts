@@ -59,3 +59,15 @@ test("every TypeScript block in the README compiles against the real contract", 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// The shell tokens are a public styling contract: a host that sets
+// `--sb-popup-radius` must not need to know the card's internal classes.
+test("every shell token the README documents is read by the card with its documented default", () => {
+  const readme = readFileSync("README.md", "utf8");
+  const css = readFileSync("src/word-card/card.ts", "utf8");
+  const rows = [...readme.matchAll(/^\| `(--sb-[a-z-]+)` \| `(.+?)` \|/gm)];
+  assert.ok(rows.length >= 6, "found the token table");
+  for (const [, token, fallback] of rows) {
+    assert.ok(css.includes(`var(${token}, ${fallback})`), `${token} defaults to ${fallback}`);
+  }
+});

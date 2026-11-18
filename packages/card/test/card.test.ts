@@ -428,13 +428,19 @@ test("the overview marks words, articles, and names like Shirabe search", async 
     card.showNow(await word("食べる"));
     await settle();
     let shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
-    assert.deepEqual([...shadow.querySelectorAll(".sb-result-kind")].map((tag) => tag.textContent), ["Word", "Article", "Name"]);
+    assert.deepEqual([...shadow.querySelectorAll(".sb-result-kind")].map((tag) => tag.textContent), ["Ichidan verb", "Article", "Name"]);
 
     card.setWriteState({ canWrite: false, connected: false, displayLocale: "es" });
     card.showNow(await word("食べる"));
     await settle();
     shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
-    assert.deepEqual([...shadow.querySelectorAll(".sb-result-kind")].map((tag) => tag.textContent), ["Palabra", "Artículo", "Nombre"]);
+    assert.deepEqual([...shadow.querySelectorAll(".sb-result-kind")].map((tag) => tag.textContent), ["Ichidan verb", "Artículo", "Nombre"]);
+    const bare = { ...taberu, senses: taberu.senses.map((sense) => ({ ...sense, partsOfSpeech: [] })) };
+    host.lookup = async () => ({ status: "found", definition: bare, alternatives: [bare, article] });
+    card.showNow(await word("食べる"));
+    await settle();
+    shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+    assert.equal(shadow.querySelector(".sb-result-kind")?.textContent, "Palabra", "a word with no part of speech keeps its kind");
   } finally {
     card.setWriteState({ canWrite: false, connected: false });
   }
@@ -770,6 +776,22 @@ test("the popup groups synonyms and styles Japanese prose without parsing API te
   assert.equal(rows[1]?.querySelectorAll(".sb-gloss-item").length, 2);
   assert.equal(shadow.querySelector(".sb-sense-note .sb-japanese-run")?.textContent, "日本語");
   assert.equal(shadow.querySelectorAll("img, script").length, 0);
+});
+
+test("usage notes in a folded language fold with its glosses", async () => {
+  const { card, window } = await page();
+  const definition = { ...taberu, hiddenGlossLanguages: ["spa" as const], senses: [{ ...taberu.senses[0]!,
+    glosses: [{ lang: "eng" as const, tag: "EN", text: "to eat" }, { lang: "spa" as const, tag: "ES", text: "comer" }],
+    usages: [{ lang: "eng" as const, tag: "EN", text: "of meals" }, { lang: "spa" as const, tag: "ES", text: "de comidas" }],
+  }] };
+  card.setCardHost(fakeHost({ study: false, definitions: { "食べる": definition } }));
+  card.showNow(await word("食べる"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  const visible = () => [...shadow.querySelectorAll(".sb-usage")].filter((row) => !row.hasAttribute("hidden")).map((row) => row.textContent);
+  assert.deepEqual(visible(), ["of meals"]);
+  (shadow.querySelector(".sb-reveal-definitions") as unknown as HTMLElement).click();
+  assert.deepEqual(visible(), ["of meals", "de comidas"]);
 });
 
 test("a sense with one language has no language tag, even when another sense uses a different language", async () => {
@@ -1245,6 +1267,68 @@ test("a numeral popup keeps its displayed spelling and saves its shared base", a
   } finally {
     card.setWriteState({ connected: false, canWrite: false });
   }
+});
+
+// あれ is a pronoun and, as another JMdict entry, an interjection. Spelled and
+// read alike, the two rows and the two chips differ only in what the word is.
+test("results and chips spelled alike say which part of speech each is", async () => {
+  const { card, window } = await page();
+  const pronoun = { ...kimi, headword: "あれ", reading: "あれ", entry: "jmdict:1000580" };
+  const interjection = { ...pronoun, entry: "jmdict:2847612", senses: [{ ...kimi.senses[0]!,
+    glosses: [{ lang: "eng" as const, tag: "EN", text: "oh" }],
+    partsOfSpeech: [{ label: "Interjection", code: "int", category: "pos" as const }] }] };
+  const host = fakeHost({ study: false });
+  host.lookup = async () => ({ status: "found", definition: pronoun, alternatives: [pronoun, taberu, interjection] });
+  card.setCardHost(host);
+  card.showNow(await word("あれ"));
+  await settle();
+  const shadow = window.document.querySelector(".sb-host")!.shadowRoot!;
+  assert.deepEqual([...shadow.querySelectorAll(".sb-result-kind")].map((tag) => tag.textContent),
+    ["Pronoun", "Ichidan verb", "Interjection"]);
+  // A host with no complete alternatives offers chips instead, and names the
+  // part of speech it knows.
+  host.lookup = async () => ({ status: "found", definition: pronoun, candidates: [
+    { entry: pronoun.entry, headword: "あれ", reading: "あれ", common: true, pos: "Pronoun" },
+    { entry: taberu.entry!, headword: "食べる", reading: "たべる", common: true, pos: "Ichidan verb" },
+    { entry: interjection.entry, headword: "あれ", reading: "あれ", common: false, pos: "Interjection" },
+  ] });
+  card.dismissPopup();
+  card.showNow(await word("あれ"));
+  await settle();
+  assert.deepEqual([...shadow.querySelectorAll(".sb-candidate:not(.sb-candidate-more)")].map((chip) => chip.textContent),
+    ["あれPronoun", "食べるたべる", "あれInterjection"]);
+});
+
+// The parse names the entry (`data-entry`) on a span that also carries the
+// token. The card asks for that entry WITH the token, and writes back the handle
+// a save links by.
+test("a span's entry is looked up with its token and saved by the entry it opened", async () => {
+  const { card } = await page();
+  const { apiHost } = await import("../src/word-card/api-host.js");
+  const hiraku = { dictionary: "jmdict", sourceId: "1202650", id: "開く-ひらく", headword: "開く", reading: "ひらく",
+    furigana: [], common: true, pitch: [], forms: [], entries: [{ dictionary: "jmdict", sourceId: "1202650", type: "definition",
+      senses: [{ position: 0, definitions: [{ lang: "en", text: "to open" }], tags: [] }] }] };
+  const aku = { ...hiraku, sourceId: "1586270", id: "開く-あく", reading: "あく",
+    entries: [{ ...hiraku.entries[0]!, sourceId: "1586270", senses: [{ position: 0, definitions: [{ lang: "en", text: "to be opened" }], tags: [] }] }] };
+  const bodies: Array<Record<string, unknown>> = [];
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async (url, init) => {
+    const request = url instanceof Request ? url : new Request(url, init);
+    const body = JSON.parse(await request.clone().text());
+    bodies.push(body);
+    return request.url.endsWith("/srs/saves") ? new Response("{}", { status: 201 })
+      : Response.json({ words: [{ candidates: [aku, hiraku] }] });
+  } });
+  card.setCardHost(host);
+  const span = await word("開く");
+  Object.assign(span.dataset, { surface: "開いた", reading: "ヒライタ", pos: "verb", lookupPos: "verb", entry: "開く-ひらく" });
+  card.showNow(span);
+  await settle();
+  assert.deepEqual(bodies[0]?.tokens, [{ lemma: "開く", surface: "開いた", reading: "ヒライタ", pos: "verb" }]);
+  assert.match(await shown(), /to open/);
+  assert.equal(span.dataset.entry, "jmdict:1202650");
+  assert.equal((await host.study!.save!(span)).ok, true);
+  assert.deepEqual(bodies.at(-1), { lemma: "開く", reading: "ひらく", dictionarySlug: "jmdict", sourceId: "1202650" });
+  card.dismissPopup();
 });
 
 test("candidate choices survive a pick and reopening without leaking to another surface or host", async () => {

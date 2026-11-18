@@ -4,7 +4,7 @@ import { rangeFromCaret, selectionText } from "./dom-text.js";
 import { placeCard } from "./placement.js";
 import { appendFurigana, appendFuriganaSegments, hiraToKata, kataToHira, type FuriganaSegment } from "./furigana.js";
 import { isR2AudioUrl, isSnapshotRecordingFilename } from "./audio.js";
-import { senseText } from "./senses.js";
+import { partOfSpeechLabel, senseText } from "./senses.js";
 import { legendTerm, type LegendTerm, type TagDisplayLocale } from "./legend.js";
 import { accountActions, ACCOUNT_CSS } from "./account-actions.js";
 
@@ -572,7 +572,7 @@ function wordTarget(word: HTMLElement): PopupTarget {
   const stored = wordCandidates.get(word);
   const candidates = optional().candidatesFor?.(word) ?? (stored && stored.surface === context.surface
     && stored.candidates.some((candidate) => candidate.entry === pick) ? stored.candidates : undefined);
-  return { key: `word:${JSON.stringify([query, pick, context])}`, query, pick, context, candidates,
+  return { key: `word:${JSON.stringify([query, lemma, pick, context])}`, query, lemma, pick, context, candidates,
     inflection, rect: word.getBoundingClientRect(), word, depth: 0 };
 }
 
@@ -588,6 +588,8 @@ type ScanAnchor = { node: Text; offset: number; at?: (sentenceOffset: number) =>
 type PopupTarget = {
   key: string; query: string; rect: DOMRect; word: HTMLElement; depth: number;
   kind?: LookupKind; anchor?: ScanAnchor;
+  /** The token's dictionary form, which an entry lookup ranks its candidates by. */
+  lemma?: string;
   pick?: string;
   context?: LookupContext;
   candidates?: TokenCandidate[];
@@ -599,11 +601,11 @@ type PopupTarget = {
 // again. The small expiry also bounds results from words never clicked.
 const prefetched = new WeakMap<WordCardHost, Map<string, { result: Promise<LookupResult>; expires: number }>>();
 function prefetchKey(target: PopupTarget): string {
-  return JSON.stringify([target.query, target.kind ?? "word", target.pick, target.context]);
+  return JSON.stringify([target.query, target.kind ?? "word", target.lemma, target.pick, target.context]);
 }
 function requestLookup(target: PopupTarget, lookupHost: WordCardHost): Promise<LookupResult> {
   return target.pick
-    ? lookupHost.lookupEntry(target.pick, target.query, target.word)
+    ? lookupHost.lookupEntry(target.pick, target.query, target.word, { ...target.context, lemma: target.lemma ?? target.query })
     : lookupHost.lookup(target.query, target.kind ?? "word", target.context ?? {
       surface: target.word.dataset.surface,
       reading: target.word.dataset.reading,
@@ -1093,9 +1095,12 @@ function definitionRows(
       const kind = nameGroup || result.name ? "name" : result.kind ?? "definition";
       const kindTag = document.createElement("span");
       kindTag.className = `sb-result-kind sb-result-kind-${kind}`;
-      kindTag.textContent = tagDisplayLocale === "es"
-        ? { definition: "Palabra", name: "Nombre", encyclopedia: "Artículo" }[kind]
-        : { definition: "Word", name: "Name", encyclopedia: "Article" }[kind];
+      // A word's badge names its part of speech: "Word" on every row told apart
+      // nothing, and two rows spelled あれ differ exactly there.
+      kindTag.textContent = (kind === "definition" ? partOfSpeechLabel(result) : undefined)
+        ?? (tagDisplayLocale === "es"
+          ? { definition: "Palabra", name: "Nombre", encyclopedia: "Artículo" }[kind]
+          : { definition: "Word", name: "Name", encyclopedia: "Article" }[kind]);
       const preview = document.createElement("span");
       preview.className = "sb-result-preview";
       preview.textContent = nameGroup
@@ -1873,13 +1878,13 @@ function sensesList(def: Definition, pickable = false, covered: Set<string> | "a
         pickable, covered, showGroupTags && !parent, index === 0, senseDisplayDepth(sense, run, tiered)));
       previousMarker = sense.label;
     }
-    const hidden = [...list.querySelectorAll<HTMLElement>(".sb-gloss-row[hidden]")];
+    const hidden = [...list.querySelectorAll<HTMLElement>(".sb-gloss-row[hidden], .sb-usage[hidden]")];
     if (hidden.length) {
       for (const item of list.querySelectorAll<HTMLElement>(".sb-sense-row")) {
         if (item.querySelector(".sb-gloss-row[hidden]") && !item.querySelector(".sb-gloss-row:not([hidden])")) item.hidden = true;
       }
       const reveal = button(options.labels?.showDefinitions ?? "Show definitions", "sb-reveal-definitions", "", () => {
-        for (const item of list.querySelectorAll<HTMLElement>(".sb-sense-row[hidden], .sb-gloss-row[hidden]")) item.hidden = false;
+        for (const item of list.querySelectorAll<HTMLElement>(".sb-sense-row[hidden], .sb-gloss-row[hidden], .sb-usage[hidden]")) item.hidden = false;
         reveal.remove();
       });
       content.append(reveal);
@@ -1963,7 +1968,7 @@ function senseItem(def: Definition, sense: Sense, marker: string, pickable: bool
   if (labels) body.append(labels);
   const glosses = glossRows(sense.glosses, def.hiddenGlossLanguages);
   if (glosses) body.append(glosses);
-  const usages = usageRows(sense.usages);
+  const usages = usageRows(sense.usages, def.hiddenGlossLanguages);
   if (usages) body.append(usages);
   for (const note of sense.notes ?? []) body.append(proseBlock("sb-sense-note", note));
   const xrefs = xrefRow(sense.xrefs);
@@ -2177,7 +2182,7 @@ function proseBlock(className: string, value: string): HTMLElement {
   return element;
 }
 
-function usageRows(usages: Sense["usages"]): HTMLElement | null {
+function usageRows(usages: Sense["usages"], hiddenLanguages: readonly GlossLanguage[] = []): HTMLElement | null {
   if (!usages?.length) return null;
 
   const wrap = document.createElement("div");
@@ -2185,6 +2190,7 @@ function usageRows(usages: Sense["usages"]): HTMLElement | null {
   for (const usage of usages) {
     const row = document.createElement("div");
     row.className = "sb-usage";
+    row.hidden = hiddenLanguages.includes(usage.lang);
     row.lang = usage.lang === "spa" ? "es" : usage.lang === "jpn" ? "ja" : "en";
     if (usage.title) row.append(proseBlock("sb-usage-title", usage.title));
     const text = proseBlock("sb-usage-text", usage.text);
@@ -2652,6 +2658,12 @@ function drawChips(
     if (candidate.reading && candidate.reading !== candidate.headword) {
       pill.append(japanese("sb-candidate-reading", candidate.reading));
     }
+    // Two chips spelled and read alike (あれ the pronoun, あれ the interjection)
+    // differ only in what the word is.
+    if (candidate.pos && candidates.some((other) => other !== candidate
+      && other.headword === candidate.headword && other.reading === candidate.reading)) {
+      pill.append(chip("sb-candidate-pos", candidate.pos));
+    }
     // Says WHY six near-identical chips are here: they are people, not readings
     // of the word that was tapped.
     if (isNameCandidate(candidate)) {
@@ -2938,14 +2950,14 @@ ${ACCOUNT_CSS}
      phone window is not pushed sideways. */
   width: var(--sb-popup-width, min(480px, calc(100vw - 24px)));
   max-height: var(--sb-popup-max-height, min(70vh, 620px));
-  padding: 16px 18px;
+  padding: var(--sb-popup-padding, 16px 18px);
   background: var(--sb-surface);
   color: var(--sb-ink-body);
   border: 1px solid var(--sb-outline);
-  border-radius: 18px;
+  border-radius: var(--sb-popup-radius, 18px);
   box-shadow: var(--sb-shadow);
-  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-  font-size: 15px;
+  font-family: var(--sb-font-family, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif);
+  font-size: var(--sb-font-size, 15px);
   line-height: 1.5;
   opacity: 0;
   visibility: hidden;
@@ -3065,7 +3077,8 @@ ${ACCOUNT_CSS}
 .sb-lookup-link:hover { color: var(--sb-accent-hover); text-decoration: underline; }
 .sb-btn.sb-reveal-definitions { margin: 6px 0; padding: 4px 0; border: 0; background: transparent; color: var(--sb-accent); font: inherit; font-size: 12px; cursor: pointer; }
 .sb-btn.sb-reveal-definitions:hover { color: var(--sb-accent-hover); text-decoration: underline; }
-.sb-sense-row[hidden], .sb-gloss-row[hidden] { display: none !important; }
+.sb-sense-row[hidden], .sb-gloss-row[hidden], .sb-usage[hidden] { display: none !important; }
+.sb-usages:not(:has(.sb-usage:not([hidden]))) { display: none; }
 
 /* The candidate picker: every word this span can name, the current one marked.
    A row of chips rather than a list, because it is a choice between short
@@ -3118,6 +3131,7 @@ ${ACCOUNT_CSS}
 
 /* The rest of the ranked list, one click away. A chip because it sits in the row
    and takes the same click, but with no headword to show. */
+.sb-candidate-pos { font-size: 11px; opacity: .75; }
 .sb-candidate-more { font-size: 12px; color: var(--sb-ink-subtle); }
 .sb-btn.sb-results-toggle {
   display: inline-flex;

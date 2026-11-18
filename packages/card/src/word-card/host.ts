@@ -89,6 +89,10 @@ export type LookupContext = {
   endOffset?: number;
 };
 
+/** The token behind an entry lookup. `entry` says which candidate the reader
+    meant; the token is how the host finds the ranked list that candidate is in. */
+export type EntryLookupContext = LookupContext & { lemma?: string };
+
 export type LookupPending = { status: "pending"; message: string };
 export type LookupFailed = { status: "failed"; message: string };
 export type LookupFound = {
@@ -160,7 +164,11 @@ export type LookupKind = "word" | "kanji" | "text";
 
 export type WordCardHost = {
   lookup(query: string, kind: LookupKind, context?: LookupContext): Promise<LookupResult>;
-  lookupEntry(entry: string, surface: string, word?: HTMLElement): Promise<LookupResult>;
+  /** Open `entry` among the candidates for the token in `context`. `entry` is a
+      word handle (a parse token's `wordId`) or a `slug:sourceId` handle. When no
+      candidate is that entry, as after a re-import renamed it, answer with the
+      top-ranked candidate rather than nothing. */
+  lookupEntry(entry: string, surface: string, word?: HTMLElement, context?: EntryLookupContext): Promise<LookupResult>;
   /** Optional cheaper hover warmup. Its own lookup cache should serve the later
       lookup call; the card does not render or report this answer. */
   prefetch?(query: string, kind: LookupKind, context?: LookupContext): Promise<void>;

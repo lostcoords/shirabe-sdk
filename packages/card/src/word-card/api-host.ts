@@ -136,6 +136,32 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
     return { status: "failed", message: "Definitions are unavailable. Please try again later." };
   }
 
+  // One ranked list per token, shared by the word and every chip picked on it.
+  const ranked = new Map<string, ApiWordDetail[]>();
+  const rank = async (token: IdentifyToken): Promise<ApiWordDetail[]> => {
+    const key = JSON.stringify(token);
+    const cached = ranked.get(key);
+    if (cached) return cached;
+    // `include` is what makes this one call rather than a second fetch for the
+    // pitch diagram and the badges.
+    const body = {
+      tokens: [token],
+      include: ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"],
+    } satisfies IdentifyWordsData["body"];
+    const answer = await call<IdentifyWordsResponse>(() => identifyWords({
+      client,
+      headers: { "Accept-Language": uiLocale(languages) },
+      body,
+    }));
+
+    // A token that resolves to nothing answers 200 with `words: [null]`, so
+    // "no entry" arrives in the body rather than as a status. A name, a
+    // coinage or a typo the corpus kept is an ordinary case, not a failure.
+    const candidates = (answer.words[0]?.candidates ?? []).map(completeCandidate);
+    remember(ranked, key, candidates);
+    return candidates;
+  };
+
   // Which word a token is, asked the way the server wants it asked.
   //
   // NOT `GET /api/v1/words/{id}`. That takes a spelling and ignores everything
@@ -144,36 +170,25 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
   // `identify` takes the token, uses the reading and the part of speech to rank,
   // and answers a LIST, because one answer is often a claim that cannot be
   // supported: きみ is 君, 黄身 or 黍 and only the reader knows which.
+  //
+  // `selectedEntry` names the candidate the reader meant. A handle no candidate
+  // carries any more (a re-import renamed its entry) opens the top-ranked
+  // candidate, never "no entry".
   const identify = async (token: IdentifyToken, selectedEntry?: string): Promise<LookupResult> => {
     const key = `identify:${JSON.stringify([token, selectedEntry])}`;
     const cached = cache.get(key);
     if (cached) return cached;
     try {
-      // `include` is what makes this one call rather than a second fetch for the
-      // pitch diagram and the badges.
-      const body = {
-        tokens: [token],
-        include: ["pitch", "frequency", "furigana", "jlpt", "forms", "notes", "relations", "parts"],
-      } satisfies IdentifyWordsData["body"];
-      const answer = await call<IdentifyWordsResponse>(() => identifyWords({
-        client,
-        headers: { "Accept-Language": uiLocale(languages) },
-        body,
-      }));
-
-      // A token that resolves to nothing answers 200 with `words: [null]`, so
-      // "no entry" arrives in the body rather than as a status. A name, a
-      // coinage or a typo the corpus kept is an ordinary case, not a failure.
-      const candidates = (answer.words[0]?.candidates ?? []).map(completeCandidate);
-
-      const selected = selectedEntry ? candidates.find((candidate) => entryIdentity(candidate) === selectedEntry) : candidates[0];
+      const candidates = await rank(token);
+      const alternatives = candidates.map((candidate) => toDefinition(candidate, base, languages, options));
+      const selected = (selectedEntry ? candidates.findIndex((candidate) => isEntry(candidate, selectedEntry)) : -1);
       const found: LookupResult = {
         status: "found",
-        definition: selected ? toDefinition(selected, base, languages, options) : null,
+        definition: alternatives[selected === -1 ? 0 : selected] ?? null,
         // `identifyWords` already returned the complete ranked entries. Keep
         // them as definitions so capable Card renderers can show one scrollable
         // result stack instead of asking again just to fill candidate pills.
-        ...(candidates.length ? { alternatives: candidates.map((candidate) => toDefinition(candidate, base, languages, options)) } : {}),
+        ...(alternatives.length ? { alternatives } : {}),
         candidates: candidates.map((candidate) => ({
           entry: entryIdentity(candidate),
           headword: candidate.headword,
@@ -200,12 +215,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
     // a whole clause asks about something nobody pointed at.
     async lookup(query, kind, context) {
       if (kind !== "text") {
-        return identify({
-          lemma: query,
-          ...(context?.surface ? { surface: context.surface } : {}),
-          ...(context?.reading ? { reading: context.reading } : {}),
-          ...(context?.pos ? { pos: context.pos } : {}),
-        });
+        return identify(identifyToken(query, context));
       }
       // Cutting can fail rather than come back empty: signed out, the parse is
       // a 401. Answering "no entry" there would blame the word for our missing
@@ -220,22 +230,15 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
       const first = tokens.find((token) => token.content !== false &&
         (!contextual || token.start <= offset && offset < token.start + token.length));
       if (!first) return { status: "found", definition: null };
-      const result = await identify({
-        lemma: first.lemma ?? first.surface,
-        surface: first.surface,
-        ...(first.reading ? { reading: first.reading } : {}),
-        ...(first.pos ? { pos: first.pos } : {}),
-      });
-      if (result.status !== "found") return result;
-      const selected = first.entry && result.definition?.entry !== first.entry
-        ? await this.lookupEntry(first.entry, first.surface) : result;
+      const selected = await identify(identifyToken(first.lemma ?? first.surface, first), first.entry);
       if (selected.status !== "found" || !selected.definition) return selected;
-      return { ...selected, candidates: result.candidates, ...(contextual ? { scanStart: start + first.start } : {}), definition: { ...selected.definition, sourceForm: first.surface,
+      return { ...selected, ...(contextual ? { scanStart: start + first.start } : {}), definition: { ...selected.definition, sourceForm: first.surface,
         ...(first.inflection?.length ? { inflection: first.inflection, inflectionBase: first.inflectionBase } : {}),
       } };
     },
 
-    lookupEntry: (entry, surface) => identify({ lemma: surface, surface }, entry),
+    lookupEntry: (entry, surface, _word, context) =>
+      identify(identifyToken(context?.lemma ?? surface, { ...context, surface: context?.surface ?? surface }), entry),
 
     // The server's own tokenizer, so a host with no parser gets the same cuts
     // the website and the extension get rather than a guess made from a string.
@@ -267,6 +270,7 @@ export function apiHost(options: ApiHostOptions): WordCardHost {
         start: token.startOffset,
         length: token.endOffset - token.startOffset,
         lemma: token.lemma ?? token.surface,
+        ...(token.wordId ? { entry: token.wordId } : {}),
         reading: token.reading,
         pos: token.partOfSpeech,
         ...(token.inflection ? { inflection: token.inflection.forms.map(({ label }) => label), inflectionBase: token.inflection.base } : {}),
@@ -346,6 +350,21 @@ function completeCandidate(candidate: IdentifiedCandidate): ApiWordDetail {
     furigana: candidate.furigana ?? [] } as ApiWordDetail;
 }
 
+function candidateSource(candidate: IdentifiedCandidate): { dictionary: string; sourceId: string } {
+  const dictionary = candidate.dictionary ?? candidate.entries?.[0]?.dictionary ?? "jmdict";
+  const sourceId = candidate.sourceId ?? (candidate.id.startsWith(`${dictionary}:`)
+    ? candidate.id.slice(dictionary.length + 1) : candidate.id);
+  return { dictionary, sourceId };
+}
+
+/** True when `entry` names this candidate, by its word handle (a parse token's
+    `wordId`, `開く-ひらく`) or by the `slug:sourceId` handle a rendered card
+    writes back to `data-entry` and a save links by. */
+export function isCandidateEntry(candidate: IdentifiedCandidate, entry: string): boolean {
+  const { dictionary, sourceId } = candidateSource(candidate);
+  return candidate.id === entry || `${dictionary}:${sourceId}` === entry;
+}
+
 /** Map an identify candidate directly to a card, including optional includes. */
 export function candidateToDefinition(
   candidate: IdentifiedCandidate,
@@ -356,10 +375,8 @@ export function candidateToDefinition(
     filterDefinitions?: (definitions: ApiSense["definitions"], dictionary: string) => ApiSense["definitions"];
   } = {},
 ): Definition {
-  const dictionary = candidate.dictionary ?? candidate.entries?.[0]?.dictionary ?? "jmdict";
+  const { dictionary, sourceId } = candidateSource(candidate);
   const headword = options.headword ?? candidate.matchedHeadword ?? candidate.headword;
-  const sourceId = candidate.sourceId ?? (candidate.id.startsWith(`${dictionary}:`)
-    ? candidate.id.slice(dictionary.length + 1) : candidate.id);
   const payload: ApiWordDetail = {
     id: candidate.id,
     headword,
@@ -391,6 +408,7 @@ export function candidateToDefinition(
         ...sense,
         position: sense.position ?? index,
         definitions: options.filterDefinitions?.(sense.definitions ?? [], entry.dictionary) ?? sense.definitions ?? [],
+        ...(sense.usages ? { usages: options.filterDefinitions?.(sense.usages, entry.dictionary) ?? sense.usages } : {}),
         tags: sense.tags ?? [],
       })),
     })),
@@ -438,6 +456,21 @@ function readingOf(payload: ApiWordDetail): string | null {
  */
 function entryIdentity(payload: ApiWordDetail): string {
   return `${payload.dictionary}:${payload.sourceId}`;
+}
+
+// A word element names its entry either way: a parse token's `wordId` is the
+// word handle (`開く-ひらく`), and a rendered card writes back `slug:sourceId`.
+function isEntry(candidate: ApiWordDetail, entry: string): boolean {
+  return candidate.id === entry || entryIdentity(candidate) === entry;
+}
+
+function identifyToken(lemma: string, context?: { surface?: string; reading?: string; pos?: string }): IdentifyToken {
+  return {
+    lemma,
+    ...(context?.surface ? { surface: context.surface } : {}),
+    ...(context?.reading ? { reading: context.reading } : {}),
+    ...(context?.pos ? { pos: context.pos } : {}),
+  };
 }
 
 export function toDefinition(payload: ApiWordDetail, base: string, languages: readonly GlossLanguage[], tagOptions?: TagPresentationOptions | TagLabeler, legacyPresenter?: TagPresenter): Definition {
@@ -585,11 +618,10 @@ function usageRows(sense: ApiSense, languages: readonly GlossLanguage[]): GlossR
       rows.push({ lang: language, tag: GLOSS_TAGS[language], text: usage.text, ...(usage.title ? { title: usage.title } : {}) });
     }
   }
-  if (rows.length) return rows;
-  return (sense.usages ?? []).map((usage) => {
-    const lang = FROM_ISO[usage.lang] ?? languages[0] ?? "eng";
-    return { lang, tag: GLOSS_TAGS[lang], text: usage.text, ...(usage.title ? { title: usage.title } : {}) };
-  });
+  // No fallback to every language, unlike glosses: a sense with no gloss in the
+  // reader's languages still needs its meaning, but a usage note is extra, and
+  // one in a language they did not pick is noise they cannot read.
+  return rows;
 }
 
 const chips = (tags: ApiTag[], keep: (tag: ApiTag) => boolean, languages: readonly GlossLanguage[], options: TagPresentationOptions): SenseChip[] =>

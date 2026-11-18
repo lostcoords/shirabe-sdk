@@ -94,9 +94,9 @@ export function createAnkiHost(options: { apiBase: string; link: Link; now?: () 
         return await withSession(async ({ host, preferences }) => reveal(await host.lookup(query, kind, context), preferences));
       } catch (error) { return failure(error); }
     },
-    async lookupEntry(entry, surface) {
+    async lookupEntry(entry, surface, word, context) {
       try {
-        return await withSession(async ({ host, preferences }) => reveal(await host.lookupEntry(entry, surface), preferences));
+        return await withSession(async ({ host, preferences }) => reveal(await host.lookupEntry(entry, surface, word, context), preferences));
       } catch (error) { return failure(error); }
     },
     async tokenize(text) {

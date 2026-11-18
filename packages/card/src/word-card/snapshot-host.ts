@@ -509,7 +509,7 @@ export function snapshotHost(fallback: WordCardHost | undefined, snapshot: unkno
       }
       return fallback ? fallback.lookup(query, kind, context) : missing();
     },
-    async lookupEntry(entry, surface) {
+    async lookupEntry(entry, surface, word, context) {
       playable.clear();
       for (const s of active) {
         for (const r of s.results) {
@@ -518,7 +518,7 @@ export function snapshotHost(fallback: WordCardHost | undefined, snapshot: unkno
           if (candidate) return result(r.candidates, token.surface === surface ? token : undefined, candidate);
         }
       }
-      return fallback ? fallback.lookupEntry(entry, surface) : missing();
+      return fallback ? fallback.lookupEntry(entry, surface, word, context) : missing();
     },
   };
   return new Proxy(host, {

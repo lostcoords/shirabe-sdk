@@ -32,6 +32,7 @@ export function withFallback(primary: WordCardHost, fallback: WordCardHost): Wor
   return {
     ...primary,
     lookup: (query, kind, context) => escalate(() => primary.lookup(query, kind, context), () => fallback.lookup(query, kind, context)),
-    lookupEntry: (entry, surface) => escalate(() => primary.lookupEntry(entry, surface), () => fallback.lookupEntry(entry, surface)),
+    lookupEntry: (entry, surface, word, context) => escalate(() => primary.lookupEntry(entry, surface, word, context),
+      () => fallback.lookupEntry(entry, surface, word, context)),
   };
 }

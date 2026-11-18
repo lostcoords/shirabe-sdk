@@ -1,5 +1,19 @@
 # Changelog
 
+## Card 0.4.0
+
+Depends on exactly `@shirabe-org/api` 0.10.0. Breaks hosts that compared `candidateHost`'s `Definition.entry` with a candidate `id`.
+
+- An element with `data-entry` is looked up with its whole token. `lookupEntry(entry, surface, word, context)` receives the span's `lemma`, `surface`, `reading` and `pos`, and the built-in hosts rank by them. Before, they asked with the surface as the lemma and no reading or part of speech, so 開いた read ヒライタ could open あく.
+- `data-entry` takes a parse token's `wordId` (`開く-ひらく`) as well as a `slug:sourceId` handle. `apiHost.tokenize` carries each token's `wordId` as its `entry`.
+- An entry no candidate carries any more, as after a dictionary re-import renamed it, opens the top-ranked candidate instead of "No entry".
+- `candidateHost` sets `Definition.entry` to the candidate's `slug:sourceId`, as `apiHost` does, in place of its word handle. The card writes that back to `data-entry`, so a host's save gets the `dictionarySlug` and `sourceId` `POST /srs/saves` links by.
+- `apiHost` asks identify once per token, and a picked chip or entry reuses that answer.
+- The results overview names each word's part of speech (Pronoun, Interjection) in place of a "Word" badge on every row. Names and articles keep their badges. `TokenCandidate.pos` names a candidate chip's part of speech, and the chip shows it when another chip is spelled and read alike.
+- `--sb-popup-radius`, `--sb-popup-padding`, `--sb-font-family` and `--sb-font-size` style the card's shell, defaulting to 18px, 16px 18px, the system font stack and 15px. A host no longer needs `customCss` on `.sb-popup`.
+- `candidateHost` takes `presentationForTag` and `labelForTag`, as `apiHost` does.
+- A usage note in none of the reader's `languages` is dropped. Glosses keep their fallback to every language. `candidateHost`'s `filterDefinitions` also receives each sense's usages, and `hiddenGlossLanguages` folds usage notes with the glosses of those languages.
+
 ## API 0.10.0
 
 Generated from Shirabe contract 0.10.0. This is the first API release since 0.6.1, and it breaks callers. Contract 0.9.0 was never published on its own, so its changes are listed here too.

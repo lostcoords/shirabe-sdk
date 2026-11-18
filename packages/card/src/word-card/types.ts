@@ -25,6 +25,9 @@ export type TokenCandidate = {
   headword: string;
   reading: string | null;
   common: boolean;
+  /** What the word is ("Pronoun"). A chip shows it when another candidate is
+      spelled and read alike, since nothing else tells the two apart. */
+  pos?: string;
 };
 
 export type PitchPattern = { downstep: number; audioUrl: string | null };

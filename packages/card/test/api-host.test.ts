@@ -340,6 +340,19 @@ test("publisher definition titles and usage-only senses survive API mapping", ()
   assert.deepEqual(definition.senses[1]?.usages, [{ lang: "jpn", tag: "JA", text: "才気を鼻にかける", title: "用例" }]);
 });
 
+// A note is extra, not the meaning: one in a language the reader did not pick
+// is noise. Glosses keep their fallback, because a sense needs its meaning.
+test("usage notes outside the reader's languages are dropped while glosses fall back", () => {
+  const source = { ...payload.entries[0]!, senses: [{
+    ...payload.entries[0]!.senses[0]!,
+    definitions: [{ lang: "es", text: "abrir" }],
+    usages: [{ lang: "es", text: "se usa con puertas" }],
+  }] };
+  const sense = toDefinition({ ...payload, entries: [source] }, "https://shirabe.org", ["eng"]).senses[0]!;
+  assert.deepEqual(sense.glosses.map((row) => row.text), ["abrir"]);
+  assert.equal(sense.usages?.length ?? 0, 0);
+});
+
 test("a note-only sense remains visible without inventing a definition", () => {
   const entry = {
     ...payload.entries[0]!,
@@ -614,11 +627,50 @@ test("a picked entry keeps its dictionary, source id and locale", async () => {
   });
   await host.lookupEntry("jmdict:1202650", "開く");
   await host.lookupEntry("jmnedict:1202650", "開く");
-  assert.equal(asked.length, 2);
+  assert.equal(asked.length, 1, "both picks are among one ranked list for the token");
   assert.equal(new URL(asked[0]!.url).pathname, "/api/v1/words/identify");
-  assert.equal(new URL(asked[1]!.url).pathname, "/api/v1/words/identify");
-  assert.deepEqual(asked[0]!.body, asked[1]!.body);
   assert.equal(asked[0]!.language, "es");
+});
+
+// The website's parse names the entry by its word handle (`wordId`), and the
+// card asks for it with the token it sat on. Asked by surface alone, 開いた
+// ranks あく first and the reading that made it ひらく is gone.
+test("an entry lookup ranks by the token and opens the entry its word handle names", async () => {
+  const aku = { ...payload, id: "開く-あく", sourceId: "1586270", reading: "あく",
+    entries: [{ ...payload.entries[0]!, sourceId: "1586270" }] };
+  const tokens: unknown[] = [];
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async (url, init) => {
+    const request = url instanceof Request ? url : new Request(url, init);
+    tokens.push(JSON.parse(await request.clone().text()).tokens[0]);
+    return Response.json({ words: [{ candidates: [aku, payload] }] });
+  } });
+  const result = await host.lookupEntry("開く-ひらく", "開いた", undefined,
+    { lemma: "開く", surface: "開いた", reading: "ヒライタ", pos: "verb" });
+  assert.deepEqual(tokens, [{ lemma: "開く", surface: "開いた", reading: "ヒライタ", pos: "verb" }]);
+  assert.equal(result.status, "found");
+  if (result.status !== "found") return;
+  assert.equal(result.definition?.entry, "jmdict:1202650");
+  assert.equal(result.definition?.reading, "ひらく");
+});
+
+// A dictionary re-import can rename an entry after the page stored its handle.
+// The token still names the word, so the reader gets the best answer, not a miss.
+test("an entry no candidate carries any more opens the top-ranked candidate", async () => {
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test",
+    fetch: async () => Response.json({ words: [{ candidates: [payload] }] }) });
+  const result = await host.lookupEntry("窓-まど-1", "開く", undefined, { lemma: "開く", surface: "開く" });
+  assert.equal(result.status, "found");
+  if (result.status === "found") assert.equal(result.definition?.entry, "jmdict:1202650");
+});
+
+test("a parsed token carries its word handle to the word it wraps", async () => {
+  const host = apiHost({ apiBase: "https://shirabe.org", token: "test", fetch: async () => Response.json({ results: [{ tokens: [
+    { surface: "開いた", lemma: "開く", wordId: "開く-ひらく", reading: "ヒライタ", partOfSpeech: "verb", kind: "word", startOffset: 0, endOffset: 3 },
+    { surface: "。", kind: "symbol", startOffset: 3, endOffset: 4 },
+  ] }] }) });
+  const tokens = await host.tokenize!("開いた。");
+  assert.equal(tokens[0]?.entry, "開く-ひらく");
+  assert.equal(tokens[1]?.entry, undefined);
 });
 
 test("each lookup carries its candidates even when the headword changes", async () => {

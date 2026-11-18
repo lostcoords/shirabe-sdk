@@ -36,3 +36,84 @@ test("a candidate transport retains ranked matches and follows the visible defin
   if (second.status === "found") assert.equal(second.definition?.headword, "京");
   assert.equal(asked.length, 1);
 });
+
+const ranked = [
+  { id: "開く-あく", dictionary: "jmdict", sourceId: "1586270", headword: "開く", reading: "あく", entries: [] },
+  { id: "開く-ひらく", dictionary: "jmdict", sourceId: "1202650", headword: "開く", reading: "ひらく", entries: [] },
+] as unknown as IdentifiedCandidate[];
+
+function rankedHost(asked: unknown[]) {
+  return candidateHost({
+    site: "https://dictionary.test",
+    languages: () => ["eng"],
+    displayLocale: () => "en",
+    lookupCandidates: async (query) => { asked.push(query); return { candidates: ranked }; },
+  });
+}
+
+test("an entry lookup asks with the token and opens the candidate the parse named", async () => {
+  const asked: unknown[] = [];
+  const result = await rankedHost(asked).lookupEntry("開く-ひらく", "開いた", undefined,
+    { lemma: "開く", surface: "開いた", reading: "ヒライタ", pos: "verb" });
+  assert.deepEqual(asked, [{ lemma: "開く", surface: "開いた", reading: "ヒライタ", pos: "verb" }]);
+  assert.equal(result.status, "found");
+  if (result.status !== "found") return;
+  assert.equal(result.definition?.reading, "ひらく");
+  // What the card writes back to `data-entry`, and what a save links by.
+  assert.equal(result.definition?.entry, "jmdict:1202650");
+});
+
+test("an entry renamed since the page stored it opens the top-ranked candidate", async () => {
+  const result = await rankedHost([]).lookupEntry("窓-まど-1", "窓", undefined, { lemma: "窓", surface: "窓" });
+  assert.equal(result.status, "found");
+  if (result.status === "found") assert.equal(result.definition?.reading, "あく");
+});
+
+test("a rendered entry handle opens the same candidate again", async () => {
+  const asked: unknown[] = [];
+  const result = await rankedHost(asked).lookupEntry("jmdict:1202650", "開く", undefined, { lemma: "開く", surface: "開く" });
+  assert.equal(result.status, "found");
+  if (result.status === "found") assert.equal(result.definition?.reading, "ひらく");
+});
+
+const tagged = [{
+  id: "開く-ひらく", dictionary: "jmdict", sourceId: "1202650", headword: "開く", reading: "ひらく",
+  entries: [{ dictionary: "jmdict", sourceId: "1202650", type: "definition", senses: [{
+    position: 0,
+    definitions: [{ lang: "en", text: "to open" }, { lang: "es", text: "abrir" }],
+    usages: [{ lang: "en", text: "of a door" }, { lang: "es", text: "de una puerta" }],
+    tags: [{ category: "partOfSpeech", code: "v5k", label: "Godan verb", scope: "sense" }],
+  }] }],
+}] as unknown as IdentifiedCandidate[];
+
+test("a host's tag labels and presentations reach candidate definitions", async () => {
+  const host = candidateHost({
+    site: "https://dictionary.test",
+    languages: () => ["eng"],
+    displayLocale: () => "en",
+    lookupCandidates: async () => ({ candidates: tagged }),
+    labelForTag: (tag, label) => tag.code === "v5k" ? "Godan (de)" : label,
+    presentationForTag: (_tag, defaults) => ({ ...defaults, explanation: "Ein Godan-Verb." }),
+  });
+  const result = await host.lookup("開く", "word", { surface: "開く" });
+  assert.equal(result.status, "found");
+  if (result.status !== "found") return;
+  const chip = result.definition?.senses[0]?.partsOfSpeech[0];
+  assert.equal(chip?.label, "Godan (de)");
+  assert.equal(chip?.presentation?.explanation, "Ein Godan-Verb.");
+});
+
+test("a host's definition filter applies to usage notes too", async () => {
+  const host = candidateHost({
+    site: "https://dictionary.test",
+    languages: () => ["eng", "spa"],
+    displayLocale: () => "en",
+    lookupCandidates: async () => ({ candidates: tagged }),
+    filterDefinitions: (definitions) => definitions.filter((definition) => definition.lang !== "es"),
+  });
+  const result = await host.lookup("開く", "word", { surface: "開く" });
+  assert.equal(result.status, "found");
+  if (result.status !== "found") return;
+  assert.deepEqual(result.definition?.senses[0]?.glosses.map((row) => row.text), ["to open"]);
+  assert.deepEqual(result.definition?.senses[0]?.usages?.map((row) => row.text), ["of a door"]);
+});
